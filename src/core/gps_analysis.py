@@ -1,12 +1,15 @@
+import json
+import datetime
+from logging import getLogger, basicConfig, INFO, ERROR, DEBUG
 import gpxpy
 from pathlib import Path
 from argparse import ArgumentParser
-import json
-import datetime
 import pandas as pd
 import numpy as np
 from bs4 import BeautifulSoup
-from logging import getLogger, basicConfig, INFO, ERROR, DEBUG
+import matplotlib.pyplot as plt
+
+from utils import log_calls, reindex, resample
 
 logger = getLogger()
 
@@ -15,17 +18,36 @@ class TraceAnalysis():
     def __init__(self, gpx_path):
         logger.info(f"init {self.__class__.__name__} with file {gpx_path}")
         self.gpx_path = gpx_path
-        self.tracks = self.load_gpx()
+        self.html_soup = self.load_gpx_file_to_html()
+        self.tracks = self.format_html_to_gpx()
         self.df = self.to_pandas(self.tracks[0].segments[0])
+        self.df = reindex(self.df, 'time')
+        self.ts = resample(self.df)
 
+    @log_calls
     def clean_gpx(self, filename):
         with open(filename, 'r') as gpx_file:
             soup = BeautifulSoup(gpx_file, 'html.parser')
 
-    def load_gpx(self):
+    @log_calls
+    def load_gpx_file_to_html(self):
         with open(self.gpx_path, 'r') as gpx_file:
-            gpx = gpxpy.parse(gpx_file)
+            html_soup = BeautifulSoup(gpx_file, 'html.parser')
+        return html_soup
 
+    @log_calls
+    def format_html_to_gpx(self):
+        # add <speed> tag:
+        for el in self.html_soup.findAll('gpxdata:speed'):
+            el.wrap(self.html_soup.new_tag('speed'))
+        # remove <gpxdata:speed> tag:
+        for el in self.html_soup.findAll('gpxdata:speed'):
+            el.unwrap()
+        # remove <extensions> tag:
+        for el in self.html_soup.findAll('extensions'):
+            el.unwrap()
+
+        gpx = gpxpy.parse(str(self.html_soup))
         tracks = gpx.tracks
         return tracks
 
@@ -45,9 +67,13 @@ class TraceAnalysis():
             for i,point in enumerate(raw_data.points)
         ]
         df = pd.DataFrame(split_data)
-        logger.info(df)
+        logger.info(f"loaded DataFrame: {df}")
         # TODO filter for delta speed and delta_dist > 30
         return df
+
+    def plot_speed(self):
+        self.ts.plot()
+        plt.show()
 
 # code Nunu: ==================================================
 
@@ -157,8 +183,22 @@ parser.add_argument(
 if __name__ == "__main__":
     args = parser.parse_args()
     basicConfig(level={0: INFO, 1: DEBUG}.get(args.verbose, DEBUG))
+
+    logger.info(
+        f"\n==========================\n"
+        f"now testing code of nunu:"
+        f"\n==========================\n"
+    )
     gpx_nunu = GpxFileAnalyse(args.gpx_filename)
-    gpx_jla = TraceAnalysis(args.gpx_filename)
     # display one item / line:
     dis = '\n'.join([str(x) for x in gpx_nunu.points_tab])
-    logger.info(f"points_tab {dis}")
+    logger.info(f"nunu code result: points_tab {dis}")
+
+    logger.info(
+        f"\n==========================\n"
+        f"now testing code of jla:"
+        f"\n==========================\n"
+    )
+    gpx_jla = TraceAnalysis(args.gpx_filename)
+    logger.info(f"jla code result: {gpx_jla.df}")
+    gpx_jla.plot_speed()
