@@ -40,7 +40,6 @@ class TraceAnalysis():
         #self.select_period(begin, end)
         self.df = reindex(self.df, 'time')
         self.ts = resample(self.df, "10S")
-        print(self.ts)
         self.save_to_csv()
 
     @log_calls
@@ -222,7 +221,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     basicConfig(level={0: INFO, 1: DEBUG}.get(args.verbose, DEBUG))
 
-    logger.info(
+    logger.debug(
         f"\n==========================\n"
         f"now testing code of nunu:"
         f"\n==========================\n"
@@ -230,7 +229,7 @@ if __name__ == "__main__":
     gpx_nunu = GpxFileAnalyse(args.gpx_filename)
     # display one item / line:
     dis = '\n'.join([str(x) for x in gpx_nunu.points_tab])
-    logger.info(f"nunu code result: points_tab {dis}")
+    logger.debug(f"nunu code result: points_tab {dis}")
 
     logger.info(
         f"\n==========================\n"
