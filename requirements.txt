@@ -1,0 +1,6 @@
+gpxpy
+pathlib
+pandas
+numpy
+bs4
+matplotlib
