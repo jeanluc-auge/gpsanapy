@@ -1,3 +1,16 @@
+# -*- coding: utf-8 -*-
+
+"""
+gpsanapy.core.gps_analysis
+==================
+core gps analytic:
+- parse gpx file to html
+- format html tags
+- parse html with gpxpy library to extract tracks with doppler speed
+- import to pandas DataFrame, reindex, resample, plot and save to csv
+@ jla, nunu, thelaurent, december 2020
+"""
+
 import json
 import datetime
 from logging import getLogger, basicConfig, INFO, ERROR, DEBUG
@@ -8,6 +21,7 @@ import pandas as pd
 import numpy as np
 from bs4 import BeautifulSoup
 import matplotlib.pyplot as plt
+
 
 from utils import log_calls, reindex, resample
 
@@ -21,22 +35,36 @@ class TraceAnalysis():
         self.html_soup = self.load_gpx_file_to_html()
         self.tracks = self.format_html_to_gpx()
         self.df = self.to_pandas(self.tracks[0].segments[0])
+        begin = "2019-10-06 09:56:00+00:00"
+        end = "2019-10-06 09:57:00+00:00"
+        #self.select_period(begin, end)
         self.df = reindex(self.df, 'time')
-        self.ts = resample(self.df)
+        self.ts = resample(self.df, "10S")
+        print(self.ts)
+        self.save_to_csv()
 
     @log_calls
     def clean_gpx(self, filename):
         with open(filename, 'r') as gpx_file:
             soup = BeautifulSoup(gpx_file, 'html.parser')
 
-    @log_calls
+    @log_calls()
     def load_gpx_file_to_html(self):
         with open(self.gpx_path, 'r') as gpx_file:
             html_soup = BeautifulSoup(gpx_file, 'html.parser')
         return html_soup
 
-    @log_calls
+    @log_calls()
     def format_html_to_gpx(self):
+        """
+        remove unwanted tags in html file:
+        - <extensions>
+        - <gpxdata:speed>
+        and replace them with <speed> tag
+
+        :return: gps tracks
+        """
+
         # add <speed> tag:
         for el in self.html_soup.findAll('gpxdata:speed'):
             el.wrap(self.html_soup.new_tag('speed'))
@@ -51,6 +79,7 @@ class TraceAnalysis():
         tracks = gpx.tracks
         return tracks
 
+    @log_calls(log_args=False, log_result=True)
     def to_pandas(self, raw_data):
         split_data = [
             {
@@ -67,13 +96,22 @@ class TraceAnalysis():
             for i,point in enumerate(raw_data.points)
         ]
         df = pd.DataFrame(split_data)
-        logger.info(f"loaded DataFrame: {df}")
         # TODO filter for delta speed and delta_dist > 30
         return df
 
+    @log_calls()
+    def select_period(self, begin, end):
+        self.df = self.df.loc[begin:end]
+
+    @log_calls()
     def plot_speed(self):
         self.ts.plot()
         plt.show()
+
+    @log_calls()
+    def save_to_csv(self, df_file="df.csv", ts_file="ts.csv"):
+        self.df.to_csv(df_file)
+        self.ts.to_csv(ts_file)
 
 # code Nunu: ==================================================
 
@@ -170,7 +208,7 @@ class GpxFileAnalyse:
 
 parser = ArgumentParser()
 parser.add_argument(
-    "-f", "--gpx_filename", nargs="?", type=Path, default='test_5points.gpx'
+    "-f", "--gpx_filename", nargs="?", type=Path, default='.gpx'
 )
 parser.add_argument(
     "-v",
