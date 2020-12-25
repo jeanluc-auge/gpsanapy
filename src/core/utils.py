@@ -61,6 +61,17 @@ def log_calls(log_args=False, log_result=False):
 
     return outer_wrap
 
+class TraceAnalysisException(Exception):
+    def __init__(self, body):
+        self.body = body
+
+    def __str__(self):
+        return (
+            f"\n=======================================\n"
+            f"GPS analysis critical error:\n"
+            f"{self.body}\n"
+            f"======================================="
+        )
 
 def reindex(df, time_col):
     """
