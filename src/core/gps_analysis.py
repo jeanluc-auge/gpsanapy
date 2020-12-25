@@ -91,16 +91,30 @@ class TraceAnalysis():
                 'lat': point.latitude,
                 'time': point.time,
                 'speed': (
-                    point.speed if point.speed else round(raw_data.get_speed(i)* 1.94384, 2)
+                    point.speed if point.speed else raw_data.get_speed(i)#/ 1.94384, 2)
                 ),
-                'speed_no_doppler': round(raw_data.get_speed(i)* 1.94384, 2),
+                'speed_no_doppler': raw_data.get_speed(i), #/ 1.94384, 2),
                 'has_doppler': bool(point.speed),
+                'delta_doppler': point.speed - raw_data.get_speed(i) if point.speed else np.nan,
                 'delta_dist': (point.distance_2d(raw_data.points[i-1]) if i>=1 else 0)
             }
             for i,point in enumerate(raw_data.points)
         ]
         df = pd.DataFrame(split_data)
-        # TODO filter for delta speed and delta_dist > 30
+        if not df.has_doppler.all():
+            ts = pd.Series(data=0, index=df.index)
+            ts[df.has_doppler==True] = 1
+            doppler_ratio = int(100*sum(ts) / len(ts))
+            if doppler_ratio < 50:
+                raise TraceAnalysisException(
+                    f"doppler speed is available on only {doppler_ratio}% of data"
+                )
+            logger.warning(
+                f"\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
+                f"Doppler speed is not available on all sampling points\n"
+                f"Only {doppler_ratio}% of the points have doppler data\n"
+                f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
+            )
         return df
 
     @log_calls()
