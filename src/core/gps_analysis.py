@@ -118,12 +118,42 @@ class TraceAnalysis():
         return df
 
     @log_calls()
+    def speed_xs(self, s=10, n=10):
+        """
+        Vmax: n * x seconds
+        :param xs: date time intervall
+        :param n: number of records
+        :return:
+        """
+        xs = str(s) + "S"
+        ts = self.ts.rolling(xs).mean()
+        nxs_list = []
+        for i in range(1,n+1):
+            range_end = ts.idxmax()
+            #range_end = ts.index[ts==max(ts)][0]
+            range_begin = range_end - datetime.timedelta(seconds=s)
+            ts[range_begin:range_end] = 0
+            nxs_list.append((range_begin, range_end, max(ts)))
+
+        nxs_speed_results = '\n'.join([f"{x}-{y}: {z}" for x,y,z in nxs_list])
+        print(nxs_speed_results)
+
+    @log_calls()
     def select_period(self, begin, end):
         self.df = self.df.loc[begin:end]
 
     @log_calls()
     def plot_speed(self):
-        self.ts.plot()
+        speed = self.df.resample(self.sampling).speed.mean()
+        speed_no_doppler = self.df.resample(self.sampling).speed_no_doppler.mean()
+        delta_doppler = self.df.resample(self.sampling).delta_doppler.mean()
+        dfs = pd.DataFrame(index=speed.index)
+        dfs['speed'] = speed
+        dfs['speed_no_doppler'] = speed_no_doppler
+        dfs['delta_doppler'] = delta_doppler
+        print('dfs',dfs)
+        dfs.plot()
+        #self.ts.plot()
         plt.show()
 
     @log_calls()
@@ -240,15 +270,15 @@ if __name__ == "__main__":
     args = parser.parse_args()
     basicConfig(level={0: INFO, 1: DEBUG}.get(args.verbose, DEBUG))
 
-    logger.debug(
-        f"\n==========================\n"
-        f"now testing code of nunu:"
-        f"\n==========================\n"
-    )
-    gpx_nunu = GpxFileAnalyse(args.gpx_filename)
-    # display one item / line:
-    dis = '\n'.join([str(x) for x in gpx_nunu.points_tab])
-    logger.debug(f"nunu code result: points_tab {dis}")
+    # logger.debug(
+    #     f"\n==========================\n"
+    #     f"now testing code of nunu:"
+    #     f"\n==========================\n"
+    # )
+    # gpx_nunu = GpxFileAnalyse(args.gpx_filename)
+    # # display one item / line:
+    # dis = '\n'.join([str(x) for x in gpx_nunu.points_tab])
+    # logger.debug(f"nunu code result: points_tab {dis}")
 
     logger.info(
         f"\n==========================\n"
@@ -257,4 +287,5 @@ if __name__ == "__main__":
     )
     gpx_jla = TraceAnalysis(args.gpx_filename)
     logger.info(f"jla code result: {gpx_jla.df}")
-    gpx_jla.plot_speed()
+    #gpx_jla.plot_speed()
+    gpx_jla.speed_xs()
