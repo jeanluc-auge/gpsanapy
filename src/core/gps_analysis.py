@@ -19,42 +19,44 @@ from pathlib import Path
 from argparse import ArgumentParser
 import pandas as pd
 import numpy as np
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, element
 import matplotlib.pyplot as plt
 
 
-from utils import log_calls, reindex, resample
+from utils import log_calls, reindex, resample, TraceAnalysisException
 
 logger = getLogger()
 
 class TraceAnalysis():
 
-    def __init__(self, gpx_path):
+    def __init__(self, gpx_path, sampling="2S"):
         logger.info(f"init {self.__class__.__name__} with file {gpx_path}")
+        self.sampling = sampling
         self.gpx_path = gpx_path
-        self.html_soup = self.load_gpx_file_to_html()
-        self.tracks = self.format_html_to_gpx()
-        self.df = self.to_pandas(self.tracks[0].segments[0])
+        self.df = self.load_df(gpx_path)
+
         begin = "2019-10-06 09:56:00+00:00"
         end = "2019-10-06 09:57:00+00:00"
         #self.select_period(begin, end)
-        self.df = reindex(self.df, 'time')
-        self.ts = resample(self.df, "10S")
+        self.ts = resample(self.df, sampling)
         self.save_to_csv()
 
-    @log_calls
-    def clean_gpx(self, filename):
-        with open(filename, 'r') as gpx_file:
-            soup = BeautifulSoup(gpx_file, 'html.parser')
+    def load_df(self, gpx_path):
+        html_soup = self.load_gpx_file_to_html(gpx_path)
+        tracks = self.format_html_to_gpx(html_soup)
+        df = self.to_pandas(tracks[0].segments[0])
+        # TODO filter for delta speed and delta_dist > 30
+        df = reindex(df, 'time')
+        return df
 
     @log_calls()
-    def load_gpx_file_to_html(self):
-        with open(self.gpx_path, 'r') as gpx_file:
+    def load_gpx_file_to_html(self, gpx_path):
+        with open(gpx_path, 'r') as gpx_file:
             html_soup = BeautifulSoup(gpx_file, 'html.parser')
         return html_soup
 
     @log_calls()
-    def format_html_to_gpx(self):
+    def format_html_to_gpx(self, html_soup):
         """
         remove unwanted tags in html file:
         - <extensions>
@@ -63,18 +65,21 @@ class TraceAnalysis():
 
         :return: gps tracks
         """
-
+        # remove xml description:
+        for e in html_soup:
+            if isinstance(e, element.ProcessingInstruction):
+                e.extract()
         # add <speed> tag:
-        for el in self.html_soup.findAll('gpxdata:speed'):
-            el.wrap(self.html_soup.new_tag('speed'))
+        for el in html_soup.findAll('gpxdata:speed'):
+            el.wrap(html_soup.new_tag('speed'))
         # remove <gpxdata:speed> tag:
-        for el in self.html_soup.findAll('gpxdata:speed'):
+        for el in html_soup.findAll('gpxdata:speed'):
             el.unwrap()
         # remove <extensions> tag:
-        for el in self.html_soup.findAll('extensions'):
+        for el in html_soup.findAll('extensions'):
             el.unwrap()
 
-        gpx = gpxpy.parse(str(self.html_soup))
+        gpx = gpxpy.parse(str(html_soup), version='1.0')
         tracks = gpx.tracks
         return tracks
 
