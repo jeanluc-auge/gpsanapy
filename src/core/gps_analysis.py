@@ -29,16 +29,20 @@ logger = getLogger()
 
 
 class TraceAnalysis:
-    def __init__(self, gpx_path, sampling="2S"):
+    def __init__(self, gpx_path, sampling="1S"):
         logger.info(f"init {self.__class__.__name__} with file {gpx_path}")
         self.sampling = sampling
         self.gpx_path = gpx_path
         self.df = self.load_df(gpx_path)
+        begin = "2019-04-02 16:34:00+00:00"
+        end = "2019-04-02 16:36:00+00:00"
+        #self.select_period(begin, end)
+        self.clean_df()
 
-        begin = "2019-10-06 09:56:00+00:00"
-        end = "2019-10-06 09:57:00+00:00"
-        # self.select_period(begin, end)
-        self.ts = resample(self.df, sampling)
+        # generate key time series with fixed sampling and interpolation:
+        self.tsd = resample(self.df, sampling, "speed")
+        self.ts = resample(self.df, sampling, "speed_no_doppler")
+        self.td = resample(self.df, sampling, "delta_dist")
         self.save_to_csv()
 
     def load_df(self, gpx_path):
@@ -48,6 +52,43 @@ class TraceAnalysis:
         # TODO filter for delta speed and delta_dist > 30
         df = reindex(df, "time")
         return df
+
+    def clean_df(self):
+        # calculate and create column of elapsed time in seconds:
+        def filter(x):
+            i = 0
+            if x[0] > 0.3:
+                exiting = False
+                for i,a in enumerate(x):
+                    if a < -0.1:
+                        exiting = True
+                    elif exiting:
+                        break
+            return i
+
+        erratic_data = True
+        iter = 1
+        while erratic_data and iter < 10:
+            self.df['elapsed_time'] = pd.to_timedelta(
+                self.df.index-self.df.index[0]).astype('timedelta64[s]'
+            )
+            self.df['acceleration'] = self.df.speed.diff() / (9.81 * self.df.elapsed_time.diff())
+            self.df['filtering'] = self.df.acceleration.rolling(30).apply(filter).shift(-29)
+            filtering = pd.Series.to_numpy(self.df.filtering)
+            indices = np.argwhere(filtering>0).flatten()
+            for i in indices:
+                self.df.iloc[int(i):int(i+filtering[i])] = np.nan
+            self.df.dropna(inplace=True)
+            erratic_data = len(indices) > 0
+            iter += 1
+        self.df.to_csv('debug.csv')
+        tf = resample(self.df, "1S", "filtering")
+        tf.plot()
+        ta = resample(self.df, "1S", "acceleration")
+        ta.plot()
+        # convert ms-1 to knots:
+        self.df.speed = round(self.df.speed*1.94384, 2)
+        self.df.speed_no_doppler = round(self.df.speed_no_doppler * 1.94384, 2)
 
     @log_calls()
     def load_gpx_file_to_html(self, gpx_path):
@@ -91,18 +132,12 @@ class TraceAnalysis:
                 "lat": point.latitude,
                 "time": point.time,
                 "speed": (
-                    round(point.speed * 1.94384, 2)
+                    point.speed
                     if point.speed
-                    else round(raw_data.get_speed(i) * 1.94384, 2)
+                    else raw_data.get_speed(i)
                 ),
-                "speed_no_doppler": round(raw_data.get_speed(i) * 1.94384, 2),
+                "speed_no_doppler": raw_data.get_speed(i),
                 "has_doppler": bool(point.speed),
-                "delta_doppler": (
-                    round(point.speed * 1.94384, 2)
-                    - round(raw_data.get_speed(i) * 1.94384, 2)
-                    if point.speed
-                    else np.nan
-                ),
                 "delta_dist": (
                     point.distance_2d(raw_data.points[i - 1]) if i >= 1 else 0
                 ),
@@ -128,7 +163,7 @@ class TraceAnalysis:
 
     @log_calls()
     def speed_dist(self, dist=250):
-        def time_samples(delta_dist):
+        def count_time_samples(delta_dist):
             delta_dist = delta_dist[::-1]
             cum_dist = 0
             for i, d in enumerate(delta_dist):
@@ -137,7 +172,7 @@ class TraceAnalysis:
                     break
             return i
 
-        ts = self.ts.rolling(20).apply(time_samples)
+        ts = self.tsd.rolling(20).apply(count_time_samples)
         print(ts)
         ts.plot()
         plt.show()
@@ -151,14 +186,18 @@ class TraceAnalysis:
         :return:
         """
         xs = str(s) + "S"
-        ts = self.ts.rolling(xs).mean()
+
+        # calculate s seconds Vmax on all data:
+        ts = self.tsd.rolling(xs).mean()
+
+        # select n best Vmax:
         nxs_list = []
         for i in range(1, n + 1):
             range_end = ts.idxmax()
             # range_end = ts.index[ts==max(ts)][0]
             range_begin = range_end - datetime.timedelta(seconds=s)
             ts[range_begin:range_end] = 0
-            nxs_list.append((range_begin, range_end, round(max(ts)), 2))
+            nxs_list.append((range_begin, range_end, round(max(ts), 2)))
 
         nxs_speed_results = "\n".join([f"{x}-{y}: {z}" for x, y, z in nxs_list])
         logger.info(
@@ -175,16 +214,11 @@ class TraceAnalysis:
 
     @log_calls()
     def plot_speed(self):
-        speed = self.df.resample(self.sampling).speed.mean()
-        speed_no_doppler = self.df.resample(self.sampling).speed_no_doppler.mean()
-        delta_doppler = self.df.resample(self.sampling).delta_doppler.mean()
-        dfs = pd.DataFrame(index=speed.index)
-        dfs["speed"] = speed
-        dfs["speed_no_doppler"] = speed_no_doppler
-        dfs["delta_doppler"] = delta_doppler
-        print("dfs", dfs)
+        dfs = pd.DataFrame(index=self.ts.index)
+        dfs["speed"] = self.tsd
+        dfs["speed_no_doppler"] = self.ts
+        #dfs["delta_doppler"] = self.ts - self.tsd
         dfs.plot()
-        # self.ts.plot()
         plt.show()
 
     @log_calls()
