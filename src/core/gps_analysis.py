@@ -27,8 +27,8 @@ from utils import log_calls, reindex, resample, TraceAnalysisException
 
 logger = getLogger()
 
-class TraceAnalysis():
 
+class TraceAnalysis:
     def __init__(self, gpx_path, sampling="2S"):
         logger.info(f"init {self.__class__.__name__} with file {gpx_path}")
         self.sampling = sampling
@@ -37,7 +37,7 @@ class TraceAnalysis():
 
         begin = "2019-10-06 09:56:00+00:00"
         end = "2019-10-06 09:57:00+00:00"
-        #self.select_period(begin, end)
+        # self.select_period(begin, end)
         self.ts = resample(self.df, sampling)
         self.save_to_csv()
 
@@ -46,13 +46,13 @@ class TraceAnalysis():
         tracks = self.format_html_to_gpx(html_soup)
         df = self.to_pandas(tracks[0].segments[0])
         # TODO filter for delta speed and delta_dist > 30
-        df = reindex(df, 'time')
+        df = reindex(df, "time")
         return df
 
     @log_calls()
     def load_gpx_file_to_html(self, gpx_path):
-        with open(gpx_path, 'r') as gpx_file:
-            html_soup = BeautifulSoup(gpx_file, 'html.parser')
+        with open(gpx_path, "r") as gpx_file:
+            html_soup = BeautifulSoup(gpx_file, "html.parser")
         return html_soup
 
     @log_calls()
@@ -70,16 +70,16 @@ class TraceAnalysis():
             if isinstance(e, element.ProcessingInstruction):
                 e.extract()
         # add <speed> tag:
-        for el in html_soup.findAll('gpxdata:speed'):
-            el.wrap(html_soup.new_tag('speed'))
+        for el in html_soup.findAll("gpxdata:speed"):
+            el.wrap(html_soup.new_tag("speed"))
         # remove <gpxdata:speed> tag:
-        for el in html_soup.findAll('gpxdata:speed'):
+        for el in html_soup.findAll("gpxdata:speed"):
             el.unwrap()
         # remove <extensions> tag:
-        for el in html_soup.findAll('extensions'):
+        for el in html_soup.findAll("extensions"):
             el.unwrap()
 
-        gpx = gpxpy.parse(str(html_soup), version='1.0')
+        gpx = gpxpy.parse(str(html_soup), version="1.0")
         tracks = gpx.tracks
         return tracks
 
@@ -87,24 +87,33 @@ class TraceAnalysis():
     def to_pandas(self, raw_data):
         split_data = [
             {
-                'lon':point.longitude,
-                'lat': point.latitude,
-                'time': point.time,
-                'speed': (
-                    point.speed if point.speed else raw_data.get_speed(i)#/ 1.94384, 2)
+                "lon": point.longitude,
+                "lat": point.latitude,
+                "time": point.time,
+                "speed": (
+                    round(point.speed * 1.94384, 2)
+                    if point.speed
+                    else round(raw_data.get_speed(i) * 1.94384, 2)
                 ),
-                'speed_no_doppler': raw_data.get_speed(i), #/ 1.94384, 2),
-                'has_doppler': bool(point.speed),
-                'delta_doppler': point.speed - raw_data.get_speed(i) if point.speed else np.nan,
-                'delta_dist': (point.distance_2d(raw_data.points[i-1]) if i>=1 else 0)
+                "speed_no_doppler": round(raw_data.get_speed(i) * 1.94384, 2),
+                "has_doppler": bool(point.speed),
+                "delta_doppler": (
+                    round(point.speed * 1.94384, 2)
+                    - round(raw_data.get_speed(i) * 1.94384, 2)
+                    if point.speed
+                    else np.nan
+                ),
+                "delta_dist": (
+                    point.distance_2d(raw_data.points[i - 1]) if i >= 1 else 0
+                ),
             }
-            for i,point in enumerate(raw_data.points)
+            for i, point in enumerate(raw_data.points)
         ]
         df = pd.DataFrame(split_data)
         if not df.has_doppler.all():
             ts = pd.Series(data=0, index=df.index)
-            ts[df.has_doppler==True] = 1
-            doppler_ratio = int(100*sum(ts) / len(ts))
+            ts[df.has_doppler == True] = 1
+            doppler_ratio = int(100 * sum(ts) / len(ts))
             if doppler_ratio < 50:
                 raise TraceAnalysisException(
                     f"doppler speed is available on only {doppler_ratio}% of data"
@@ -118,6 +127,22 @@ class TraceAnalysis():
         return df
 
     @log_calls()
+    def speed_dist(self, dist=250):
+        def time_samples(delta_dist):
+            delta_dist = delta_dist[::-1]
+            cum_dist = 0
+            for i, d in enumerate(delta_dist):
+                cum_dist += d
+                if cum_dist > dist:
+                    break
+            return i
+
+        ts = self.ts.rolling(20).apply(time_samples)
+        print(ts)
+        ts.plot()
+        plt.show()
+
+    @log_calls(log_args=True, log_result=False)
     def speed_xs(self, s=10, n=10):
         """
         Vmax: n * x seconds
@@ -128,15 +153,21 @@ class TraceAnalysis():
         xs = str(s) + "S"
         ts = self.ts.rolling(xs).mean()
         nxs_list = []
-        for i in range(1,n+1):
+        for i in range(1, n + 1):
             range_end = ts.idxmax()
-            #range_end = ts.index[ts==max(ts)][0]
+            # range_end = ts.index[ts==max(ts)][0]
             range_begin = range_end - datetime.timedelta(seconds=s)
             ts[range_begin:range_end] = 0
-            nxs_list.append((range_begin, range_end, max(ts)))
+            nxs_list.append((range_begin, range_end, round(max(ts)), 2))
 
-        nxs_speed_results = '\n'.join([f"{x}-{y}: {z}" for x,y,z in nxs_list])
-        print(nxs_speed_results)
+        nxs_speed_results = "\n".join([f"{x}-{y}: {z}" for x, y, z in nxs_list])
+        logger.info(
+            f"\n===============================\n"
+            f"Best vmax {n} x {s} seconds\n"
+            f"{nxs_speed_results}"
+            f"\n===============================\n"
+        )
+        return nxs_speed_results
 
     @log_calls()
     def select_period(self, begin, end):
@@ -148,12 +179,12 @@ class TraceAnalysis():
         speed_no_doppler = self.df.resample(self.sampling).speed_no_doppler.mean()
         delta_doppler = self.df.resample(self.sampling).delta_doppler.mean()
         dfs = pd.DataFrame(index=speed.index)
-        dfs['speed'] = speed
-        dfs['speed_no_doppler'] = speed_no_doppler
-        dfs['delta_doppler'] = delta_doppler
-        print('dfs',dfs)
+        dfs["speed"] = speed
+        dfs["speed_no_doppler"] = speed_no_doppler
+        dfs["delta_doppler"] = delta_doppler
+        print("dfs", dfs)
         dfs.plot()
-        #self.ts.plot()
+        # self.ts.plot()
         plt.show()
 
     @log_calls()
@@ -161,12 +192,14 @@ class TraceAnalysis():
         self.df.to_csv(df_file)
         self.ts.to_csv(ts_file)
 
+
 # code Nunu: ==================================================
+
 
 class GpxFileAnalyse:
     def __init__(self, gpx_path):
         self.file_path = gpx_path
-        gpx_file = open(gpx_path, 'r')
+        gpx_file = open(gpx_path, "r")
         logger.info(f"init gpx analysis with file {gpx_path}")
         self.gpx = gpxpy.parse(gpx_file)
         self.points_tab = []
@@ -183,8 +216,8 @@ class GpxFileAnalyse:
         #   Fill tab with point information
         #
         distance = 0
-        heure_offset=0
-        heure_prev=0
+        heure_offset = 0
+        heure_prev = 0
         distance_previous = 0
         previous_track_point = None
         time_point_previous = 0
@@ -218,14 +251,18 @@ class GpxFileAnalyse:
                             if heure_offset == 0 and int(heure) < int(heure_prev):
                                 # passage 24h -> 0
                                 heure_offset = 24
-                            heure_prev=heure
+                            heure_prev = heure
                             heure = int(heure_offset) + int(heure)
 
-                            time_point = int(heure) * 3600 + int(minute) * 60 + int(second)
+                            time_point = (
+                                int(heure) * 3600 + int(minute) * 60 + int(second)
+                            )
                             #
                             # Get distance from the beginning
                             #
-                            distance_previous_point = round(point.distance_2d(previous_track_point), 2)
+                            distance_previous_point = round(
+                                point.distance_2d(previous_track_point), 2
+                            )
                             distance = round(distance + distance_previous_point, 2)
                             previous_track_point = point
 
@@ -235,14 +272,23 @@ class GpxFileAnalyse:
 
                             # a point with more that 2s with the previous one is not valable
                             # test the distance made in less than 2s
-                            if not (time_point - time_point_previous > 10 or point.distance_2d(
-                                    previous_track_point) > 30):
+                            if not (
+                                time_point - time_point_previous > 10
+                                or point.distance_2d(previous_track_point) > 30
+                            ):
                                 # print "-- %s %s" % ( (time_point - time_point_previous  ),distance_previous)
-                               # else:
+                                # else:
                                 self.points_tab.append(
-                                    (time_point, speed_point, point.time, distance, distance_previous_point))
+                                    (
+                                        time_point,
+                                        speed_point,
+                                        point.time,
+                                        distance,
+                                        distance_previous_point,
+                                    )
+                                )
                                 distance_previous = distance
-                            #print("speed point %s" % speed_point)
+                            # print("speed point %s" % speed_point)
                             time_point_previous = time_point
 
                 break
@@ -254,10 +300,9 @@ class GpxFileAnalyse:
         if self.parse_result == False:
             print("Error parsing file : %s" % self.file_path)
 
+
 parser = ArgumentParser()
-parser.add_argument(
-    "-f", "--gpx_filename", nargs="?", type=Path, default='.gpx'
-)
+parser.add_argument("-f", "--gpx_filename", nargs="?", type=Path, default=".gpx")
 parser.add_argument(
     "-v",
     "--verbose",
@@ -287,5 +332,6 @@ if __name__ == "__main__":
     )
     gpx_jla = TraceAnalysis(args.gpx_filename)
     logger.info(f"jla code result: {gpx_jla.df}")
-    #gpx_jla.plot_speed()
+    gpx_jla.plot_speed()
     gpx_jla.speed_xs()
+    gpx_jla.speed_dist()
