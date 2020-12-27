@@ -86,19 +86,25 @@ def reindex(df, time_col):
     df2 = df.set_index(time_col)
     return df2
 
-def resample(df, sampling_tag=None):
+def resample(df, sampling_tag="1S", column="speed", fillna=True):
     """
     resample to sampling_tag
     !! df needs to be aggregated
     Args:
         sampling_tag: time sample (1d, 1h, 1min)
         data_rage: [0-1] percentage of data to select
-
+    Returns:
+        pd.Series() time serie
+        with interpolation to fill in na in case of under sampling
     """
-    if not sampling_tag:  # allow function cascade of default param
-        sampling_tag = "2S"
-    df2 = df.resample(sampling_tag).speed.mean()
-    logger.info(f"serie resampled to {sampling_tag} frequency")
+    df2 = df[column].resample(sampling_tag).mean()
+    if fillna:
+        df2 = df2.interpolate()
+    logger.info(
+        f"\nserie resampled to {sampling_tag} frequency\n"
+        f"on {column} data field\n"
+        f"interpolation = {fillna}"
+    )
     logger.debug(
         f"dataframe head before resample:\n {df.head(15)}"
     )  # there are duplicates
