@@ -178,7 +178,7 @@ class TraceAnalysis:
         return df
 
     @log_calls()
-    def speed_dist(self, dist=250):
+    def speed_dist(self, dist=500, n=5):
         def count_time_samples(delta_dist):
             delta_dist = delta_dist[::-1]
             cum_dist = 0
@@ -188,10 +188,46 @@ class TraceAnalysis:
                     break
             return i
 
-        ts = self.tsd.rolling(20).apply(count_time_samples)
-        print(ts)
+        sampling = int(self.sampling.strip('S'))
+        min_speed = 7 # m/s min expected speed for max window size
+        max_interval = dist / min_speed
+        max_samples = int(max_interval / sampling)
+
+        ts = self.tsd.rolling(max_samples).apply(count_time_samples)
+        ns = pd.Series.to_numpy(ts)
+        threshold = min(np.nanmin(ns)+10, max_samples)
+        logger.info(
+            f"\nsearching {n} x v{dist} speed\n"
+            f"over a window of {max_samples} samples\n"
+            f"and found a {np.nanmin(ns)*sampling} seconds min length\n"
+            f"resulting in a treshold length of {threshold} samples"
+        )
+        k = 0
+        total_range = set([])
+        result = []
+        indices = np.argwhere(ns <= threshold).flatten()
+        indices_range = [set(range(int(i-ns[i]), int(i))) for i in indices]
+        speed_list = [
+            (
+                self.tsd[range_i].mean(),
+                range_i
+             )
+            for range_i in indices_range
+        ]
+        speed_list.sort(key = lambda tup: tup[0], reverse=True)
+        for x in speed_list:
+            if not (x[1] & total_range):
+                result.append(x[0])
+                total_range = total_range | x[1]
+                k+=1
+            if k >= n:
+                break
+
+        print(result)
+        #ts.index.get_loc(ts2.idxmin('index'))
         ts.plot()
         plt.show()
+        return result
 
     @log_calls(log_args=True, log_result=False)
     def speed_xs(self, s=10, n=10):
@@ -233,7 +269,7 @@ class TraceAnalysis:
         dfs = pd.DataFrame(index=self.ts.index)
         dfs["speed"] = self.tsd
         dfs["speed_no_doppler"] = self.ts
-        #dfs["delta_doppler"] = self.ts - self.tsd
+        # dfs["delta_doppler"] = self.ts - self.tsd
         dfs.plot()
         plt.show()
 
@@ -382,6 +418,6 @@ if __name__ == "__main__":
     )
     gpx_jla = TraceAnalysis(args.gpx_filename)
     logger.info(f"jla code result: {gpx_jla.df}")
-    gpx_jla.plot_speed()
+    #gpx_jla.plot_speed()
     gpx_jla.speed_xs()
     gpx_jla.speed_dist()
