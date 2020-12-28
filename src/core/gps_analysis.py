@@ -36,7 +36,7 @@ class TraceAnalysis:
         self.df = self.load_df(gpx_path)
         begin = "2019-04-02 16:34:00+00:00"
         end = "2019-04-02 16:36:00+00:00"
-        #self.select_period(begin, end)
+        # self.select_period(begin, end)
         self.clean_df()
 
         # generate key time series with fixed sampling and interpolation:
@@ -53,42 +53,61 @@ class TraceAnalysis:
         df = reindex(df, "time")
         return df
 
-    def clean_df(self):
-        # calculate and create column of elapsed time in seconds:
+    def filter_on_field(self, column):
         def filter(x):
+            """
+            rolling filter function
+            we search for the interval length between
+            positive and negative acceleration spikes
+            :param x: float64 [60 acceleration samples] array from rolling window
+            :return: int # samples count of the intervall to filter out
+            """
             i = 0
             if x[0] > 0.3:
                 exiting = False
-                for i,a in enumerate(x):
+                for i, a in enumerate(x):
                     if a < -0.1:
                         exiting = True
                     elif exiting:
                         break
             return i
 
+        # add a new column with total elapsed time in seconds:
+        self.df["elapsed_time"] = pd.to_timedelta(
+            self.df.index - self.df.index[0]
+        ).astype("timedelta64[s]")
+        acceleration = f"{column}_acceleration"
+        filtering = f"{column}_filtering"
+        self.df[acceleration] = self.df[column].diff() / (
+            9.81 * self.df.elapsed_time.diff()
+        )
+        self.df[filtering] = self.df[acceleration].rolling(30).apply(filter).shift(-29)
+        filtering = pd.Series.to_numpy(self.df[filtering])
+        indices = np.argwhere(filtering > 0).flatten()
+        for i in indices:
+            self.df.iloc[int(i) : int(i + filtering[i])] = np.nan
+        self.df.dropna(inplace=True)
+        self.df.to_csv("debug.csv")
+
+        return len(indices) > 0
+
+    def clean_df(self):
+        # calculate and create column of elapsed time in seconds:
+        # convert ms-1 to knots:
+        self.df.speed = round(self.df.speed * 1.94384, 2)
+        self.df.speed_no_doppler = round(self.df.speed_no_doppler * 1.94384, 2)
+
         erratic_data = True
         iter = 1
         while erratic_data and iter < 10:
-            self.df['elapsed_time'] = pd.to_timedelta(
-                self.df.index-self.df.index[0]).astype('timedelta64[s]'
-            )
-            self.df['acceleration'] = self.df.speed.diff() / (9.81 * self.df.elapsed_time.diff())
-            self.df['filtering'] = self.df.acceleration.rolling(30).apply(filter).shift(-29)
-            filtering = pd.Series.to_numpy(self.df.filtering)
-            indices = np.argwhere(filtering>0).flatten()
-            for i in indices:
-                self.df.iloc[int(i):int(i+filtering[i])] = np.nan
-            self.df.dropna(inplace=True)
-            erratic_data = len(indices) > 0
+            erratic_data = self.filter_on_field("speed_no_doppler")
+            erratic_data = erratic_data or self.filter_on_field("speed")
             iter += 1
-        self.df.to_csv('debug.csv')
-        tf = resample(self.df, "1S", "filtering")
-        tf.plot()
-        ta = resample(self.df, "1S", "acceleration")
-        ta.plot()
-        # convert ms-1 to knots:
-        self.df.speed = round(self.df.speed*1.94384, 2)
-        self.df.speed_no_doppler = round(self.df.speed_no_doppler * 1.94384, 2)
+        # tf = resample(self.df, "1S", "speed_acceleration")
+        # tf.plot()
+        # ta = resample(self.df, "1S", "speed_filtering")
+        # ta.plot()
+        self.df.to_csv("debug.csv")
 
     @log_calls()
     def load_gpx_file_to_html(self, gpx_path):
