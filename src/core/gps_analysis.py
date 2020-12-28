@@ -53,62 +53,6 @@ class TraceAnalysis:
         df = reindex(df, "time")
         return df
 
-    def filter_on_field(self, column):
-        def filter(x):
-            """
-            rolling filter function
-            we search for the interval length between
-            positive and negative acceleration spikes
-            :param x: float64 [60 acceleration samples] array from rolling window
-            :return: int # samples count of the intervall to filter out
-            """
-            i = 0
-            if x[0] > 0.3:
-                exiting = False
-                for i, a in enumerate(x):
-                    if a < -0.1:
-                        exiting = True
-                    elif exiting:
-                        break
-            return i
-
-        # add a new column with total elapsed time in seconds:
-        self.df["elapsed_time"] = pd.to_timedelta(
-            self.df.index - self.df.index[0]
-        ).astype("timedelta64[s]")
-        acceleration = f"{column}_acceleration"
-        filtering = f"{column}_filtering"
-        self.df[acceleration] = self.df[column].diff() / (
-            9.81 * self.df.elapsed_time.diff()
-        )
-        self.df[filtering] = self.df[acceleration].rolling(30).apply(filter).shift(-29)
-        filtering = pd.Series.to_numpy(self.df[filtering])
-        indices = np.argwhere(filtering > 0).flatten()
-        for i in indices:
-            self.df.iloc[int(i) : int(i + filtering[i])] = np.nan
-        self.df.dropna(inplace=True)
-        self.df.to_csv("debug.csv")
-
-        return len(indices) > 0
-
-    def clean_df(self):
-        # calculate and create column of elapsed time in seconds:
-        # convert ms-1 to knots:
-        self.df.speed = round(self.df.speed * 1.94384, 2)
-        self.df.speed_no_doppler = round(self.df.speed_no_doppler * 1.94384, 2)
-
-        erratic_data = True
-        iter = 1
-        while erratic_data and iter < 10:
-            erratic_data = self.filter_on_field("speed_no_doppler")
-            erratic_data = erratic_data or self.filter_on_field("speed")
-            iter += 1
-        # tf = resample(self.df, "1S", "speed_acceleration")
-        # tf.plot()
-        # ta = resample(self.df, "1S", "speed_filtering")
-        # ta.plot()
-        self.df.to_csv("debug.csv")
-
     @log_calls()
     def load_gpx_file_to_html(self, gpx_path):
         with open(gpx_path, "r") as gpx_file:
@@ -145,6 +89,11 @@ class TraceAnalysis:
 
     @log_calls(log_args=False, log_result=True)
     def to_pandas(self, raw_data):
+        """
+        convert gpx track points to pandas DataFrame
+        :param raw_data: gpx track points
+        :return: pd.DataFrame
+        """
         split_data = [
             {
                 "lon": point.longitude,
@@ -177,8 +126,85 @@ class TraceAnalysis:
             )
         return df
 
+    def filter_on_field(self, column):
+        """
+        filter a given column in self.df
+        by checking its acceleration
+        and eliminating (filtering) between
+        positive (acc>0.3g) and negative (acc < -0.1g) spikes
+        param column: df column to process
+        :return: Bool assessing if filtering occured
+        """
+        def filter(x):
+            """
+            rolling filter function
+            we search for the interval length between
+            positive and negative acceleration spikes
+            :param x: float64 [60 acceleration samples] array from rolling window
+            :return: int # samples count of the interval to filter out
+            """
+            i = 0
+            # searched irrealisitc >0.3g acceleration spikes
+            if x[0] > 0.3:
+                exiting = False
+                for i, a in enumerate(x):
+                    # find spike interval length by searching negative spike end
+                    if a < -0.1:
+                        exiting = True
+                    elif exiting:
+                        break
+            return i
+
+        # add a new column with total elapsed time in seconds:
+        self.df["elapsed_time"] = pd.to_timedelta(
+            self.df.index - self.df.index[0]
+        ).astype("timedelta64[s]")
+        acceleration = f"{column}_acceleration"
+        filtering = f"{column}_filtering"
+        self.df[acceleration] = self.df[column].diff() / (
+            9.81 * self.df.elapsed_time.diff()
+        )
+        self.df[filtering] = self.df[acceleration].rolling(30).apply(filter).shift(-29)
+        filtering = pd.Series.to_numpy(self.df[filtering])
+        indices = np.argwhere(filtering > 0).flatten()
+        for i in indices:
+            self.df.iloc[int(i) : int(i + filtering[i])] = np.nan
+        self.df.dropna(inplace=True)
+        self.df.to_csv("debug.csv")
+
+        return len(indices) > 0
+
+    def clean_df(self):
+        """
+        filter self.df on speed_no_doppler and speed fields
+        to remove acceleration spikes > 0.3g
+        :return: modify self.df
+        """
+        # calculate and create column of elapsed time in seconds:
+        # convert ms-1 to knots:
+        self.df.speed = round(self.df.speed * 1.94384, 2)
+        self.df.speed_no_doppler = round(self.df.speed_no_doppler * 1.94384, 2)
+
+        erratic_data = True
+        iter = 1
+        while erratic_data and iter < 10:
+            erratic_data = self.filter_on_field("speed_no_doppler")
+            erratic_data = erratic_data or self.filter_on_field("speed")
+            iter += 1
+        # tf = resample(self.df, "1S", "speed_acceleration")
+        # tf.plot()
+        # ta = resample(self.df, "1S", "speed_filtering")
+        # ta.plot()
+        self.df.to_csv("debug.csv")
+
     @log_calls()
     def speed_dist(self, dist=500, n=5):
+        """
+        calculate Vmax n x V[distance]
+        :param dist: float distance to average speed
+        :param n: int number of vmax to record
+        :return: TBD list of v[dist]
+        """
         def count_time_samples(delta_dist):
             delta_dist = delta_dist[::-1]
             cum_dist = 0
@@ -233,9 +259,9 @@ class TraceAnalysis:
     def speed_xs(self, s=10, n=10):
         """
         Vmax: n * x seconds
-        :param xs: date time intervall
+        :param xs: int time interval in seconds
         :param n: number of records
-        :return:
+        :return: TBD
         """
         xs = str(s) + "S"
 
