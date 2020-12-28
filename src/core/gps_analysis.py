@@ -150,12 +150,9 @@ class TraceAnalysis:
                 "lon": point.longitude,
                 "lat": point.latitude,
                 "time": point.time,
-                "speed": (
-                    point.speed
-                    if point.speed
-                    else raw_data.get_speed(i)
-                ),
+                "speed": (point.speed if point.speed else raw_data.get_speed(i)),
                 "speed_no_doppler": raw_data.get_speed(i),
+                "course": point.course,
                 "has_doppler": bool(point.speed),
                 "delta_dist": (
                     point.distance_2d(raw_data.points[i - 1]) if i >= 1 else 0
