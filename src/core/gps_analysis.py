@@ -301,34 +301,35 @@ class TraceAnalysis:
 
     @log_calls(log_args=True, log_result=True)
     def speed_jibe(self, n=5):
+        """
+        calculate the best jibe min speeds
+        :param n: int number of records
+        :return: list of n * vmin jibe speeds
+        """
         HALF_JIBE_COURSE = 70
         FULL_JIBE_COURSE = 130
         MIN_JIBE_SPEED = 11
 
-        def rolling_jibe(course_diff):
-            for i, d in enumerate(course_diff):
-                if abs(d) > 300:
-                    d = d[i - 1] if i > 0 else 0
-
-        # sum course over a 5S window:
+        # filter "crazy Yvan" events on course (orientation),
+        # that is: remove all 360° glitchs:
         tc = self.diff_clean_ts(self.tc, 300)
+        # sum course over 5S and 20S windows:
         tj1 = tc.rolling("5S").sum()
         tj2 = tc.rolling("20S").sum()
-
-        # min speed over a 10S window:
+        # record min speeds over a 10S window:
         tsd = self.tsd.rolling("10S").min()
 
         nsj1 = pd.Series.to_numpy(tj1)
         nsj2 = pd.Series.to_numpy(tj2)
         nsd = pd.Series.to_numpy(tsd)
         # find indices where course changed by more than 70° in 5S
-        indices_j1 = np.argwhere(abs(nsj1) > HALF_JIBE_COURSE).flatten()
-        # find indices where course changed by more than 130° in 20S
-        indices_j2 = np.argwhere(abs(nsj2) > FULL_JIBE_COURSE).flatten()
-        # find min speeds > 10 knots:
-        indices_d = np.argwhere(abs(nsd) > MIN_JIBE_SPEED).flatten()
-        # merge: new set with elements common to j and d:
-        indices = list(set(indices_j1) & set(indices_j1) & set(indices_d))
+        indices = np.argwhere(abs(nsj1) > HALF_JIBE_COURSE).flatten()
+        # # find indices where course changed by more than 130° in 20S
+        # indices_j2 = np.argwhere(abs(nsj2) > FULL_JIBE_COURSE).flatten()
+        # # find min speeds > 10 knots:
+        # indices_d = np.argwhere(abs(nsd) > MIN_JIBE_SPEED).flatten()
+        # # merge: new set with elements common to j and d:
+        # indices = list(set(indices_j1) & set(indices_j2) & set(indices_d))
         # record a 20S range around these indices:
         indices_range = [
             set(range(int(i - 10), int(i + 10)))
