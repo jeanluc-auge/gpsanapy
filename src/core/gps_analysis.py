@@ -45,7 +45,7 @@ class TraceAnalysis:
         self.td = resample(self.df, sampling, "cum_dist")
         self.td = self.td.diff()
         self.tc = resample(self.df, sampling, "course")
-        self.df_result = pd.DataFrame(index=self.tsd.index)
+        self.df_result_debug = pd.DataFrame(index=self.tsd.index)
 
     def load_df(self, gpx_path):
         html_soup = self.load_gpx_file_to_html(gpx_path)
@@ -193,7 +193,6 @@ class TraceAnalysis:
             erratic_data = self.filter_on_field("speed_no_doppler")
             erratic_data = erratic_data or self.filter_on_field("speed")
             iter += 1
-        self.df.to_csv("debug.csv")
 
     def diff_clean_ts(self, ts, threshold):
         ts2 = ts.diff()
@@ -203,6 +202,24 @@ class TraceAnalysis:
         ts2[abs(ts2) > threshold] = np.nan
         ts2.interpolate(inplace=True)
         return ts2
+
+    @log_calls(log_args=True, log_result=True)
+    def planning_ratio(self, v_min=15):
+        """
+        ratio of time spent while v > v_min
+        :param v_min: float knots min speed to consider
+        :return: the % of time spent over v_min
+        """
+        return int(100*len(self.tsd[self.tsd>v_min])/len(self.tsd))
+
+    @log_calls(log_args=True, log_result=True)
+    def planning_distance(self, v_min=15):
+        """
+        total distance covered while v > v_min
+        :param vmin: float knots min speed to consider
+        :return: the total distance spent over v_min
+        """
+        return int(self.td[self.tsd>v_min].agg(sum))/1000
 
     @log_calls(log_args=True, log_result=True)
     def speed_dist(self, dist=500, n=5):
@@ -247,16 +264,16 @@ class TraceAnalysis:
         for speed, speed_range in speed_list:
             if not (speed_range & total_range):
                 result.append(speed)
-                self.df_result.loc[self.tsd[speed_range].index, "speed"] = self.tsd[
+                self.df_result_debug.loc[self.tsd[speed_range].index, "speed"] = self.tsd[
                     speed_range
                 ]
-                self.df_result.loc[self.tsd[speed_range].index, "course"] = self.tc[
+                self.df_result_debug.loc[self.tsd[speed_range].index, "course"] = self.tc[
                     speed_range
                 ]
-                self.df_result.loc[self.tsd[speed_range].index, "dist"] = self.td[
+                self.df_result_debug.loc[self.tsd[speed_range].index, "dist"] = self.td[
                     speed_range
                 ]
-                self.df_result.loc[self.tsd[speed_range].index, f"speed_V{dist}m"] = k
+                self.df_result_debug.loc[self.tsd[speed_range].index, f"speed_V{dist}m"] = k
                 total_range = total_range | speed_range
                 k += 1
             if k > n:
@@ -322,16 +339,16 @@ class TraceAnalysis:
             # remove overlapping ranges (jibe already recorded):
             if not (jibe_range & total_range):
                 result.append(jibe_speed)  # append jibe speed
-                self.df_result.loc[self.tsd[jibe_range].index, "speed"] = self.tsd[
+                self.df_result_debug.loc[self.tsd[jibe_range].index, "speed"] = self.tsd[
                     jibe_range
                 ]
-                self.df_result.loc[self.tsd[jibe_range].index, "course"] = self.tc[
+                self.df_result_debug.loc[self.tsd[jibe_range].index, "course"] = self.tc[
                     jibe_range
                 ]
-                self.df_result.loc[self.tsd[jibe_range].index, "dist"] = self.td[
+                self.df_result_debug.loc[self.tsd[jibe_range].index, "dist"] = self.td[
                     jibe_range
                 ]
-                self.df_result.loc[self.tsd[jibe_range].index, "jibe"] = k
+                self.df_result_debug.loc[self.tsd[jibe_range].index, "jibe"] = k
                 total_range = total_range | jibe_range  # append jibe range
                 k += 1
             if k > n:
@@ -361,27 +378,43 @@ class TraceAnalysis:
             # range_end = ts.index[ts==max(ts)][0]
             range_begin = range_end - datetime.timedelta(seconds=s)
             nxs_list.append((range_begin, range_end, round(max(ts), 2)))
-            self.df_result.loc[range_begin:range_end, "speed"] = self.tsd[
+            self.df_result_debug.loc[range_begin:range_end, "speed"] = self.tsd[
                 range_begin:range_end
-            ]
-            self.df_result.loc[range_begin:range_end, "course"] = self.tc[
+                                                                       ]
+            self.df_result_debug.loc[range_begin:range_end, "course"] = self.tc[
                 range_begin:range_end
-            ]
-            self.df_result.loc[range_begin:range_end, "dist"] = self.td[
+                                                                        ]
+            self.df_result_debug.loc[range_begin:range_end, "dist"] = self.td[
                 range_begin:range_end
-            ]
-            self.df_result.loc[range_begin:range_end, f"speed V{s+1}S"] = i
+                                                                      ]
+            self.df_result_debug.loc[range_begin:range_end, f"speed_V{s + 1}S"] = i
             # remove this speed range to find others:
             tsd[range_begin:range_end] = 0
 
-        nxs_speed_results = "\n".join([f"{x}-{y}: {z}" for x, y, z in nxs_list])
+        nxs_speed_results = "\n".join([f"{start}-{end}: {speed}" for start, end, speed in nxs_list])
         logger.info(
             f"\n===============================\n"
             f"Best vmax {n} x {s+1} seconds\n"
             f"{nxs_speed_results}"
             f"\n===============================\n"
         )
-        return nxs_speed_results
+        return [speed for _, _, speed in nxs_list]
+
+    @log_calls(log_args=True, log_result=True)
+    def compile_results(self):
+        v_min = 15
+        n = 5
+        vxs = 10
+        vdist = 500
+        result = {
+            'planning_ratio': self.planning_ratio(v_min=v_min),
+            'planning_distance': self.planning_distance(v_min=v_min),
+            f'speed_V{vxs}s': self.speed_xs(s=10, n=n),
+            f'speed_V{vdist}m': self.speed_dist(dist=vdist, n=n),
+            'jibe_speed': self.speed_jibe(n=n)
+        }
+        self.result = pd.DataFrame(data=result)
+        return self.result
 
     @log_calls()
     def select_period(self, begin, end):
@@ -398,11 +431,17 @@ class TraceAnalysis:
 
     @log_calls()
     def save_to_csv(self):
-        self.df.to_csv("df.csv")
-        self.ts.to_csv("ts.csv")
-        result = self.df_result[self.df_result.speed.notna()]
-        result.to_csv("debug.csv")
-
+        """
+        record results and simulation info for debug
+        :return: 3 csv files
+            - debug.csv with the full DataFrame after filtering
+            - result_debug.csv with the runs details of each result
+            - result.csv result summary
+        """
+        self.df.to_csv("debug.csv")
+        result_debug = self.df_result_debug[self.df_result_debug.speed.notna()]
+        result_debug.to_csv("result_debug.csv")
+        self.result.to_csv("result.csv")
 
 # code Nunu: ==================================================
 
@@ -544,7 +583,5 @@ if __name__ == "__main__":
     gpx_jla = TraceAnalysis(args.gpx_filename)
     logger.info(f"jla code result: {gpx_jla.df}")
     # gpx_jla.plot_speed()
-    gpx_jla.speed_xs()
-    gpx_jla.speed_dist()
-    gpx_jla.speed_jibe()
+    gpx_jla.compile_results()
     gpx_jla.save_to_csv()
