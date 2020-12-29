@@ -2,5 +2,6 @@ gpxpy
 pathlib
 pandas
 numpy
+yaml
 bs4
 matplotlib

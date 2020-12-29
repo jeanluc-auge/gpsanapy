@@ -2,6 +2,8 @@ import inspect
 import itertools
 import functools
 import json
+import os
+import yaml
 import logging
 
 logger = logging.getLogger()
@@ -72,6 +74,35 @@ class TraceAnalysisException(Exception):
             f"{self.body}\n"
             f"======================================="
         )
+
+def load_config(config_file="config.yaml"):
+    """Load params files
+
+    yaml|yml suffixed file path :return: the params object
+
+    Args:
+        paramfile:
+    """
+
+    logger.info(f"loading yaml config from file {config_file}")
+    root, ext = os.path.splitext(config_file)
+
+    try:
+        with open(config_file) as file:
+            if ext in [".yaml", ".yml"]:
+                config = yaml.safe_load(file.read())
+            else:
+                logger.error(
+                    f"Param's file {config_file} extension is not valid"
+                )
+                return
+    except Exception as e:
+        logger.error(
+            f"Failed to load workflow from file {config_file}: {e}"
+        )
+        return
+    print(config)
+    return config
 
 def reindex(df, time_col):
     """

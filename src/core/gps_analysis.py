@@ -23,7 +23,7 @@ from bs4 import BeautifulSoup, element
 import matplotlib.pyplot as plt
 
 
-from utils import log_calls, reindex, resample, TraceAnalysisException
+from utils import log_calls, reindex, resample, TraceAnalysisException, load_config
 
 logger = getLogger()
 
@@ -217,6 +217,15 @@ class TraceAnalysis:
         ts2[abs(ts2) > threshold] = np.nan
         ts2.interpolate(inplace=True)
         return ts2
+
+    @log_calls(log_args=True, log_result=True)
+    def v_moy(self, v_min=15):
+        """
+        mean speed above v_min
+        :param v_min: float min speed to consider
+        :return: float mean speed of the session above v_min
+        """
+        return round(self.tsd[self.tsd>v_min].mean(), 2)
 
     @log_calls(log_args=True, log_result=True)
     def planning_ratio(self, v_min=15):
@@ -424,17 +433,23 @@ class TraceAnalysis:
         and record their result in self.result DataFrame
         :return: pd.DataFrame() self_result
         """
-        v_min = 15
-        n = 5
-        vxs = 10
-        vdist = 500
-        result = {
-            'planning_ratio': self.planning_ratio(v_min=v_min),
-            'planning_distance': self.planning_distance(v_min=v_min),
-            f'speed_V{vxs}s': self.speed_xs(s=10, n=n),
-            f'speed_V{vdist}m': self.speed_dist(dist=vdist, n=n),
-            'jibe_speed': self.speed_jibe(n=n)
-        }
+        result = {}
+        config = load_config()
+        for func, iterations in config.items():
+            for iteration in iterations:
+                result[iteration['description']] = getattr(self, func)(**iteration['args'])
+        #
+        # v_min = 15
+        # n = 5
+        # vxs = 10
+        # vdist = 500
+        # result = {
+        #     'planning_ratio': self.planning_ratio(v_min=v_min),
+        #     'planning_distance': self.planning_distance(v_min=v_min),
+        #     f'speed_V{vxs}s': self.speed_xs(s=10, n=n),
+        #     f'speed_V{vdist}m': self.speed_dist(dist=vdist, n=n),
+        #     'jibe_speed': self.speed_jibe(n=n)
+        # }
         self.result = pd.DataFrame(data=result)
         return self.result
 
