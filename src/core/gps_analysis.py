@@ -102,10 +102,10 @@ class TraceAnalysis:
                 "time": point.time,
                 "speed": (point.speed if point.speed else raw_data.get_speed(i)),
                 "speed_no_doppler": raw_data.get_speed(i),
-                "course": point.course,
+                "course": point.course_between(raw_data.points[i-1] if i>0 else 0),
                 "has_doppler": bool(point.speed),
                 "delta_dist": (
-                    point.distance_2d(raw_data.points[i - 1]) if i >= 1 else 0
+                    point.distance_2d(raw_data.points[i - 1]) if i > 0 else 0
                 ),
             }
             for i, point in enumerate(raw_data.points)
@@ -167,7 +167,7 @@ class TraceAnalysis:
         indices = np.argwhere(filtering > 0).flatten()
         for i in indices:
             self.df.iloc[int(i) : int(i + filtering[i])] = np.nan
-        self.df.dropna(inplace=True)
+        self.df = self.df[self.df.speed.notna()]
         return len(indices) > 0
 
     def clean_df(self):
@@ -184,7 +184,6 @@ class TraceAnalysis:
         self.df["elapsed_time"] = pd.to_timedelta(
             self.df.index - self.df.index[0]
         ).astype("timedelta64[s]")
-
         erratic_data = True
         iter = 1
         while erratic_data and iter < 10:
@@ -355,7 +354,6 @@ class TraceAnalysis:
         for i in range(1, n + 1):
             # calculate s seconds Vmax on all data:
             ts = tsd.rolling(xs).mean()
-
             range_end = ts.idxmax()
             # range_end = ts.index[ts==max(ts)][0]
             range_begin = range_end - datetime.timedelta(seconds=s)
