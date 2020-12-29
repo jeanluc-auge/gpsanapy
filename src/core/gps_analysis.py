@@ -42,7 +42,8 @@ class TraceAnalysis:
         # generate key time series with fixed sampling and interpolation:
         self.tsd = resample(self.df, sampling, "speed")
         self.ts = resample(self.df, sampling, "speed_no_doppler")
-        self.td = resample(self.df, sampling, "delta_dist")
+        self.td = resample(self.df, sampling, "cum_dist")
+        self.td = self.td.diff()
         self.tc = resample(self.df, sampling, "course")
         self.df_result = pd.DataFrame(index=self.tsd.index)
 
@@ -184,6 +185,8 @@ class TraceAnalysis:
         self.df["elapsed_time"] = pd.to_timedelta(
             self.df.index - self.df.index[0]
         ).astype("timedelta64[s]")
+        # add a cumulated distance column (cannot resample on diff!!)
+        self.df['cum_dist'] = self.df.delta_dist.cumsum()
         erratic_data = True
         iter = 1
         while erratic_data and iter < 10:
