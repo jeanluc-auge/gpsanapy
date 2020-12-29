@@ -57,8 +57,17 @@ class TraceAnalysis:
 
     @log_calls()
     def load_gpx_file_to_html(self, gpx_path):
-        with open(gpx_path, "r") as gpx_file:
-            html_soup = BeautifulSoup(gpx_file, "html.parser")
+        """
+        load gpx file to html processing file format
+        :param gpx_path:
+        :return:
+        """
+        try:
+            with open(gpx_path, "r") as gpx_file:
+                html_soup = BeautifulSoup(gpx_file, "html.parser")
+        except Exception as e:
+            logger.exception(e)
+            raise TraceAnalysisException(f"could not open and parse to html the gpx file {gpx_path}")
         return html_soup
 
     @log_calls()
@@ -195,6 +204,12 @@ class TraceAnalysis:
             iter += 1
 
     def diff_clean_ts(self, ts, threshold):
+        """
+        filter "turn around" events and return the diff of the time serie
+        :param ts: pd.Series() time serie to process
+        :param threshold: threshold of dif event to remove/replace with np.nan
+        :return: the filtered time serie in diff()
+        """
         ts2 = ts.diff()
         # can't interpolate outermost points
         ts2[0] = 0
@@ -358,10 +373,10 @@ class TraceAnalysis:
     @log_calls(log_args=True, log_result=False)
     def speed_xs(self, s=10, n=10):
         """
-        Vmax: n * x seconds
+        calculate Vmax: n * x seconds
         :param xs: int time interval in seconds
         :param n: number of records
-        :return: TBD
+        :return: list of n * vs
         """
         # s secs = s+1 samples:
         s = s - 1
@@ -402,6 +417,12 @@ class TraceAnalysis:
 
     @log_calls(log_args=True, log_result=True)
     def compile_results(self):
+        """
+        generate the session performance summary
+        call all gps analysis functions
+        and record their result in self.result DataFrame
+        :return: pd.DataFrame() self_result
+        """
         v_min = 15
         n = 5
         vxs = 10
@@ -432,7 +453,7 @@ class TraceAnalysis:
     @log_calls()
     def save_to_csv(self):
         """
-        record results and simulation info for debug
+        save to csv file the simulation results and infos (debug)
         :return: 3 csv files
             - debug.csv with the full DataFrame after filtering
             - result_debug.csv with the runs details of each result
