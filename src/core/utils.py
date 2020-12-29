@@ -40,7 +40,7 @@ def log_calls(log_args=False, log_result=False):
             posargs.update(**defargs)
             func_arg_dict = posargs
             logger.info(
-                f"\n\n======================================================\n"
+                f"\n======================================================\n"
                 f"CALLING FUNCTION {fn.__name__}\n"
             )
             if log_args:
@@ -53,7 +53,7 @@ def log_calls(log_args=False, log_result=False):
                     f"\nFUNCTION {fn.__name__} ENDS\n"
                     f"with result:\n"
                     f"{result}\n"
-                    f"======================================================\n"
+                    f"======================================================"
                 )
             return result
 
