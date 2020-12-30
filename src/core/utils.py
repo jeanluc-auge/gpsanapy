@@ -75,15 +75,19 @@ class TraceAnalysisException(Exception):
             f"======================================="
         )
 
-def load_config(config_file="config.yaml"):
-    """Load params files
+def load_config(config_file=None):
+    """Load config files
 
-    yaml|yml suffixed file path :return: the params object
+    yaml|yml suffixed file path :return: the config object
 
     Args:
-        paramfile:
+        config_file: str path to file
+    Return:
+        config dict object
     """
-
+    # support cascade of function calls with defautl value:
+    if config_file is None:
+        config_file = "config.yaml"
     logger.info(f"loading yaml config from file {config_file}")
     root, ext = os.path.splitext(config_file)
 

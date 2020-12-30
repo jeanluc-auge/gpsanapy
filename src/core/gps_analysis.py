@@ -388,8 +388,6 @@ class TraceAnalysis:
         :param n: number of records
         :return: list of n * vs
         """
-        # s secs = s+1 samples:
-        s = s - 1
         # to str:
         xs = f"{s}S"
 
@@ -401,7 +399,7 @@ class TraceAnalysis:
             ts = tsd.rolling(xs).mean()
             range_end = ts.idxmax()
             # range_end = ts.index[ts==max(ts)][0]
-            range_begin = range_end - datetime.timedelta(seconds=s)
+            range_begin = range_end - datetime.timedelta(seconds=s-1)
             nxs_list.append((range_begin, range_end, round(max(ts), 2)))
             self.df_result_debug.loc[range_begin:range_end, "speed"] = self.tsd[
                 range_begin:range_end
@@ -412,44 +410,38 @@ class TraceAnalysis:
             self.df_result_debug.loc[range_begin:range_end, "dist"] = self.td[
                 range_begin:range_end
                                                                       ]
-            self.df_result_debug.loc[range_begin:range_end, f"speed_V{s + 1}S"] = i
+            self.df_result_debug.loc[range_begin:range_end, f"speed_V{s}S"] = i
             # remove this speed range to find others:
             tsd[range_begin:range_end] = 0
 
         nxs_speed_results = "\n".join([f"{start}-{end}: {speed}" for start, end, speed in nxs_list])
         logger.info(
             f"\n===============================\n"
-            f"Best vmax {n} x {s+1} seconds\n"
+            f"Best vmax {n} x {s} seconds\n"
             f"{nxs_speed_results}"
             f"\n===============================\n"
         )
         return [speed for _, _, speed in nxs_list]
 
     @log_calls(log_args=True, log_result=True)
-    def compile_results(self):
+    def compile_results(self, config_file=None):
         """
         generate the session performance summary
-        call all gps analysis functions
+        load config.yaml file with instructions
+        about gps analysis functions to call with args
         and record their result in self.result DataFrame
         :return: pd.DataFrame() self_result
         """
         result = {}
-        config = load_config()
-        for func, iterations in config.items():
+        config = load_config(config_file)
+        # iterate over the config and call the referenced functions:
+        for gps_func, iterations in config.items():
+            # the same gps_func key cannot be repeated in the yaml description,
+            # so we use an iterations list,
+            # in order to call several times the same function with different args if needed:
             for iteration in iterations:
-                result[iteration['description']] = getattr(self, func)(**iteration['args'])
-        #
-        # v_min = 15
-        # n = 5
-        # vxs = 10
-        # vdist = 500
-        # result = {
-        #     'planning_ratio': self.planning_ratio(v_min=v_min),
-        #     'planning_distance': self.planning_distance(v_min=v_min),
-        #     f'speed_V{vxs}s': self.speed_xs(s=10, n=n),
-        #     f'speed_V{vdist}m': self.speed_dist(dist=vdist, n=n),
-        #     'jibe_speed': self.speed_jibe(n=n)
-        # }
+                result[iteration['description']] = getattr(self, gps_func)(**iteration['args'])
+
         self.result = pd.DataFrame(data=result)
         return self.result
 
