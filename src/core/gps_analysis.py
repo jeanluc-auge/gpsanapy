@@ -579,5 +579,5 @@ if __name__ == "__main__":
     basicConfig(level={0: INFO, 1: DEBUG}.get(args.verbose, DEBUG))
     gpx_jla = TraceAnalysis(args.gpx_filename)
     gpx_jla.compile_results()
-    gpx_jla.plot_speed()
+    #gpx_jla.plot_speed()
     gpx_jla.save_to_csv()
