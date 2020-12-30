@@ -22,7 +22,7 @@ speed_xs:
   -
     args:
       s: 10
-      n: 1
+      n: 5
     description: vmax_10s
 speed_dist:
   -
@@ -33,5 +33,5 @@ speed_dist:
 speed_jibe:
   -
     args:
-      n: 1
+      n: 2
     description: vmax_jibe
