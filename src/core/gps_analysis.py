@@ -561,8 +561,8 @@ class TraceAnalysis:
         """
         self.df.to_csv("debug.csv")
         result_debug = self.df_result_debug[self.df_result_debug.speed.notna()]
-        result_debug.to_csv("result_debug.csv")
-        self.result.to_csv("result.csv")
+        result_debug.to_csv(f"{self.gpx_path}_result_debug.csv")
+        self.result.to_csv(f"{self.gpx_path}_result.csv")
 
 parser = ArgumentParser()
 parser.add_argument("-f", "--gpx_filename", nargs="?", type=Path, default=".gpx")
@@ -577,24 +577,7 @@ parser.add_argument(
 if __name__ == "__main__":
     args = parser.parse_args()
     basicConfig(level={0: INFO, 1: DEBUG}.get(args.verbose, DEBUG))
-
-    # logger.debug(
-    #     f"\n==========================\n"
-    #     f"now testing code of nunu:"
-    #     f"\n==========================\n"
-    # )
-    # gpx_nunu = GpxFileAnalyse(args.gpx_filename)
-    # # display one item / line:
-    # dis = '\n'.join([str(x) for x in gpx_nunu.points_tab])
-    # logger.debug(f"nunu code result: points_tab {dis}")
-
-    logger.info(
-        f"\n==========================\n"
-        f"now testing code of jla:"
-        f"\n==========================\n"
-    )
     gpx_jla = TraceAnalysis(args.gpx_filename)
-    logger.info(f"jla code result: {gpx_jla.df}")
     gpx_jla.compile_results()
     gpx_jla.plot_speed()
     gpx_jla.save_to_csv()
