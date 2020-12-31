@@ -42,8 +42,8 @@ class TraceAnalysis:
         self.df = self.load_df(gpx_path)
         # original copy that will not be modified: for reference & debug:
         self.raw_df = self.df.copy()
-        begin = "2019-04-02 16:34:00+00:00"
-        end = "2019-04-02 16:36:00+00:00"
+        begin = "2019-04-02 16:47:00+00:00"
+        end = "2019-04-02 16:49:00+00:00"
         # self.select_period(begin, end)
         # filter out speed spikes on self.df:
         self.clean_df()
@@ -174,7 +174,7 @@ class TraceAnalysis:
         :return: Bool assessing if filtering occured
         """
 
-        def filter(x):
+        def acceleration_filter(x):
             """
             rolling filter function
             we search for the interval length between
@@ -183,8 +183,8 @@ class TraceAnalysis:
             :return: int # samples count of the interval to filter out
             """
             i = 0
-            # searched irrealisitc >0.3g acceleration spikes
-            if x[0] > 0.4:
+            # searched irrealisitc >0.5g acceleration spikes
+            if x[0] > 0.5:
                 exiting = False
                 for i, a in enumerate(x):
                     # find spike interval length by searching negative spike end
@@ -196,16 +196,32 @@ class TraceAnalysis:
 
         acceleration = f"{column}_acceleration"
         filtering = f"{column}_filtering"
+        # calculate g acceleration:
         self.df[acceleration] = self.df[column].diff() / (
             9.81 * self.df.elapsed_time.diff()
         )
-        self.df[filtering] = self.df[acceleration].rolling(30).apply(filter).shift(-29)
+        # apply our rolling acceleration filter:
+        self.df[filtering] = self.df[acceleration].rolling(20).apply(acceleration_filter).shift(-19)
         filtering = pd.Series.to_numpy(self.df[filtering])
         indices = np.argwhere(filtering > 0).flatten()
         for i in indices:
-            self.df.iloc[int(i) : int(i + filtering[i])] = np.nan
+            self.df.iloc[int(i): int(i + filtering[i])+1] = np.nan
         self.df = self.df[self.df.speed.notna()]
+
         return len(indices) > 0
+        # data_to_filter = self.df.loc[self.df[filtering]>0, filtering]
+        # # recover data range to filter:
+        # range_end = data_to_filter.index
+        # # recover
+        # range_start = data_to_filter.index - data_to_filter.apply(lambda x: datetime.timedelta(seconds=x-1))
+        # # check and remove indexes not present in df:
+        # range_start = [r for r in range_start if r in self.df.index]
+        # # remove data to filter in the range:
+        # for s,e in zip(range_start, range_end):
+        #     self.df.loc[s:e] = np.nan
+        #
+        # self.df = self.df[self.df.speed.notna()]
+        #return len(data_to_filter) > 0
 
     @log_calls()
     def clean_df(self):
@@ -217,8 +233,9 @@ class TraceAnalysis:
         erratic_data = True
         iter = 1
         while erratic_data and iter < 10:
-            #erratic_data = self.filter_on_field("speed_no_doppler")
-            erratic_data = erratic_data or self.filter_on_field("speed")
+            err1 = self.filter_on_field("speed_no_doppler")
+            err2 = self.filter_on_field("speed")
+            erratic_data = err1 or err2
             iter += 1
 
     def diff_clean_ts(self, ts, threshold):
@@ -311,9 +328,9 @@ class TraceAnalysis:
         nsj2 = pd.Series.to_numpy(tj2)
         nsd = pd.Series.to_numpy(tsd)
         # find indices where course changed by more than 70° in 5S
-        indices = np.argwhere(abs(nsj1) > HALF_JIBE_COURSE).flatten()
+        indices_j1 = np.argwhere(abs(nsj1) > HALF_JIBE_COURSE).flatten()
         # # find indices where course changed by more than 130° in 20S
-        # indices_j2 = np.argwhere(abs(nsj2) > FULL_JIBE_COURSE).flatten()
+        indices_j2 = np.argwhere(abs(nsj2) > FULL_JIBE_COURSE).flatten()
         # # find min speeds > 10 knots:
         # indices_d = np.argwhere(abs(nsd) > MIN_JIBE_SPEED).flatten()
         # # merge: new set with elements common to j and d:
@@ -321,7 +338,7 @@ class TraceAnalysis:
         # record a 20S range around these indices:
         indices_range = [
             set(range(int(i - 10), int(i + 10)))
-            for i in indices
+            for i in indices_j1
             if i > 1 and i < len(tsd) - 11
         ]
         jibe_list = [
@@ -395,6 +412,7 @@ class TraceAnalysis:
         )
         indices = np.argwhere(nd <= threshold).flatten()
         indices_range = [set(range(int(i - nd[i]), int(i))) for i in indices]
+        # create a list of tupple (speed Vmax_dist, speed_indice_range)
         speed_list = [(self.tsd[range_i].mean(), range_i) for range_i in indices_range]
         speed_list.sort(key=lambda tup: tup[0], reverse=True)
 
@@ -489,11 +507,11 @@ class TraceAnalysis:
         self.df_result_debug.loc[item_range, "has_doppler"] = self.thd[item_range]
         self.df_result_debug.loc[item_range, "speed"] = self.tsd[item_range]
         self.df_result_debug.loc[item_range, "raw_speed"] = self.raw_tsd[item_range]
+        self.df_result_debug.loc[item_range, "speed_no_doppler"] = self.ts[item_range]
         self.df_result_debug.loc[item_range, "course"] = self.tc[item_range]
         self.df_result_debug.loc[item_range, "dist"] = self.td[item_range]
         self.df_result_debug.loc[item_range, item_description] = item_iter
         # generate report:
-        print(self.thd[self.thd > 0.6][item_range])
         if self.thd.dtype == 'float64':
             doppler_ratio = int(100 * len(self.thd[self.thd > 0.6][item_range].dropna()) / len(self.thd[item_range]))
         else:
@@ -579,5 +597,5 @@ if __name__ == "__main__":
     basicConfig(level={0: INFO, 1: DEBUG}.get(args.verbose, DEBUG))
     gpx_jla = TraceAnalysis(args.gpx_filename)
     gpx_jla.compile_results()
-    #gpx_jla.plot_speed()
+    gpx_jla.plot_speed()
     gpx_jla.save_to_csv()

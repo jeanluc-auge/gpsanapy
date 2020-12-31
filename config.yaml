@@ -1,37 +1,37 @@
 planning_ratio:
   -
     args:
-      v_min: 15
-    description: planning_ratio>15
+      v_min: 12
+    description: planning_ratio>12
 planning_distance:
   -
     args:
-      v_min: 15
-    description: planning_distance>15
+      v_min: 12
+    description: planning_distance>12
 v_moy:
   -
     args:
-      v_min: 15
-    description: Vmoy>15
+      v_min: 12
+    description: Vmoy>12
 speed_xs:
   -
     args:
-      s: 2
-      n: 1
-    description: vmax_2s
+      s: 1
+      n: 5
+    description: vmax_1s
   -
     args:
       s: 10
-      n: 5
+      n: 15
     description: vmax_10s
 speed_dist:
   -
     args:
       dist: 500
-      n: 1
+      n: 3
     description: vmax_500m
 speed_jibe:
   -
     args:
-      n: 2
+      n: 1
     description: vmax_jibe
