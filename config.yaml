@@ -1,3 +1,8 @@
+speed_jibe:
+  -
+    args:
+      n: 5
+    description: vmax_jibe
 planning_ratio:
   -
     args:
@@ -30,8 +35,3 @@ speed_dist:
       dist: 500
       n: 3
     description: vmax_500m
-speed_jibe:
-  -
-    args:
-      n: 1
-    description: vmax_jibe

@@ -226,7 +226,7 @@ class TraceAnalysis:
         :return: Bool assessing if filtering occured
         """
 
-        def acceleration_filter(x):
+        def rolling_acceleration_filter(x):
             """
             rolling filter function
             we search for the interval length between
@@ -242,7 +242,7 @@ class TraceAnalysis:
                     # find spike interval length by searching negative spike end
                     if a < -0.1:
                         exiting = True
-                    elif exiting:
+                    elif exiting and a != np.nan:
                         break
             return i
 
@@ -253,12 +253,16 @@ class TraceAnalysis:
             9.81 * self.df.elapsed_time.diff()
         )
         # apply our rolling acceleration filter:
-        self.df[filtering] = self.df[acceleration].rolling(20).apply(acceleration_filter).shift(-19)
+        self.df[filtering] = self.df[acceleration].rolling(20).apply(rolling_acceleration_filter).shift(-19)
+
         filtering = pd.Series.to_numpy(self.df[filtering])
         indices = np.argwhere(filtering > 0).flatten()
         for i in indices:
+            # =========== debug ===================
+            this_range = self.df.iloc[int(i): int(i + filtering[i]) + 1].index
+            self.raw_df.loc[this_range, 'filtering'] = 1
+            # =====================================
             self.df.iloc[int(i): int(i + filtering[i])+1] = np.nan
-        self.df = self.df[self.df.speed.notna()]
 
         return len(indices) > 0
         # data_to_filter = self.df.loc[self.df[filtering]>0, filtering]
@@ -289,6 +293,7 @@ class TraceAnalysis:
             err2 = self.filter_on_field("speed")
             erratic_data = err1 or err2
             iter += 1
+        self.df = self.df[self.df.speed.notna()]
 
     def diff_clean_ts(self, ts, threshold):
         """
@@ -367,12 +372,82 @@ class TraceAnalysis:
         FULL_JIBE_COURSE = 130
         MIN_JIBE_SPEED = 11
 
+        tc = self.tc_diff.copy()
+        # remove low speed periods (too many noise in course orientation):
+        tc[self.tsd.rolling(20, center=True).min()<MIN_JIBE_SPEED]=np.nan
+        tc.iloc[0:30]=np.nan
+        tc.iloc[-30:-1]=np.nan
+        # find consition 1 on 5 samples rolling window:
+        cj1 = abs(tc.rolling(5, center=True).sum())>HALF_JIBE_COURSE
+        # find condition2 on 15 samples rolling window:
+        cj2 = abs(tc.rolling(15, center=True).sum())>FULL_JIBE_COURSE
+
+        # # ====== debug starts =====================
+        # df = pd.DataFrame(index=tc.index)
+        # df['c'] = self.tc
+        # df['tc'] = tc
+        # df['tc5']= tc.rolling(5, center=True).sum()
+        # df['tc15'] = tc.rolling(15, center=True).sum()
+        # df['tsd'] = self.tsd
+        # df['tsd20'] = self.tsd.rolling(20, center=True).min()
+        # df['r']=self.tsd.rolling(20, center=True).min()[cj1 & cj2]
+        # df.to_csv('debug_jibe.csv')
+        # # ====== debug ends =====================
+
+        # generate a list of all jibes min speed on a 20 samples window for conditions 1 & 2:
+        jibe_speed = self.tsd.rolling(20, center=True).min()[cj1 & cj2]
+        results = []
+        if len(jibe_speed) == 0:
+            # abort: could not find any valid jibe
+            return [
+                {
+                    'description': description,
+                    'result': None,
+                    **DEFAULT_RESULTS
+                }
+            ]
+        for i in range(1, n + 1):
+            # find the highest speed jibe index and speed:
+            range_begin = jibe_speed.idxmax() - datetime.timedelta(seconds=11)
+            range_end = jibe_speed.idxmax() + datetime.timedelta(seconds=11)
+            result = round(jibe_speed.dropna().max(), 2)
+
+            # remove this speed range to find others:
+            jibe_speed[range_begin: range_end] = 0
+            confidence_report = self.append_result_debug(
+                item_range=self.tsd[range_begin:range_end].index,
+                item_description=description,
+                item_iter=i
+            )
+            results.append(
+                {
+                    'description': description,
+                    'result': result,
+                    'n': i,
+                    **confidence_report,
+                }
+            )
+        return results
+
+
+    @log_calls(log_args=True, log_result=True)
+    def deprecated_speed_jibe(self, description, n=5):
+        """
+        !! DEPRECATED: DO NOT USE !!
+        calculate the best jibe min speeds
+        :param n: int number of records
+        :return: list of n * vmin jibe speeds
+        """
+        HALF_JIBE_COURSE = 70
+        FULL_JIBE_COURSE = 130
+        MIN_JIBE_SPEED = 11
+
         # filter "crazy Yvan" events on course (orientation),
         # that is: remove all 360° glitchs:
         tc = self.diff_clean_ts(self.tc, 300)
         # sum course over 5S and 20S windows:
         tj1 = tc.rolling("5S").sum()
-        tj2 = tc.rolling("20S").sum()
+        tj2 = tc.rolling("15S").sum().shift(-5)
         # record min speeds over a 10S window:
         tsd = self.tsd.rolling("10S").min()
 
@@ -441,7 +516,7 @@ class TraceAnalysis:
         :return: TBD list of v[dist]
         """
 
-        def count_time_samples(delta_dist):
+        def rolling_dist_count(delta_dist):
             delta_dist = delta_dist[::-1]
             cum_dist = 0
             for i, d in enumerate(delta_dist):
@@ -455,7 +530,7 @@ class TraceAnalysis:
         max_interval = dist / min_speed
         max_samples = int(max_interval / sampling)
 
-        td = self.td.rolling(max_samples).apply(count_time_samples)
+        td = self.td.rolling(max_samples).apply(rolling_dist_count)
         nd = pd.Series.to_numpy(td)
         threshold = min(np.nanmin(nd) + 10, max_samples)
         logger.info(
