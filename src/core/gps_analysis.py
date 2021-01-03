@@ -13,6 +13,7 @@ core gps analytic:
 
 import json
 import datetime
+from pathlib import Path
 from logging import getLogger, basicConfig, INFO, ERROR, DEBUG
 import gpxpy
 from pathlib import Path
@@ -23,7 +24,7 @@ from bs4 import BeautifulSoup, element
 import matplotlib.pyplot as plt
 
 
-from utils import log_calls, reindex, resample, TraceAnalysisException, load_config
+from utils import log_calls, TraceAnalysisException, load_config
 
 logger = getLogger()
 
@@ -36,29 +37,32 @@ DEFAULT_RESULTS = {
 
 class TraceAnalysis:
     def __init__(self, gpx_path, sampling="1S"):
-        logger.info(f"init {self.__class__.__name__} with file {gpx_path}")
         self.sampling = sampling
         self.gpx_path = gpx_path
+        self.filename = Path(self.gpx_path).stem
+        self.author = self.filename.split('_')[0]
         self.df = self.load_df(gpx_path)
+        logger.info(
+            f"\ninit {self.__class__.__name__} with file {gpx_path}\n"
+            f"creator {self.creator}\n" # GPS device type: read from gpx file xml infos field
+            f"author {self.author}\n" # trace author: read from gpx file name
+            f"==================================\n"
+        )
+        self.process_df()
+        # debug, select a portion of the trace:
+        #self.df = self.df.loc["2020-12-12 13:35:30+00:00": "2020-12-12 13:37:00+00:00"]
         # original copy that will not be modified: for reference & debug:
         self.raw_df = self.df.copy()
-        begin = "2019-04-02 16:47:00+00:00"
-        end = "2019-04-02 16:49:00+00:00"
-        # self.select_period(begin, end)
+        self.raw_df['filtering'] = 0
         # filter out speed spikes on self.df:
         self.clean_df()
-        # generate key time series with fixed sampling and interpolation:
-        self.tsd = resample(self.df, sampling, "speed")
-        self.raw_tsd = resample(self.raw_df, sampling, "speed", fillna=False)
-        self.thd = resample(self.df, sampling, "has_doppler", fillna=False)
-        self.ts = resample(self.df, sampling, "speed_no_doppler")
-        self.td = resample(self.df, sampling, "cum_dist")
-        self.td = self.td.diff()
-        self.tc = resample(self.df, sampling, "course")
+        # generate key time series:
+        self.generate_series()
         self.df_result_debug = pd.DataFrame(index=self.tsd.index)
 
     def load_df(self, gpx_path):
         html_soup = self.load_gpx_file_to_html(gpx_path)
+        self.creator = html_soup.gpx['creator']
         tracks = self.format_html_to_gpx(html_soup)
         df = self.to_pandas(tracks[0].segments[0])
         return df
@@ -132,20 +136,6 @@ class TraceAnalysis:
             for i, point in enumerate(raw_data.points)
         ]
         df = pd.DataFrame(split_data)
-        # reindex:
-        df = reindex(df, "time")
-        # *************************************
-        # ******* data frame processing *******
-        # convert ms-1 to knots:
-        df.speed = round(df.speed * 1.94384, 2)
-        df.speed_no_doppler = round(df.speed_no_doppler * 1.94384, 2)
-        # add a new column with total elapsed time in seconds:
-        df["elapsed_time"] = pd.to_timedelta(df.index - df.index[0]).astype(
-            "timedelta64[s]"
-        )
-        # add a cumulated distance column (cannot resample on diff!!)
-        df["cum_dist"] = df.delta_dist.cumsum()
-        # **************************************
         # **** data frame doppler checking *****
         if not df.has_doppler.all():
             ts = pd.Series(data=0, index=df.index)
@@ -161,8 +151,70 @@ class TraceAnalysis:
             #     raise TraceAnalysisException(
             #         f"doppler speed is available on only {doppler_ratio}% of data"
             #     )
-        # **************************************
         return df
+
+    def process_df(self):
+        """
+        self.df DataFrame processing
+        """
+
+        # reindex on 'time' column for later resample
+        self.df = self.df.set_index("time")
+
+        # convert ms-1 to knots:
+        self.df.speed = round(self.df.speed * 1.94384, 2)
+        self.df.speed_no_doppler = round(self.df.speed_no_doppler * 1.94384, 2)
+
+        # add a new column with total elapsed time in seconds:
+        self.df["elapsed_time"] = pd.to_timedelta(self.df.index - self.df.index[0]).astype(
+            "timedelta64[s]"
+        )
+
+        # add a cumulated distance column (cannot resample on diff!!)
+        self.df["cum_dist"] = self.df.delta_dist.cumsum()
+
+        # convert bool to int: needed for rolling window functions
+        self.df.loc[self.df.has_doppler==True,"has_doppler"] = 1
+        self.df.loc[self.df.has_doppler == False, "has_doppler"] = 0
+
+        # sunto watches have a False "emulated" doppler that should not be used:
+        if "movescount" in self.creator.lower():
+            logger.warning(
+                f"\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
+                f"deactivating doppler for Movescount watches\n"
+                f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
+            )
+            self.df['speed'] = self.df.speed_no_doppler
+            self.df['has_doppler'] = 0
+
+    def generate_series(self):
+        """
+        generate key time series with
+            - resampling to self.sampling
+            - aggregation (mean/min/max) for up-sampling
+            - optional interpolate in case of down-sampling (else np.nan)
+        """
+
+        # speed doppler
+        self.tsd = self.df["speed"].resample(self.sampling).mean().interpolate()
+        self.raw_tsd = self.raw_df['speed'].resample(self.sampling).mean()
+        # speed no doppler
+        self.ts = self.df["speed_no_doppler"].resample(self.sampling).mean().interpolate()
+        # filtering? yes=1 default=0 (np.nan=0), sum = OR (max):
+        self.tf = self.raw_df['filtering'].resample(self.sampling).max()
+        self.tf = self.tf.fillna(0).astype(np.int64)
+        # no sampling? yes=1 default=1 (np.nan=1), sum = OR
+        self.tno_samp = self.raw_df['filtering'].resample(self.sampling).max()
+        self.tno_samp = self.tno_samp.fillna(1).astype(np.int64)
+        # has_doppler? yes=1 default=0 (np.nan=0), sum = AND (min):
+        self.thd = self.df["has_doppler"].resample(self.sampling).min()
+        self.thd = self.thd.fillna(0).astype(np.int64)
+        # distance: resample on cumulated values => take min of the bin and restore diff:
+        self.td = self.df["cum_dist"].resample(self.sampling).min().interpolate()
+        self.td = self.td.diff()
+        # course (orientation °) cumulated values => take min of the bin
+        self.tc = self.df["course"].resample(self.sampling).min().interpolate()
+        self.tc_diff = self.diff_clean_ts(self.tc, 300)
 
     def filter_on_field(self, column):
         """
@@ -378,6 +430,8 @@ class TraceAnalysis:
                 break
         return results
 
+
+
     @log_calls(log_args=True, log_result=True)
     def speed_dist(self, description, dist=500, n=5):
         """
@@ -504,20 +558,19 @@ class TraceAnalysis:
             pd.DataFrame self.df.result_debug
             confidence_report {doppler_ratio, sampling_ratio, std dev}
         """
-        self.df_result_debug.loc[item_range, "has_doppler"] = self.thd[item_range]
+        self.df_result_debug.loc[item_range, "has_doppler?"] = self.thd[item_range]
+        self.df_result_debug.loc[item_range, "filtering?"] = self.tf[item_range]
+        self.df_result_debug.loc[item_range, "no_sampling?"] = self.tno_samp[item_range]
         self.df_result_debug.loc[item_range, "speed"] = self.tsd[item_range]
         self.df_result_debug.loc[item_range, "raw_speed"] = self.raw_tsd[item_range]
         self.df_result_debug.loc[item_range, "speed_no_doppler"] = self.ts[item_range]
         self.df_result_debug.loc[item_range, "course"] = self.tc[item_range]
+        self.df_result_debug.loc[item_range, "course_diff_cleaned"] = self.tc_diff[item_range]
         self.df_result_debug.loc[item_range, "dist"] = self.td[item_range]
         self.df_result_debug.loc[item_range, item_description] = item_iter
         # generate report:
-        if self.thd.dtype == 'float64':
-            doppler_ratio = int(100 * len(self.thd[self.thd > 0.6][item_range].dropna()) / len(self.thd[item_range]))
-        else:
-            doppler_ratio = int(100*len(self.thd[self.thd==True][item_range].dropna()) / len(self.thd[item_range]))
-        in_range_raw_tsd = self.raw_tsd[item_range].dropna()
-        sampling_ratio = int(100*len(in_range_raw_tsd) / len(self.tsd[item_range]))
+        doppler_ratio = int(100 * len(self.thd[self.thd > 0][item_range].dropna()) / len(self.thd[item_range]))
+        sampling_ratio = int(100*len(self.tno_samp[self.tno_samp==0][item_range].dropna()) / len(self.tno_samp[item_range]))
         std = round(self.tsd[item_range].std(), 2)
         confidence_report = dict(
             doppler_ratio=doppler_ratio,
@@ -555,10 +608,6 @@ class TraceAnalysis:
         return self.result
 
     @log_calls()
-    def select_period(self, begin, end):
-        self.df = self.df.loc[begin:end]
-
-    @log_calls()
     def plot_speed(self):
         dfs = pd.DataFrame(index=self.tsd.index)
         dfs["raw_speed"] = self.raw_tsd
@@ -577,10 +626,10 @@ class TraceAnalysis:
             - result_debug.csv with the runs details of each result
             - result.csv result summary
         """
-        self.df.to_csv("debug.csv")
+        self.raw_df.to_csv("debug.csv")
         result_debug = self.df_result_debug[self.df_result_debug.speed.notna()]
-        result_debug.to_csv(f"{self.gpx_path}_result_debug.csv")
-        self.result.to_csv(f"{self.gpx_path}_result.csv")
+        result_debug.to_csv(f"{self.filename}_result_debug.csv")
+        self.result.to_csv(f"{self.filename}_result.csv")
 
 parser = ArgumentParser()
 parser.add_argument("-f", "--gpx_filename", nargs="?", type=Path, default=".gpx")
@@ -597,5 +646,5 @@ if __name__ == "__main__":
     basicConfig(level={0: INFO, 1: DEBUG}.get(args.verbose, DEBUG))
     gpx_jla = TraceAnalysis(args.gpx_filename)
     gpx_jla.compile_results()
-    gpx_jla.plot_speed()
+    #gpx_jla.plot_speed()
     gpx_jla.save_to_csv()
