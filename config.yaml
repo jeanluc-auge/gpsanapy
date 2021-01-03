@@ -1,8 +1,13 @@
 speed_jibe:
   -
     args:
-      n: 5
+      n: 3
     description: vmax_jibe
+#deprecated_speed_jibe:
+#  -
+#    args:
+#      n: 3
+#    description: deprecated_vmax_jibe
 planning_ratio:
   -
     args:
@@ -22,16 +27,16 @@ speed_xs:
   -
     args:
       s: 1
-      n: 5
+      n: 2
     description: vmax_1s
   -
     args:
       s: 10
-      n: 15
+      n: 2
     description: vmax_10s
 speed_dist:
   -
     args:
       dist: 500
-      n: 3
+      n: 1
     description: vmax_500m
