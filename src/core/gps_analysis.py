@@ -208,8 +208,8 @@ class TraceAnalysis:
         self.thd = self.df["has_doppler"].resample(self.sampling).min()
         self.thd = self.thd.fillna(0).astype(np.int64)
         # distance: resample on cumulated values => take min of the bin and restore diff:
-        self.td = self.df["cum_dist"].resample(self.sampling).min().interpolate()
-        self.td = self.td.diff()
+        self.tcd = self.df["cum_dist"].resample(self.sampling).min().interpolate()
+        self.td = self.tcd.diff()
         # course (orientation °) cumulated values => take min of the bin
         self.tc = self.df["course"].resample(self.sampling).min().interpolate()
         self.tc_diff = self.diff_clean_ts(self.tc, 300)
@@ -320,18 +320,24 @@ class TraceAnalysis:
         :param v_min: float min speed to consider
         :return: float mean speed of the session above v_min
         """
-        result = round(self.tsd[self.tsd > v_min].mean(), 2)
+        result = round(self.tsd[self.tsd > v_min].mean(), 1)
         results = [{"result": result, "description": description, **DEFAULT_REPORT}]
         return results
 
     @log_calls(log_args=True, log_result=True)
-    def planning_ratio(self, description, v_min=15):
+    def planning_ratio(self, description, v_min=15, distance=True):
         """
-        ratio of time spent while v > v_min
-        :param v_min: float knots min speed to consider
+        ratio of distance or time spent while v > v_min
+        :param
+            description: str
+            v_min: float knots min speed to consider
+            distance: bool True=ratio on distance, False=ratio on time
         :return: the % of time spent over v_min
         """
-        result = int(100 * len(self.tsd[self.tsd > v_min]) / len(self.tsd))
+        if distance:
+            result = int(100 * self.td[self.tsd > v_min].sum() / self.td.sum())
+        else:
+            result = int(100 * len(self.tsd[self.tsd > v_min]) / len(self.tsd))
         results = [{"result": result, "description": description, **DEFAULT_REPORT}]
         return results
 
@@ -342,7 +348,7 @@ class TraceAnalysis:
         :param vmin: float knots min speed to consider
         :return: the total distance spent over v_min
         """
-        result = int(self.td[self.tsd > v_min].agg(sum)) / 1000
+        result = round(int(self.td[self.tsd > v_min].agg(sum)) / 1000, 1)
         results = [{"result": result, "description": description, **DEFAULT_REPORT}]
         return results
 
@@ -389,7 +395,7 @@ class TraceAnalysis:
             # find the highest speed jibe index and speed:
             range_begin = jibe_speed.idxmax() - datetime.timedelta(seconds=11)
             range_end = jibe_speed.idxmax() + datetime.timedelta(seconds=11)
-            result = round(jibe_speed.dropna().max(), 2)
+            result = round(jibe_speed.dropna().max(), 1)
 
             # remove this speed range to find others:
             jibe_speed[range_begin:range_end] = 0
@@ -526,6 +532,7 @@ class TraceAnalysis:
         results = []
         for speed, speed_range in speed_list:
             if not (speed_range & total_range):
+                result = round(speed,1)
                 confidence_report = self.append_result_debug(
                     item_range=self.tsd[speed_range].index,
                     item_description=description,
@@ -534,7 +541,7 @@ class TraceAnalysis:
                 results.append(
                     {
                         "description": description,
-                        "result": speed,
+                        "result": result,
                         "n": k,
                         **confidence_report,
                     }
@@ -569,7 +576,7 @@ class TraceAnalysis:
             ts = tsd.rolling(xs).mean()
             range_end = ts.idxmax()
             range_begin = range_end - datetime.timedelta(seconds=s - 1)
-            result = round(max(ts), 2)
+            result = round(ts.max(),1)
             # remove this speed range to find others:
             tsd[range_begin:range_end] = 0
             # generate debug report
@@ -652,7 +659,7 @@ class TraceAnalysis:
         :return: pd.DataFrame() self_result
         """
         results = []
-        gps_func_list = []
+        ranking_groups = {}
         config = load_config(config_file)
         # iterate over the config and call the referenced functions:
 
@@ -664,8 +671,16 @@ class TraceAnalysis:
                 results += getattr(self, gps_func)(
                     description=iteration["description"], **iteration["args"]
                 )
-                gps_func_list.append(iteration["description"])
-
+                if iteration['ranking_group'] in ranking_groups:
+                    ranking_groups[iteration['ranking_group']].append(iteration["description"])
+                else:
+                    ranking_groups[iteration['ranking_group']] = [iteration["description"]]
+        self.gps_func_list = [gps_func for v in ranking_groups.values() for gps_func in v]
+        self.ranking_groups = ranking_groups
+        logger.info(
+            f"\nlist of gps functions {self.gps_func_list}\n"
+            f"ranking groups vs gps functions: {self.ranking_groups}\n"
+        )
         # update results with gpx file creator and author and convert to df:
         data = [
             dict(creator=self.creator, author=self.author, **result)
@@ -673,7 +688,7 @@ class TraceAnalysis:
         ]
         gpx_results = pd.DataFrame(data=data)
         gpx_results = gpx_results.set_index("author")
-        self.gps_func_list = gps_func_list
+        # ordered (wrto ranking) list of gps_func to call:
         return gpx_results
 
     @log_calls(log_args=False, log_result=True)
@@ -701,29 +716,45 @@ class TraceAnalysis:
             dropna=False,
         )
         # init multiIndex DataFrame for the ranking_results:
+        code0 = []
         code1 = []
         code2 = []
+        level0 = []
         level1 = self.gps_func_list
         level2 = ["result", "sampling_ratio", "ranking"]
+        i = 0
+        for k,v in self.ranking_groups.items():
+            code0 += len(v)*[i,i,i]
+            level0.append(k)
+            i += 1
         for i, _ in enumerate(level1):
             code1 += [i, i, i]
             code2 += [0, 1, 2]
-        mic = pd.MultiIndex(levels=[level1, level2], codes=[code1, code2])
+        mic = pd.MultiIndex(levels=[level0, level1, level2], codes=[code0, code1, code2])
         ranking_results = pd.DataFrame(index=all_results_table.index, columns=mic)
-
+        logger.info(
+            f"ranking results multi index architecture:"
+            f"{mic}"
+        )
         # rank and fill ranking_results DataFrame:
         ranking = all_results_table.result.rank(
             method="min", ascending=False, na_option="bottom"
         )
-        for description in level1:
-            ranking_results.loc[:, (description, "ranking")] = ranking[description]
-            ranking_results.loc[:, (description, "result")] = all_results_table[
-                "result"
-            ][description]
-            ranking_results.loc[:, (description, "sampling_ratio")] = all_results_table[
-                "sampling_ratio"
-            ][description]
-
+        for group, group_func_list in self.ranking_groups.items():
+            for description in group_func_list:
+                ranking_results.loc[:, (group, description, "ranking")] = ranking[description]
+                ranking_results.loc[:, (group, description, "result")] = all_results_table[
+                    "result"
+                ][description]
+                ranking_results.loc[:, (group, description, "sampling_ratio")] = all_results_table[
+                    "sampling_ratio"
+                ][description]
+        ranking_results.loc[:,'points'] = 0
+        for k,v in self.ranking_groups.items():
+            ranking_results.loc[:,'points'] += ranking_results.xs((k,'ranking'), level=(0,2), axis=1).mean(axis=1)
+        ranking_results.loc[:, 'points'] = ranking_results.loc[:, 'points']/len(self.ranking_groups)
+        ranking_results = ranking_results.sort_values(by=['points'])
+        print(ranking_results.xs(('rendement', 'ranking'), level=(0,2), axis=1))
         self.all_results = all_results[all_results.creator.notna()].reset_index()
         self.ranking_results = ranking_results
         return ranking_results

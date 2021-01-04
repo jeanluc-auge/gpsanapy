@@ -114,7 +114,6 @@ def load_results(gps_func_list, all_results_filename):
     # open filename if it exists:
     try:
         all_results = pd.read_csv(all_results_filename)
-        print('before set index', all_results)
         all_results = all_results.set_index("author")
     except Exception:
         logger.exception(
