@@ -24,7 +24,7 @@ from bs4 import BeautifulSoup, element
 import matplotlib.pyplot as plt
 
 
-from utils import log_calls, TraceAnalysisException, load_config
+from utils import log_calls, TraceAnalysisException, load_config, load_results
 
 logger = getLogger()
 
@@ -643,7 +643,7 @@ class TraceAnalysis:
         return confidence_report
 
     @log_calls(log_args=True, log_result=True)
-    def compile_results(self, config_file=None):
+    def call_gps_func_from_yaml(self, config_file=None):
         """
         generate the session performance summary
         load config.yaml file with instructions
@@ -652,12 +652,10 @@ class TraceAnalysis:
         :return: pd.DataFrame() self_result
         """
         results = []
+        gps_func_list = []
         config = load_config(config_file)
         # iterate over the config and call the referenced functions:
-        code1 = []
-        code2 = []
-        level1 = []
-        level2 = ["result", "sampling_ratio", "ranking"]
+
         for gps_func, iterations in config.items():
             # the same gps_func key cannot be repeated in the yaml description,
             # so we use an iterations list,
@@ -666,53 +664,35 @@ class TraceAnalysis:
                 results += getattr(self, gps_func)(
                     description=iteration["description"], **iteration["args"]
                 )
-                level1.append(iteration["description"])
+                gps_func_list.append(iteration["description"])
 
         # update results with gpx file creator and author and convert to df:
         data = [
             dict(creator=self.creator, author=self.author, **result)
             for result in results
         ]
-        self.result = pd.DataFrame(data=data)
-        self.result = self.result.set_index("author")
+        gpx_results = pd.DataFrame(data=data)
+        gpx_results = gpx_results.set_index("author")
+        self.gps_func_list = gps_func_list
+        return gpx_results
 
-        # merge with all_results data frame
-        all_results_filename = "all_results.csv"
-        all_results = None
-        try:
-            all_results = pd.read_csv(all_results_filename)
-            all_results = all_results.set_index("author")
-            print("all before", all_results.head(30))
-            print("result", self.result.head(30))
-        except Exception:
-            logger.exception(f"{all_results_filename} is missing")
+    @log_calls(log_args=False, log_result=True)
+    def compile_results(self, gpx_results, all_results_filename):
 
-        # check for config.yaml changes:
-        if all_results is not None:
-            gps_func_list = set(
-                all_results[all_results.n == 1]
-                .pivot_table(columns=["description"], dropna=False)
-                .columns
-            )
-            if set(level1) != gps_func_list:
-                logger.error(
-                    f"\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
-                    f"config in yaml file does not match the config used for all_results.csv\n"
-                    f"a new all_results.csv file will be created with no ranking history\n"
-                    f"ranking history in current all_results.csv will be saved as all_results_old.csv\n"
-                    f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
-                )
-                all_results.to_csv("all_results_old.csv")
-                all_results = None
-
+        # merge DataFrames current gpx_results with all_results history
+        all_results = load_results(self.gps_func_list, all_results_filename)
         if all_results is None:
-            all_results = self.result
+            all_results = gpx_results
         elif self.author in all_results.index:
-            all_results.loc[self.author] = self.result
-        else:
-            all_results = pd.concat([all_results, self.result])
+            all_results.loc[self.author] = gpx_results
+        else: # merge
+            all_results = pd.concat([all_results, gpx_results])
 
-        print("all after", all_results.head(30))
+        # build ranking_results MultiIndex DataFrame:
+        logger.info(
+            f"\nloaded all results history and merged with {self.author} results:\n"
+            f"{all_results.head(30)}\n"
+        )
         all_results_table = all_results[all_results.n == 1].pivot_table(
             values=["sampling_ratio", "result"],
             index=["author"],
@@ -720,18 +700,21 @@ class TraceAnalysis:
             aggfunc=np.mean,
             dropna=False,
         )
-
+        # init multiIndex DataFrame for the ranking_results:
+        code1 = []
+        code2 = []
+        level1 = self.gps_func_list
+        level2 = ["result", "sampling_ratio", "ranking"]
         for i, _ in enumerate(level1):
             code1 += [i, i, i]
             code2 += [0, 1, 2]
         mic = pd.MultiIndex(levels=[level1, level2], codes=[code1, code2])
-
         ranking_results = pd.DataFrame(index=all_results_table.index, columns=mic)
 
+        # rank and fill ranking_results DataFrame:
         ranking = all_results_table.result.rank(
             method="min", ascending=False, na_option="bottom"
         )
-
         for description in level1:
             ranking_results.loc[:, (description, "ranking")] = ranking[description]
             ranking_results.loc[:, (description, "result")] = all_results_table[
@@ -743,7 +726,7 @@ class TraceAnalysis:
 
         self.all_results = all_results[all_results.creator.notna()].reset_index()
         self.ranking_results = ranking_results
-        print(self.ranking_results)
+        return ranking_results
 
     @log_calls()
     def plot_speed(self):
@@ -756,7 +739,7 @@ class TraceAnalysis:
         plt.show()
 
     @log_calls()
-    def save_to_csv(self):
+    def save_to_csv(self, gpx_results, all_results_filename, ranking_results_filename):
         """
         save to csv file the simulation results and infos (debug)
         :return: 3 csv files
@@ -768,9 +751,9 @@ class TraceAnalysis:
         self.raw_df.to_csv("debug.csv")
         result_debug = self.df_result_debug[self.df_result_debug.speed.notna()]
         result_debug.to_csv(f"{self.filename}_result_debug.csv")
-        self.result.to_csv(f"{self.filename}_result.csv", index=False)
-        self.all_results.to_csv("all_results.csv", index=False)
-        self.ranking_results.to_csv("ranking_results.csv")
+        gpx_results.to_csv(f"{self.filename}_result.csv", index=False)
+        self.all_results.to_csv(all_results_filename, index=False)
+        self.ranking_results.to_csv(ranking_results_filename)
 
 
 parser = ArgumentParser()
@@ -786,7 +769,17 @@ parser.add_argument(
 if __name__ == "__main__":
     args = parser.parse_args()
     basicConfig(level={0: INFO, 1: DEBUG}.get(args.verbose, DEBUG))
-    gpx_jla = TraceAnalysis(args.gpx_filename)
-    gpx_jla.compile_results()
+
+    gpx_filename = args.gpx_filename
+    config_filename = "config.yaml" # config of gps functions to call
+    all_results_filename = "all_results.csv" # all time history results by user names
+    ranking_results_filename = "ranking_results.csv" # all time history results table with ranking
+
+    gpx_jla = TraceAnalysis(gpx_filename)
+    gpx_results = gpx_jla.call_gps_func_from_yaml(config_filename)
+    gpx_jla.compile_results(
+        gpx_results,
+        all_results_filename,
+    )
     # gpx_jla.plot_speed()
-    gpx_jla.save_to_csv()
+    gpx_jla.save_to_csv(gpx_results, all_results_filename, ranking_results_filename)
