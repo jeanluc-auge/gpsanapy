@@ -42,6 +42,7 @@ class TraceAnalysis:
             f"\ninit {self.__class__.__name__} with file {gpx_path}\n"
             f"creator {self.creator}\n"  # GPS device type: read from gpx file xml infos field
             f"author {self.author}\n"  # trace author: read from gpx file name
+            f"now running version 05/01/2021"
             f"==================================\n"
         )
         self.process_df()
@@ -754,7 +755,6 @@ class TraceAnalysis:
             ranking_results.loc[:,'points'] += ranking_results.xs((k,'ranking'), level=(0,2), axis=1).mean(axis=1)
         ranking_results.loc[:, 'points'] = ranking_results.loc[:, 'points']/len(self.ranking_groups)
         ranking_results = ranking_results.sort_values(by=['points'])
-        print(ranking_results.xs(('rendement', 'ranking'), level=(0,2), axis=1))
         self.all_results = all_results[all_results.creator.notna()].reset_index()
         self.ranking_results = ranking_results
         return ranking_results
