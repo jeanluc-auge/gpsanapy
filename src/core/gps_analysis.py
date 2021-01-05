@@ -632,12 +632,12 @@ class TraceAnalysis:
         # generate report:
         doppler_ratio = int(
             100
-            * len(self.thd[self.thd > 0][item_range].dropna())
+            * len(self.thd[item_range][self.thd > 0].dropna())
             / len(self.thd[item_range])
         )
         sampling_ratio = int(
             100
-            * len(self.tno_samp[self.tno_samp == 0][item_range].dropna())
+            * len(self.tno_samp[item_range][self.tno_samp == 0].dropna())
             / len(self.tno_samp[item_range])
         )
         std = round(self.tsd[item_range].std(), 2)
