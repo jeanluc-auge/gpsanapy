@@ -59,7 +59,7 @@ class TraceAnalysis:
 
     def load_df(self, gpx_path):
         html_soup = self.load_gpx_file_to_html(gpx_path)
-        self.creator = html_soup.gpx["creator"]
+        self.creator = html_soup.gpx.get("creator", "unknown")
         tracks = self.format_html_to_gpx(html_soup)
         df = self.to_pandas(tracks[0].segments[0])
         return df
