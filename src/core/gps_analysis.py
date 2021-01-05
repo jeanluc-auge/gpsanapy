@@ -515,12 +515,18 @@ class TraceAnalysis:
 
         td = self.td.rolling(max_samples).apply(rolling_dist_count)
         nd = pd.Series.to_numpy(td)
-        threshold = min(np.nanmin(nd) + 10, max_samples)
+        min_samples = int(np.nanmin(nd))
+        threshold = min(min_samples + 10, max_samples)
         logger.info(
             f"\nsearching {n} x v{dist} speed\n"
             f"over a window of {max_samples} samples\n"
             f"and found a min of {np.nanmin(nd)*sampling} seconds\n"
             f"to cover {dist}m"
+        )
+        logger.info(
+            f"checking result:\n"
+            f"max rolling({min_samples}) speed = {self.tsd.rolling(min_samples).mean().max()}\n"
+            f"max rolling({min_samples}) distance = {self.td.rolling(min_samples).sum().max()}\n"
         )
         indices = np.argwhere(nd <= threshold).flatten()
         indices_range = [set(range(int(i - nd[i]), int(i))) for i in indices]
@@ -644,7 +650,7 @@ class TraceAnalysis:
         confidence_report = dict(
             doppler_ratio=doppler_ratio, sampling_ratio=sampling_ratio, std=std
         )
-        logger.info(
+        logger.debug(
             f"\nconfidence_report on {item_description} in n={item_iter}:\n"
             f"{confidence_report}"
         )
@@ -733,7 +739,7 @@ class TraceAnalysis:
             code2 += [0, 1, 2]
         mic = pd.MultiIndex(levels=[level0, level1, level2], codes=[code0, code1, code2])
         ranking_results = pd.DataFrame(index=all_results_table.index, columns=mic)
-        logger.info(
+        logger.debug(
             f"ranking results multi index architecture:"
             f"{mic}"
         )
