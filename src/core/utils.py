@@ -110,14 +110,26 @@ def load_config(config_filename=None):
     return config
 
 def load_results(gps_func_list, all_results_filename):
-    all_results_filename = "all_results.csv"
+    """
+    open csv all_results_filename with history of other previous sessions or other riders
+    and load it into a pd.DataFrame
+        - if the history all_results_filename is missing, a new history file is created with the same name
+        - if the yaml config does not match the opened history file,
+            a new history file is created with the same name
+            and the older saved under "all_results_old.csv"
+    :param gps_func_list: list func to calls from yaml config file
+    :param all_results_filename: str name of the history file
+    :return: pd.DataFrame all_results from csv all_results_filename
+    """
+    old_all_results_filename = "all_results_old.csv"
     # open filename if it exists:
     try:
         all_results = pd.read_csv(all_results_filename)
         all_results = all_results.set_index("author")
-    except Exception:
-        logger.exception(
+    except Exception as e:
+        logger.error(
             f"\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
+            f"{str(e)}\n"
             f"{all_results_filename} is missing\n"
             f"=> a new file will be created"
             f"\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
@@ -139,6 +151,6 @@ def load_results(gps_func_list, all_results_filename):
             f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
         )
         all_results = all_results.reset_index()
-        all_results.to_csv("all_results_old.csv")
+        all_results.to_csv(old_all_results_filename)
         all_results = None
     return all_results

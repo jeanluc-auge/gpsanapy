@@ -28,6 +28,7 @@ planning_ratio:
   -
     args:
       v_min: 12
+      distance: True
     description: planning_ratio>12
     ranking_group: rendement
 v_moy:
