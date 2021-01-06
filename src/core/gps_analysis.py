@@ -360,19 +360,23 @@ class TraceAnalysis:
         :param n: int number of records
         :return: list of n * vmin jibe speeds
         """
+        sampling = int(self.sampling.strip("S"))
         HALF_JIBE_COURSE = 70
         FULL_JIBE_COURSE = 130
         MIN_JIBE_SPEED = 11
+        speed_window = int(20/sampling)
+        course_window = int(15/sampling)
+        partial_course_window = int(course_window/3)
 
         tc = self.tc_diff.copy()
         # remove low speed periods (too many noise in course orientation):
-        tc[self.tsd.rolling(20, center=True).min() < MIN_JIBE_SPEED] = np.nan
+        tc[self.tsd.rolling(speed_window, center=True).min() < MIN_JIBE_SPEED] = np.nan
         tc.iloc[0:30] = np.nan
         tc.iloc[-30:-1] = np.nan
         # find consition 1 on 5 samples rolling window:
-        cj1 = abs(tc.rolling(5, center=True).sum()) > HALF_JIBE_COURSE
+        cj1 = abs(tc.rolling(partial_course_window, center=True).sum()) > HALF_JIBE_COURSE
         # find condition2 on 15 samples rolling window:
-        cj2 = abs(tc.rolling(15, center=True).sum()) > FULL_JIBE_COURSE
+        cj2 = abs(tc.rolling(course_window, center=True).sum()) > FULL_JIBE_COURSE
 
         # # ====== debug starts =====================
         # df = pd.DataFrame(index=tc.index)
@@ -387,7 +391,7 @@ class TraceAnalysis:
         # # ====== debug ends =====================
 
         # generate a list of all jibes min speed on a 20 samples window for conditions 1 & 2:
-        jibe_speed = self.tsd.rolling(20, center=True).min()[cj1 & cj2]
+        jibe_speed = self.tsd.rolling(speed_window, center=True).min()[cj1 & cj2]
         results = []
         if len(jibe_speed) == 0:
             # abort: could not find any valid jibe
@@ -711,7 +715,7 @@ class TraceAnalysis:
             all_results = pd.concat([all_results, gpx_results])
 
         # build ranking_results MultiIndex DataFrame:
-        logger.info(
+        logger.debug(
             f"\nloaded all results history and merged with {self.author} results:\n"
             f"{all_results.head(30)}\n"
         )
