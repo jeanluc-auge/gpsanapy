@@ -16,6 +16,18 @@ pip3 install -rrequirements.txt<br>
 python3 src/core/gps_analysis.py -f author_filename.gpx<br>
 author_filename.gpx is the gps session file that you want to analyse.
 
+## options
+
+- loop over several gpx files:<br>
+python3 src/core/gps_analysis.py -f file_1.gpx file_i.gpx ...<br>
+make sure that the different files have different author_... prefix 
+- loop over all gpx files of a given directory:<br>
+python3 src/core/gps_analysis.py -rd directory_name
+
+The results of all the gpx files are ranked and aggregated in the same ranking_results.csv file (see output)
+
+## output
+
 The results to report are defined in the config.yaml file and are fully parametrizable:<br>
 - list of functions to call
 - each function can be called several times with different args
@@ -41,7 +53,7 @@ Leveraging pandas DataFrame:<br>
         => program internal use (not for presentation) <br>
         => updated at each run
     * ranking_results.csv: all time sessions or users history with ranking<br>
-        => overall results prensentation
+        => overall results presentation<br>
         => erased at each run <br>
        
 
