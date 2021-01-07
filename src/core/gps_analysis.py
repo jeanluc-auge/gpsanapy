@@ -805,9 +805,22 @@ class TraceAnalysis:
         self.all_results.to_csv(all_results_filename, index=False)
         self.ranking_results.to_csv(ranking_results_filename)
 
+def process_args(args):
+    f = args.gpx_filename
+    d = args.read_directory
+    if f:
+        gpx_filenames = f
+    if d:
+        gpx_filenames = [f for f in os.listdir(d) if f.endswith(".gpx")]
+    logger.info(
+        f"\nthe following gpx files will be processed:\n"
+        f"{gpx_filenames}"
+    )
+    return gpx_filenames
 
 parser = ArgumentParser()
-parser.add_argument("-f", "--gpx_filename", nargs="?", type=Path, default=".gpx")
+parser.add_argument("-f", "--gpx_filename", nargs="+", type=Path)
+parser.add_argument("-rd", "--read_directory", nargs="?", type=str, default="")
 parser.add_argument(
     "-v",
     "--verbose",
@@ -820,16 +833,17 @@ if __name__ == "__main__":
     args = parser.parse_args()
     basicConfig(level={0: INFO, 1: DEBUG}.get(args.verbose, DEBUG))
 
-    gpx_filename = args.gpx_filename
     config_filename = "config.yaml" # config of gps functions to call
     all_results_filename = "all_results.csv" # all time history results by user names
     ranking_results_filename = "ranking_results.csv" # all time history results table with ranking
 
-    gpx_jla = TraceAnalysis(gpx_filename)
-    gpx_results = gpx_jla.call_gps_func_from_yaml(config_filename)
-    gpx_jla.compile_results(
-        gpx_results,
-        all_results_filename,
-    )
-    # gpx_jla.plot_speed()
-    gpx_jla.save_to_csv(gpx_results, all_results_filename, ranking_results_filename)
+    gpx_filenames = process_args(args)
+    for gpx_filename in gpx_filenames:
+        gpx_jla = TraceAnalysis(gpx_filename)
+        gpx_results = gpx_jla.call_gps_func_from_yaml(config_filename)
+        gpx_jla.compile_results(
+            gpx_results,
+            all_results_filename,
+        )
+        # gpx_jla.plot_speed()
+        gpx_jla.save_to_csv(gpx_results, all_results_filename, ranking_results_filename)
