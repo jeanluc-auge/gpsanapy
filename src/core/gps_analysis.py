@@ -12,6 +12,7 @@ core gps analytic:
 """
 
 import json
+import os
 import datetime
 from pathlib import Path
 from logging import getLogger, basicConfig, INFO, ERROR, DEBUG
@@ -39,11 +40,12 @@ class TraceAnalysis:
         self.author = self.filename.split("_")[0]
         self.df = self.load_df(gpx_path)
         logger.info(
-            f"\ninit {self.__class__.__name__} with file {gpx_path}\n"
+            f"\n=======================================\n"
+            f"__init__ {self.__class__.__name__} with file {gpx_path}\n"
             f"creator {self.creator}\n"  # GPS device type: read from gpx file xml infos field
             f"author {self.author}\n"  # trace author: read from gpx file name
-            f"now running version 05/01/2021"
-            f"==================================\n"
+            f"now running version 05/01/2021\n"
+            f"=======================================\n"
         )
         self.process_df()
         # debug, select a portion of the trace:
@@ -184,36 +186,21 @@ class TraceAnalysis:
             self.df["speed"] = self.df.speed_no_doppler
             self.df["has_doppler"] = 0
 
-    def generate_series(self):
+    @log_calls()
+    def clean_df(self):
         """
-        generate key time series with
-            - resampling to self.sampling
-            - aggregation (mean/min/max) for up-sampling
-            - optional interpolate in case of down-sampling (else np.nan)
+        filter self.df on speed_no_doppler and speed fields
+        to remove acceleration spikes > 0.3g
+        :return: modify self.df
         """
-
-        # speed doppler
-        self.tsd = self.df["speed"].resample(self.sampling).mean().interpolate()
-        self.raw_tsd = self.raw_df["speed"].resample(self.sampling).mean()
-        # speed no doppler
-        self.ts = (
-            self.df["speed_no_doppler"].resample(self.sampling).mean().interpolate()
-        )
-        # filtering? yes=1 default=0 (np.nan=0), sum = OR (max):
-        self.tf = self.raw_df["filtering"].resample(self.sampling).max()
-        self.tf = self.tf.fillna(0).astype(np.int64)
-        # no sampling? yes=1 default=1 (np.nan=1), sum = OR
-        self.tno_samp = self.raw_df["filtering"].resample(self.sampling).max()
-        self.tno_samp = self.tno_samp.fillna(1).astype(np.int64)
-        # has_doppler? yes=1 default=0 (np.nan=0), sum = AND (min):
-        self.thd = self.df["has_doppler"].resample(self.sampling).min()
-        self.thd = self.thd.fillna(0).astype(np.int64)
-        # distance: resample on cumulated values => take min of the bin and restore diff:
-        self.tcd = self.df["cum_dist"].resample(self.sampling).min().interpolate()
-        self.td = self.tcd.diff()
-        # course (orientation °) cumulated values => take min of the bin
-        self.tc = self.df["course"].resample(self.sampling).min().interpolate()
-        self.tc_diff = self.diff_clean_ts(self.tc, 300)
+        erratic_data = True
+        iter = 1
+        while erratic_data and iter < 10:
+            err1 = self.filter_on_field("speed_no_doppler")
+            err2 = self.filter_on_field("speed")
+            erratic_data = err1 or err2
+            iter += 1
+        self.df = self.df[self.df.speed.notna()]
 
     def filter_on_field(self, column):
         """
@@ -283,21 +270,36 @@ class TraceAnalysis:
         # self.df = self.df[self.df.speed.notna()]
         # return len(data_to_filter) > 0
 
-    @log_calls()
-    def clean_df(self):
+    def generate_series(self):
         """
-        filter self.df on speed_no_doppler and speed fields
-        to remove acceleration spikes > 0.3g
-        :return: modify self.df
+        generate key time series with
+            - resampling to self.sampling
+            - aggregation (mean/min/max) for up-sampling
+            - optional interpolate in case of down-sampling (else np.nan)
         """
-        erratic_data = True
-        iter = 1
-        while erratic_data and iter < 10:
-            err1 = self.filter_on_field("speed_no_doppler")
-            err2 = self.filter_on_field("speed")
-            erratic_data = err1 or err2
-            iter += 1
-        self.df = self.df[self.df.speed.notna()]
+
+        # speed doppler
+        self.tsd = self.df["speed"].resample(self.sampling).mean().interpolate()
+        self.raw_tsd = self.raw_df["speed"].resample(self.sampling).mean()
+        # speed no doppler
+        self.ts = (
+            self.df["speed_no_doppler"].resample(self.sampling).mean().interpolate()
+        )
+        # filtering? yes=1 default=0 (np.nan=0), sum = OR (max):
+        self.tf = self.raw_df["filtering"].resample(self.sampling).max()
+        self.tf = self.tf.fillna(0).astype(np.int64)
+        # no sampling? yes=1 default=1 (np.nan=1), sum = OR
+        self.tno_samp = self.raw_df["filtering"].resample(self.sampling).max()
+        self.tno_samp = self.tno_samp.fillna(1).astype(np.int64)
+        # has_doppler? yes=1 default=0 (np.nan=0), sum = AND (min):
+        self.thd = self.df["has_doppler"].resample(self.sampling).min()
+        self.thd = self.thd.fillna(0).astype(np.int64)
+        # distance: resample on cumulated values => take min of the bin and restore diff:
+        self.tcd = self.df["cum_dist"].resample(self.sampling).min().interpolate()
+        self.td = self.tcd.diff()
+        # course (orientation °) cumulated values => take min of the bin
+        self.tc = self.df["course"].resample(self.sampling).min().interpolate()
+        self.tc_diff = self.diff_clean_ts(self.tc, 300)
 
     def diff_clean_ts(self, ts, threshold):
         """
@@ -397,7 +399,7 @@ class TraceAnalysis:
             # abort: could not find any valid jibe
             return [{"description": description, "result": None, **DEFAULT_REPORT}]
         for i in range(1, n + 1):
-            # find the highest speed jibe index and speed:
+            # find the highest speed jibe index and speed and define a [-11s, +11s] centered window
             range_begin = jibe_speed.idxmax() - datetime.timedelta(seconds=11)
             range_end = jibe_speed.idxmax() + datetime.timedelta(seconds=11)
             result = round(jibe_speed.dropna().max(), 1)
@@ -498,12 +500,18 @@ class TraceAnalysis:
     def speed_dist(self, description, dist=500, n=5):
         """
         calculate Vmax n x V[distance]
-        :param dist: float distance to average speed
+        :param dist: float distance to consider for speed mean
         :param n: int number of vmax to record
-        :return: TBD list of v[dist]
+        :return: vmax mean over distance dist
         """
 
         def rolling_dist_count(delta_dist):
+            """
+            rolling distance filter
+            count the number of samples needed to reach a given distance
+            :param dist: float distance to reach
+            :return: int  # samples to reach distance dist
+            """
             delta_dist = delta_dist[::-1]
             cum_dist = 0
             for i, d in enumerate(delta_dist):
