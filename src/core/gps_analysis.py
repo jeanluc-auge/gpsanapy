@@ -245,8 +245,7 @@ class TraceAnalysis:
             .apply(rolling_acceleration_filter)
             .shift(-19)
         )
-
-        filtering = pd.Series.to_numpy(self.df[filtering])
+        filtering = pd.Series.to_numpy(self.df[filtering].copy())
         indices = np.argwhere(filtering > 0).flatten()
         for i in indices:
             # =========== debug ===================
@@ -521,18 +520,20 @@ class TraceAnalysis:
             return i + 1
 
         sampling = int(self.sampling.strip("S"))
-        min_speed = 7  # m/s min expected speed for max window size
+        min_speed = 7  # knots min expected speed for max window size
         max_interval = dist / min_speed
         max_samples = int(max_interval / sampling)
 
         td = self.td.rolling(max_samples).apply(rolling_dist_count)
         nd = pd.Series.to_numpy(td)
+        if np.isnan(nd).all():
+            return [{"result": 0, "description": description, **DEFAULT_REPORT}]
         min_samples = int(np.nanmin(nd))
         threshold = min(min_samples + 10, max_samples)
         logger.info(
             f"\nsearching {n} x v{dist} speed\n"
             f"over a window of {max_samples} samples\n"
-            f"and found a min of {np.nanmin(nd)*sampling} seconds\n"
+            f"and found a min of {min_samples*sampling} seconds\n"
             f"to cover {dist}m"
         )
         logger.info(
