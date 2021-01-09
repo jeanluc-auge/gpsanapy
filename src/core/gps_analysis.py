@@ -39,6 +39,7 @@ class TraceAnalysis:
         self.gpx_path = gpx_path
         self.filename = Path(self.gpx_path).stem
         self.author = self.filename.split("_")[0]
+        self.set_csv_paths()
         logger.info(
             f"\n=======================================\n"
             f"__init__ {self.__class__.__name__} with file {gpx_path}\n"
@@ -777,9 +778,9 @@ class TraceAnalysis:
         # ordered (wrto ranking) list of gps_func to call:
         return gpx_results
 
-    def merge_all_results(self, gpx_results, all_results_filename):
+    def merge_all_results(self, gpx_results):
         # merge DataFrames current gpx_results with all_results history
-        all_results = load_results(self.gps_func_description, all_results_filename)
+        all_results = load_results(self.gps_func_description, self.all_results_path)
         if all_results is None:
             all_results = gpx_results
         elif self.author in all_results.index:
@@ -793,9 +794,9 @@ class TraceAnalysis:
         return all_results
 
     @log_calls(log_args=False, log_result=True)
-    def rank_all_results(self, gpx_results, all_results_filename):
+    def rank_all_results(self, gpx_results):
         # merge DataFrames current gpx_results with all_results history:
-        self.all_results = self.merge_all_results(gpx_results, all_results_filename)
+        self.all_results = self.merge_all_results(gpx_results)
         # build ranking_results MultiIndex DataFrame:
         all_results_table = self.all_results[self.all_results.n == 1].pivot_table(
             values=["sampling_ratio", "result"],
@@ -842,8 +843,30 @@ class TraceAnalysis:
         dfs.plot()
         plt.show()
 
+    def set_csv_paths(self):
+        result_directory = os.path.join(
+            os.path.dirname(__file__),
+            f"../../csv_results"
+        )
+        # debug file with the full DataFrame (erased at each run):
+        debug_filename = "debug.csv"
+        # debug file reduced to the main results timeframe (new for different authors):
+        result_debug_filename = f"{self.filename}_result_debug.csv"
+        # result file of the current run (new for different authors):
+        result_filename = f"{self.filename}_result.csv"
+        # all time history results by user names (updated after each run):
+        all_results_filename = "all_results.csv"
+        # all time history results table with ranking (re-created at each run):
+        ranking_results_filename = ("ranking_results.csv")
+
+        self.debug_path = os.path.join(result_directory, debug_filename)
+        self.result_debug_path = os.path.join(result_directory, result_debug_filename)
+        self.results_path = os.path.join(result_directory, result_filename)
+        self.all_results_path = os.path.join(result_directory, all_results_filename)
+        self.ranking_results_path = os.path.join(result_directory, ranking_results_filename)
+
     @log_calls()
-    def save_to_csv(self, gpx_results, all_results_filename, ranking_results_filename):
+    def save_to_csv(self, gpx_results):
         """
         save to csv file the simulation results and infos (debug)
         :return: 3 csv files
@@ -851,15 +874,14 @@ class TraceAnalysis:
             - result_debug.csv with the runs details of each result
             - result.csv result summary
         """
-
-        self.raw_df.to_csv("debug.csv")
+        self.raw_df.to_csv(self.debug_path)
         result_debug = self.df_result_debug[self.df_result_debug.speed.notna()]
-        result_debug.to_csv(f"{self.filename}_result_debug.csv")
-        gpx_results.to_csv(f"{self.filename}_result.csv", index=False)
+        result_debug.to_csv(self.result_debug_path)
+        gpx_results.to_csv(self.results_path, index=False)
         if hasattr(self, 'all_results'):
             self.all_results = self.all_results[self.all_results.creator.notna()].reset_index()
-            self.all_results.to_csv(all_results_filename, index=False)
-            self.ranking_results.to_csv(ranking_results_filename)
+            self.all_results.to_csv(self.all_results_path, index=False)
+            self.ranking_results.to_csv(self.ranking_results_path)
 
 
 def process_args(args):
@@ -887,17 +909,11 @@ parser.add_argument(
 if __name__ == "__main__":
     args = parser.parse_args()
     basicConfig(level={0: INFO, 1: DEBUG}.get(args.verbose, DEBUG))
-
     config_filename = "config.yaml"  # config of gps functions to call
-    all_results_filename = "all_results.csv"  # all time history results by user names
-    ranking_results_filename = (
-        "ranking_results.csv"
-    )  # all time history results table with ranking
-
     gpx_filenames = process_args(args)
     for gpx_filename in gpx_filenames:
-        gpx_jla = TraceAnalysis(gpx_filename)
+        gpx_jla = TraceAnalysis(gpx_filename, config_filename)
         gpx_results = gpx_jla.call_gps_func_from_config()
-        # gpx_jla.rank_all_results(gpx_results, all_results_filename)
+        # gpx_jla.rank_all_results(gpx_results)
         gpx_jla.plot_speed()
-        gpx_jla.save_to_csv(gpx_results, all_results_filename, ranking_results_filename)
+        gpx_jla.save_to_csv(gpx_results)
