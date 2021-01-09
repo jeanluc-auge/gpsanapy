@@ -30,7 +30,8 @@ from utils import log_calls, TraceAnalysisException, load_config, load_results
 logger = getLogger()
 
 DEFAULT_REPORT = {"n": 1, "doppler_ratio": None, "sampling_ratio": None, "std": None}
-
+MAX_SPEED = 45 # knots
+MAX_ACCELERATION = 0.5 # g or 5m/s/s
 
 class TraceAnalysis:
     def __init__(self, gpx_path, sampling="1S"):
@@ -38,18 +39,15 @@ class TraceAnalysis:
         self.gpx_path = gpx_path
         self.filename = Path(self.gpx_path).stem
         self.author = self.filename.split("_")[0]
-        self.df = self.load_df(gpx_path)
         logger.info(
             f"\n=======================================\n"
             f"__init__ {self.__class__.__name__} with file {gpx_path}\n"
-            f"creator {self.creator}\n"  # GPS device type: read from gpx file xml infos field
-            f"author {self.author}\n"  # trace author: read from gpx file name
-            f"now running version 05/01/2021\n"
-            f"=======================================\n"
+            f"author name: {self.author}\n"  # trace author: read from gpx file name
         )
+        self.df = self.load_df(gpx_path)
         self.process_df()
         # debug, select a portion of the trace:
-        # self.df = self.df.loc["2020-12-12 13:30:30+00:00": "2020-12-12 13:37:00+00:00"]
+        self.df = self.df.loc["2019-03-29 13:18:40+00:00": "2019-03-29 13:19:30+00:00"]
         # original copy that will not be modified: for reference & debug:
         self.raw_df = self.df.copy()
         self.raw_df["filtering"] = 0
@@ -57,10 +55,38 @@ class TraceAnalysis:
         self.clean_df()
         # generate key time series:
         self.generate_series()
+        # if self.tsd.max() > MAX_SPEED:
+        #     raise TraceAnalysisException(
+        #         f"Trace maximum speed after cleaning is = {self.tsd.max()} knots!\n"
+        #         f"abort analysis for speed > {MAX_SPEED}"
+        #     )
+        doppler_ratio = int(100 * len(self.thd[self.thd > 0].dropna()) / len(self.thd))
+        sampling_ratio = int(
+            100 * len(self.tno_samp[self.tno_samp == 0].dropna()) / len(self.tno_samp)
+        )
+        sampling_ratio_5 = int(
+            100 * len(self.tno_samp[self.tno_samp == 0][self.tsd>5].dropna()) / len(self.tno_samp[self.tsd>5])
+        )
+        logger.info(
+            f"\n=======================================\n"
+            f"=======================================\n"
+            f"file loading to pandas DataFrame complete\n"
+            f"creator {self.creator}\n"  # GPS device type: read from gpx file xml infos field
+            f"total distance {round(self.td.sum()/1000,1)} km"
+            f"\noverall doppler_ratio = {doppler_ratio}%\n"
+            f"overall sampling ratio = {sampling_ratio}%\n"
+            f"overall sampling ratio > 5knots = {sampling_ratio_5}%\n"
+            f"filtered {self.filtered_events} events with acceleration > 0.5g\n"
+            f"now running version 08/01/2021\n"
+            f"=======================================\n"
+            f"\n=======================================\n"
+        )
         self.df_result_debug = pd.DataFrame(index=self.tsd.index)
 
     def load_df(self, gpx_path):
         html_soup = self.load_gpx_file_to_html(gpx_path)
+        if html_soup is None:
+            raise TraceAnalysisException("the loaded gpx file is empty")
         self.creator = html_soup.gpx.get("creator", "unknown")
         tracks = self.format_html_to_gpx(html_soup)
         df = self.to_pandas(tracks[0].segments[0])
@@ -190,15 +216,17 @@ class TraceAnalysis:
     def clean_df(self):
         """
         filter self.df on speed_no_doppler and speed fields
-        to remove acceleration spikes > 0.3g
+        to remove acceleration spikes > 0.5g
         :return: modify self.df
         """
         erratic_data = True
         iter = 1
+        self.filtered_events = 0
         while erratic_data and iter < 10:
             err1 = self.filter_on_field("speed_no_doppler")
             err2 = self.filter_on_field("speed")
-            erratic_data = err1 or err2
+            self.filtered_events += err1
+            erratic_data = err1>0 or err2>0
             iter += 1
         self.df = self.df[self.df.speed.notna()]
 
@@ -207,7 +235,7 @@ class TraceAnalysis:
         filter a given column in self.df
         by checking its acceleration
         and eliminating (filtering) between
-        positive (acc>0.3g) and negative (acc < -0.1g) spikes
+        positive (acc>0.5g) and negative (acc < -0.1g) spikes
         param column: df column to process
         :return: Bool assessing if filtering occured
         """
@@ -365,9 +393,9 @@ class TraceAnalysis:
         HALF_JIBE_COURSE = 70
         FULL_JIBE_COURSE = 130
         MIN_JIBE_SPEED = 11
-        speed_window = int(20/sampling)
-        course_window = int(15/sampling)
-        partial_course_window = int(course_window/3)
+        speed_window = int(20 / sampling)
+        course_window = int(15 / sampling)
+        partial_course_window = int(course_window / 3)
 
         tc = self.tc_diff.copy()
         # remove low speed periods (too many noise in course orientation):
@@ -375,7 +403,9 @@ class TraceAnalysis:
         tc.iloc[0:30] = np.nan
         tc.iloc[-30:-1] = np.nan
         # find consition 1 on 5 samples rolling window:
-        cj1 = abs(tc.rolling(partial_course_window, center=True).sum()) > HALF_JIBE_COURSE
+        cj1 = (
+            abs(tc.rolling(partial_course_window, center=True).sum()) > HALF_JIBE_COURSE
+        )
         # find condition2 on 15 samples rolling window:
         cj2 = abs(tc.rolling(course_window, center=True).sum()) > FULL_JIBE_COURSE
 
@@ -552,7 +582,7 @@ class TraceAnalysis:
         results = []
         for speed, speed_range in speed_list:
             if not (speed_range & total_range):
-                result = round(speed,1)
+                result = round(speed, 1)
                 confidence_report = self.append_result_debug(
                     item_range=self.tsd[speed_range].index,
                     item_description=description,
@@ -596,7 +626,7 @@ class TraceAnalysis:
             ts = tsd.rolling(xs).mean()
             range_end = ts.idxmax()
             range_begin = range_end - datetime.timedelta(seconds=s - 1)
-            result = round(ts.max(),1)
+            result = round(ts.max(), 1)
             # remove this speed range to find others:
             tsd[range_begin:range_end] = 0
             # generate debug report
@@ -691,11 +721,17 @@ class TraceAnalysis:
                 results += getattr(self, gps_func)(
                     description=iteration["description"], **iteration["args"]
                 )
-                if iteration['ranking_group'] in ranking_groups:
-                    ranking_groups[iteration['ranking_group']].append(iteration["description"])
+                if iteration["ranking_group"] in ranking_groups:
+                    ranking_groups[iteration["ranking_group"]].append(
+                        iteration["description"]
+                    )
                 else:
-                    ranking_groups[iteration['ranking_group']] = [iteration["description"]]
-        self.gps_func_list = [gps_func for v in ranking_groups.values() for gps_func in v]
+                    ranking_groups[iteration["ranking_group"]] = [
+                        iteration["description"]
+                    ]
+        self.gps_func_list = [
+            gps_func for v in ranking_groups.values() for gps_func in v
+        ]
         self.ranking_groups = ranking_groups
         logger.info(
             f"\nlist of gps functions {self.gps_func_list}\n"
@@ -720,7 +756,7 @@ class TraceAnalysis:
             all_results = gpx_results
         elif self.author in all_results.index:
             all_results.loc[self.author] = gpx_results
-        else: # merge
+        else:  # merge
             all_results = pd.concat([all_results, gpx_results])
 
         # build ranking_results MultiIndex DataFrame:
@@ -743,37 +779,42 @@ class TraceAnalysis:
         level1 = self.gps_func_list
         level2 = ["result", "sampling_ratio", "ranking"]
         i = 0
-        for k,v in self.ranking_groups.items():
-            code0 += len(v)*[i,i,i]
+        for k, v in self.ranking_groups.items():
+            code0 += len(v) * [i, i, i]
             level0.append(k)
             i += 1
         for i, _ in enumerate(level1):
             code1 += [i, i, i]
             code2 += [0, 1, 2]
-        mic = pd.MultiIndex(levels=[level0, level1, level2], codes=[code0, code1, code2])
-        ranking_results = pd.DataFrame(index=all_results_table.index, columns=mic)
-        logger.debug(
-            f"ranking results multi index architecture:"
-            f"{mic}"
+        mic = pd.MultiIndex(
+            levels=[level0, level1, level2], codes=[code0, code1, code2]
         )
+        ranking_results = pd.DataFrame(index=all_results_table.index, columns=mic)
+        logger.debug(f"ranking results multi index architecture:" f"{mic}")
         # rank and fill ranking_results DataFrame:
         ranking = all_results_table.result.rank(
             method="min", ascending=False, na_option="bottom"
         )
         for group, group_func_list in self.ranking_groups.items():
             for description in group_func_list:
-                ranking_results.loc[:, (group, description, "ranking")] = ranking[description]
-                ranking_results.loc[:, (group, description, "result")] = all_results_table[
-                    "result"
-                ][description]
-                ranking_results.loc[:, (group, description, "sampling_ratio")] = all_results_table[
-                    "sampling_ratio"
-                ][description]
-        ranking_results.loc[:,'points'] = 0
-        for k,v in self.ranking_groups.items():
-            ranking_results.loc[:,'points'] += ranking_results.xs((k,'ranking'), level=(0,2), axis=1).mean(axis=1)
-        ranking_results.loc[:, 'points'] = ranking_results.loc[:, 'points']/len(self.ranking_groups)
-        ranking_results = ranking_results.sort_values(by=['points'])
+                ranking_results.loc[:, (group, description, "ranking")] = ranking[
+                    description
+                ]
+                ranking_results.loc[
+                    :, (group, description, "result")
+                ] = all_results_table["result"][description]
+                ranking_results.loc[
+                    :, (group, description, "sampling_ratio")
+                ] = all_results_table["sampling_ratio"][description]
+        ranking_results.loc[:, "points"] = 0
+        for k, v in self.ranking_groups.items():
+            ranking_results.loc[:, "points"] += ranking_results.xs(
+                (k, "ranking"), level=(0, 2), axis=1
+            ).mean(axis=1)
+        ranking_results.loc[:, "points"] = ranking_results.loc[:, "points"] / len(
+            self.ranking_groups
+        )
+        ranking_results = ranking_results.sort_values(by=["points"])
         self.all_results = all_results[all_results.creator.notna()].reset_index()
         self.ranking_results = ranking_results
         return ranking_results
@@ -805,18 +846,17 @@ class TraceAnalysis:
         self.all_results.to_csv(all_results_filename, index=False)
         self.ranking_results.to_csv(ranking_results_filename)
 
+
 def process_args(args):
     f = args.gpx_filename
     d = args.read_directory
     if f:
         gpx_filenames = f
     if d:
-        gpx_filenames = [f for f in os.listdir(d) if f.endswith(".gpx")]
-    logger.info(
-        f"\nthe following gpx files will be processed:\n"
-        f"{gpx_filenames}"
-    )
+        gpx_filenames = [f"{d}/{f}" for f in os.listdir(d) if f.endswith(".gpx")]
+    logger.info(f"\nthe following gpx files will be processed:\n" f"{gpx_filenames}")
     return gpx_filenames
+
 
 parser = ArgumentParser()
 parser.add_argument("-f", "--gpx_filename", nargs="+", type=Path)
@@ -833,17 +873,16 @@ if __name__ == "__main__":
     args = parser.parse_args()
     basicConfig(level={0: INFO, 1: DEBUG}.get(args.verbose, DEBUG))
 
-    config_filename = "config.yaml" # config of gps functions to call
-    all_results_filename = "all_results.csv" # all time history results by user names
-    ranking_results_filename = "ranking_results.csv" # all time history results table with ranking
+    config_filename = "config.yaml"  # config of gps functions to call
+    all_results_filename = "all_results.csv"  # all time history results by user names
+    ranking_results_filename = (
+        "ranking_results.csv"
+    )  # all time history results table with ranking
 
     gpx_filenames = process_args(args)
     for gpx_filename in gpx_filenames:
         gpx_jla = TraceAnalysis(gpx_filename)
         gpx_results = gpx_jla.call_gps_func_from_yaml(config_filename)
-        gpx_jla.compile_results(
-            gpx_results,
-            all_results_filename,
-        )
-        # gpx_jla.plot_speed()
+        #gpx_jla.compile_results(gpx_results, all_results_filename)
+        gpx_jla.plot_speed()
         gpx_jla.save_to_csv(gpx_results, all_results_filename, ranking_results_filename)
