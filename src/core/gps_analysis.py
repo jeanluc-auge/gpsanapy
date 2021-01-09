@@ -49,11 +49,10 @@ class TraceAnalysis:
         self.process_config()
         self.df = self.load_df(gpx_path)
         self.process_df()
-        # debug, select a portion of the trace:
-        self.df = self.df.loc["2019-03-29 13:18:40+00:00": "2019-03-29 13:19:30+00:00"]
+        # debug, select a portion of the trac:
+        #self.df = self.df.loc["2019-04-02 16:34:00+00:00": "2019-04-02 16:36:00+00:00"]
         # original copy that will not be modified: for reference & debug:
         self.raw_df = self.df.copy()
-        self.raw_df["filtering"] = 0
         # filter out speed spikes on self.df:
         self.clean_df()
         # generate key time series:
@@ -67,9 +66,12 @@ class TraceAnalysis:
         sampling_ratio = int(
             100 * len(self.tno_samp[self.tno_samp == 0].dropna()) / len(self.tno_samp)
         )
-        sampling_ratio_5 = int(
-            100 * len(self.tno_samp[self.tno_samp == 0][self.tsd>5].dropna()) / len(self.tno_samp[self.tsd>5])
-        )
+        if len(self.tno_samp[self.tsd>5]) == 0:
+            sampling_ratio_5 = 0
+        else:
+            sampling_ratio_5 = int(
+                100 * len(self.tno_samp[self.tno_samp == 0][self.tsd>5].dropna()) / len(self.tno_samp[self.tsd>5])
+            )
         logger.info(
             f"\n=======================================\n"
             f"=======================================\n"
@@ -80,7 +82,7 @@ class TraceAnalysis:
             f"overall sampling ratio = {sampling_ratio}%\n"
             f"overall sampling ratio > 5knots = {sampling_ratio_5}%\n"
             f"filtered {self.filtered_events} events with acceleration > 0.5g\n"
-            f"now running version 08/01/2021\n"
+            f"now running version 09/01/2021\n"
             f"=======================================\n"
             f"\n=======================================\n"
         )
@@ -222,18 +224,27 @@ class TraceAnalysis:
         to remove acceleration spikes > 0.5g
         :return: modify self.df
         """
+        # record acceleration (debug):
+        self.raw_df['acceleration'] = self.raw_df.speed.diff() / (
+            9.81 * self.raw_df.elapsed_time.diff()
+        )
         erratic_data = True
         iter = 1
         self.filtered_events = 0
-        while erratic_data and iter < 10:
-            err1 = self.filter_on_field("speed_no_doppler")
-            err2 = self.filter_on_field("speed")
-            self.filtered_events += err1
-            erratic_data = err1>0 or err2>0
+        df2 = self.df.copy()
+        df2['filtering'] = 0
+        # limit the # of iterations for speed + avoid infinite loop
+        while erratic_data and iter < 5:
+            #err1 = self.filter_on_field(df2, "speed_no_doppler")
+            err = self.filter_on_field(df2, "speed")
+            self.filtered_events += err
+            erratic_data = err>0
             iter += 1
+        self.df.loc[df2[df2.filtering==1].index] = np.nan
+        self.raw_df["filtering"] = df2.filtering
         self.df = self.df[self.df.speed.notna()]
 
-    def filter_on_field(self, column):
+    def filter_on_field(self, df2, column):
         """
         filter a given column in self.df
         by checking its acceleration
@@ -253,52 +264,47 @@ class TraceAnalysis:
             """
             i = 0
             # searched irrealisitc >0.5g acceleration spikes
-            if x[0] > 0.5:
+            if x[0] > MAX_ACCELERATION:
                 exiting = False
                 for i, a in enumerate(x):
                     # find spike interval length by searching negative spike end
                     if a < -0.1:
                         exiting = True
                     elif exiting and a != np.nan:
-                        break
+                        if a < MAX_ACCELERATION:
+                            break
+                        else:
+                            exiting = False
             return i
 
-        acceleration = f"{column}_acceleration"
-        filtering = f"{column}_filtering"
+        column_filtering = f"{column}_filtering"
+
         # calculate g acceleration:
-        self.df[acceleration] = self.df[column].diff() / (
-            9.81 * self.df.elapsed_time.diff()
+        df2['acceleration'] = df2[column].diff() / (
+            9.81 * df2.elapsed_time.diff()
         )
         # apply our rolling acceleration filter:
-        self.df[filtering] = (
-            self.df[acceleration]
+        df2[column_filtering] = (
+            df2.acceleration
             .rolling(20)
             .apply(rolling_acceleration_filter)
             .shift(-19)
         )
-        filtering = pd.Series.to_numpy(self.df[filtering].copy())
+        filtering = pd.Series.to_numpy(df2[column_filtering].copy())
         indices = np.argwhere(filtering > 0).flatten()
         for i in indices:
-            # =========== debug ===================
-            this_range = self.df.iloc[int(i) : int(i + filtering[i]) + 1].index
-            self.raw_df.loc[this_range, "filtering"] = 1
-            # =====================================
-            self.df.iloc[int(i) : int(i + filtering[i]) + 1] = np.nan
+            this_range = df2.iloc[int(i): int(i + filtering[i]) + 1].index
+            df2.loc[this_range, column] = np.nan
+            df2.loc[this_range, 'filtering'] = 1
 
-        return len(indices) > 0
-        # data_to_filter = self.df.loc[self.df[filtering]>0, filtering]
-        # # recover data range to filter:
-        # range_end = data_to_filter.index
-        # # recover
-        # range_start = data_to_filter.index - data_to_filter.apply(lambda x: datetime.timedelta(seconds=x-1))
-        # # check and remove indexes not present in df:
-        # range_start = [r for r in range_start if r in self.df.index]
-        # # remove data to filter in the range:
-        # for s,e in zip(range_start, range_end):
-        #     self.df.loc[s:e] = np.nan
-        #
-        # self.df = self.df[self.df.speed.notna()]
-        # return len(data_to_filter) > 0
+        # 2 possibilities: interpolate or fill forward the last notna value
+        # if we don't do any of the 2, we cannot iterate,
+        # we chose to interpolate because the forward fill
+        # can make believe (false) high acceleration spikes after long np.nan filtering
+        # it's a rectangular spike vs triangular spike for the interpolate, hence smoother:
+        df2[column].interpolate(inplace=True)
+        #df2[column].fillna(method = 'ffill', inplace=True)
+        return len(indices)
 
     def generate_series(self):
         """
@@ -805,7 +811,7 @@ class TraceAnalysis:
             aggfunc=np.mean,
             dropna=False,
         )
-        ranking_results = pd.DataFrame(index=all_results_table.index, columns=self.multi_index_from_config)
+        ranking_results = pd.DataFrame(index=all_results_table.index, columns=self.multi_index_from_config())
         # rank and fill ranking_results DataFrame:
         ranking = all_results_table.result.rank(
             method="min", ascending=False, na_option="bottom"
