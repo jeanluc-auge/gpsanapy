@@ -34,7 +34,7 @@ MAX_SPEED = 45 # knots
 MAX_ACCELERATION = 0.5 # g or 5m/s/s
 
 class TraceAnalysis:
-    def __init__(self, gpx_path, sampling="1S"):
+    def __init__(self, gpx_path, config_file='config.yaml', sampling="1S"):
         self.sampling = sampling
         self.gpx_path = gpx_path
         self.filename = Path(self.gpx_path).stem
@@ -44,6 +44,8 @@ class TraceAnalysis:
             f"__init__ {self.__class__.__name__} with file {gpx_path}\n"
             f"author name: {self.author}\n"  # trace author: read from gpx file name
         )
+        self.config = load_config(config_file)
+        self.process_config()
         self.df = self.load_df(gpx_path)
         self.process_df()
         # debug, select a portion of the trace:
@@ -699,28 +701,12 @@ class TraceAnalysis:
         )
         return confidence_report
 
-    @log_calls(log_args=True, log_result=True)
-    def call_gps_func_from_yaml(self, config_file=None):
-        """
-        generate the session performance summary
-        load config.yaml file with instructions
-        about gps analysis functions to call with args
-        and record their result in self.result DataFrame
-        :return: pd.DataFrame() self_result
-        """
-        results = []
+    @log_calls()
+    def process_config(self):
         ranking_groups = {}
-        config = load_config(config_file)
-        # iterate over the config and call the referenced functions:
 
-        for gps_func, iterations in config.items():
-            # the same gps_func key cannot be repeated in the yaml description,
-            # so we use an iterations list,
-            # in order to call several times the same function with different args if needed:
+        for gps_func, iterations in self.config.items():
             for iteration in iterations:
-                results += getattr(self, gps_func)(
-                    description=iteration["description"], **iteration["args"]
-                )
                 if iteration["ranking_group"] in ranking_groups:
                     ranking_groups[iteration["ranking_group"]].append(
                         iteration["description"]
@@ -729,54 +715,22 @@ class TraceAnalysis:
                     ranking_groups[iteration["ranking_group"]] = [
                         iteration["description"]
                     ]
-        self.gps_func_list = [
+        self.gps_func_description = [
             gps_func for v in ranking_groups.values() for gps_func in v
         ]
         self.ranking_groups = ranking_groups
         logger.info(
-            f"\nlist of gps functions {self.gps_func_list}\n"
+            f"\nlist of gps functions {self.gps_func_description}\n"
             f"ranking groups vs gps functions: {self.ranking_groups}\n"
         )
-        # update results with gpx file creator and author and convert to df:
-        data = [
-            dict(creator=self.creator, author=self.author, **result)
-            for result in results
-        ]
-        gpx_results = pd.DataFrame(data=data)
-        gpx_results = gpx_results.set_index("author")
-        # ordered (wrto ranking) list of gps_func to call:
-        return gpx_results
 
-    @log_calls(log_args=False, log_result=True)
-    def compile_results(self, gpx_results, all_results_filename):
-
-        # merge DataFrames current gpx_results with all_results history
-        all_results = load_results(self.gps_func_list, all_results_filename)
-        if all_results is None:
-            all_results = gpx_results
-        elif self.author in all_results.index:
-            all_results.loc[self.author] = gpx_results
-        else:  # merge
-            all_results = pd.concat([all_results, gpx_results])
-
-        # build ranking_results MultiIndex DataFrame:
-        logger.debug(
-            f"\nloaded all results history and merged with {self.author} results:\n"
-            f"{all_results.head(30)}\n"
-        )
-        all_results_table = all_results[all_results.n == 1].pivot_table(
-            values=["sampling_ratio", "result"],
-            index=["author"],
-            columns=["description"],
-            aggfunc=np.mean,
-            dropna=False,
-        )
+    def multi_index_from_config(self):
         # init multiIndex DataFrame for the ranking_results:
         code0 = []
         code1 = []
         code2 = []
         level0 = []
-        level1 = self.gps_func_list
+        level1 = self.gps_func_description
         level2 = ["result", "sampling_ratio", "ranking"]
         i = 0
         for k, v in self.ranking_groups.items():
@@ -789,8 +743,68 @@ class TraceAnalysis:
         mic = pd.MultiIndex(
             levels=[level0, level1, level2], codes=[code0, code1, code2]
         )
-        ranking_results = pd.DataFrame(index=all_results_table.index, columns=mic)
         logger.debug(f"ranking results multi index architecture:" f"{mic}")
+        return mic
+
+    @log_calls(log_args=True, log_result=True)
+    def call_gps_func_from_config(self):
+        """
+        generate the session performance summary
+        load config.yaml file with instructions
+        about gps analysis functions to call with args
+        and record their result in self.result DataFrame
+        :return: pd.DataFrame() self_result
+        """
+        results = []
+        # iterate over the config and call the referenced functions:
+
+        for gps_func, iterations in self.config.items():
+            # the same gps_func key cannot be repeated in the yaml description,
+            # so we use an iterations list,
+            # in order to call several times the same function with different args if needed:
+            for iteration in iterations:
+                results += getattr(self, gps_func)(
+                    description=iteration["description"], **iteration["args"]
+                )
+
+        # update results with gpx file creator and author and convert to df:
+        data = [
+            dict(creator=self.creator, author=self.author, **result)
+            for result in results
+        ]
+        gpx_results = pd.DataFrame(data=data)
+        gpx_results = gpx_results.set_index("author")
+        # ordered (wrto ranking) list of gps_func to call:
+        return gpx_results
+
+    def merge_all_results(self, gpx_results, all_results_filename):
+        # merge DataFrames current gpx_results with all_results history
+        all_results = load_results(self.gps_func_description, all_results_filename)
+        if all_results is None:
+            all_results = gpx_results
+        elif self.author in all_results.index:
+            all_results.loc[self.author] = gpx_results
+        else:  # merge
+            all_results = pd.concat([all_results, gpx_results])
+        logger.debug(
+            f"\nloaded all results history and merged with {self.author} results:\n"
+            f"{all_results.head(30)}\n"
+        )
+        return all_results
+
+    @log_calls(log_args=False, log_result=True)
+    def rank_all_results(self, gpx_results, all_results_filename):
+        # merge DataFrames current gpx_results with all_results history:
+        self.all_results = self.merge_all_results(gpx_results, all_results_filename)
+        # build ranking_results MultiIndex DataFrame:
+        all_results_table = self.all_results[self.all_results.n == 1].pivot_table(
+            values=["sampling_ratio", "result"],
+            index=["author"],
+            columns=["description"],
+            aggfunc=np.mean,
+            dropna=False,
+        )
+        ranking_results = pd.DataFrame(index=all_results_table.index, columns=self.multi_index_from_config)
         # rank and fill ranking_results DataFrame:
         ranking = all_results_table.result.rank(
             method="min", ascending=False, na_option="bottom"
@@ -815,7 +829,6 @@ class TraceAnalysis:
             self.ranking_groups
         )
         ranking_results = ranking_results.sort_values(by=["points"])
-        self.all_results = all_results[all_results.creator.notna()].reset_index()
         self.ranking_results = ranking_results
         return ranking_results
 
@@ -843,8 +856,10 @@ class TraceAnalysis:
         result_debug = self.df_result_debug[self.df_result_debug.speed.notna()]
         result_debug.to_csv(f"{self.filename}_result_debug.csv")
         gpx_results.to_csv(f"{self.filename}_result.csv", index=False)
-        self.all_results.to_csv(all_results_filename, index=False)
-        self.ranking_results.to_csv(ranking_results_filename)
+        if hasattr(self, 'all_results'):
+            self.all_results = self.all_results[self.all_results.creator.notna()].reset_index()
+            self.all_results.to_csv(all_results_filename, index=False)
+            self.ranking_results.to_csv(ranking_results_filename)
 
 
 def process_args(args):
@@ -882,7 +897,7 @@ if __name__ == "__main__":
     gpx_filenames = process_args(args)
     for gpx_filename in gpx_filenames:
         gpx_jla = TraceAnalysis(gpx_filename)
-        gpx_results = gpx_jla.call_gps_func_from_yaml(config_filename)
-        #gpx_jla.compile_results(gpx_results, all_results_filename)
+        gpx_results = gpx_jla.call_gps_func_from_config()
+        # gpx_jla.rank_all_results(gpx_results, all_results_filename)
         gpx_jla.plot_speed()
         gpx_jla.save_to_csv(gpx_results, all_results_filename, ranking_results_filename)
