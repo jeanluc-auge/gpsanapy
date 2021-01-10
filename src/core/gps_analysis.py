@@ -13,6 +13,7 @@ core gps analytic:
 
 import json
 import os
+import glob
 import datetime
 from pathlib import Path
 from logging import getLogger, basicConfig, INFO, ERROR, DEBUG
@@ -893,10 +894,15 @@ class TraceAnalysis:
 def process_args(args):
     f = args.gpx_filename
     d = args.read_directory
+
     if f:
         gpx_filenames = f
     if d:
-        gpx_filenames = [f"{d}/{f}" for f in os.listdir(d) if f.endswith(".gpx")]
+        gpx_filenames = [
+            f for f in glob.iglob(
+                os.path.join(Path(d).resolve(), '**/*.gpx'), recursive=True
+            )
+        ]
     logger.info(f"\nthe following gpx files will be processed:\n" f"{gpx_filenames}")
     return gpx_filenames
 
@@ -920,6 +926,6 @@ if __name__ == "__main__":
     for gpx_filename in gpx_filenames:
         gpx_jla = TraceAnalysis(gpx_filename, config_filename)
         gpx_results = gpx_jla.call_gps_func_from_config()
-        # gpx_jla.rank_all_results(gpx_results)
-        gpx_jla.plot_speed()
+        gpx_jla.rank_all_results(gpx_results)
+        #gpx_jla.plot_speed()
         gpx_jla.save_to_csv(gpx_results)
