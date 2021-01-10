@@ -15,6 +15,7 @@ import json
 import os
 import glob
 import datetime
+import traceback
 from pathlib import Path
 from logging import getLogger, basicConfig, INFO, ERROR, DEBUG
 import gpxpy
@@ -933,12 +934,30 @@ parser.add_argument(
 
 if __name__ == "__main__":
     args = parser.parse_args()
-    basicConfig(level={0: INFO, 1: DEBUG}.get(args.verbose, DEBUG))
+    basicConfig(level={0: INFO, 1: DEBUG}.get(args.verbose, INFO))
     config_filename = "config.yaml"  # config of gps functions to call
     gpx_filenames = process_args(args)
+    error_dict = {}
     for gpx_filename in gpx_filenames:
-        gpx_jla = TraceAnalysis(gpx_filename, config_filename)
-        gpx_results = gpx_jla.call_gps_func_from_config()
-        gpx_jla.rank_all_results(gpx_results)
-        #gpx_jla.plot_speed()
-        gpx_jla.save_to_csv(gpx_results)
+        try:
+            gpx_jla = TraceAnalysis(gpx_filename, config_filename)
+            gpx_results = gpx_jla.call_gps_func_from_config()
+            gpx_jla.rank_all_results(gpx_results)
+            #gpx_jla.plot_speed()
+            gpx_jla.save_to_csv(gpx_results)
+        except TraceAnalysisException as te:
+            error_dict[gpx_filename] = str(te)
+            logger.error(te)
+        except Exception as e:
+            error_dict[gpx_filename] = (
+                f"\nan unexpected **{type(e).__name__}** error occured:\n"
+                f"{str(e)}\n"
+                f"with traceback:\n {traceback.format_exc()}"
+            )
+            logger.error(e)
+    for f, e in error_dict.items():
+        logger.error(
+            f"\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
+            f"could not process file {f}: {e}\n"
+            f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
+        )
