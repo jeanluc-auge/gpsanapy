@@ -18,7 +18,15 @@ import datetime
 import traceback
 from pathlib import Path
 import logging
-from logging import getLogger, basicConfig, INFO, ERROR, DEBUG, FileHandler, StreamHandler
+from logging import (
+    getLogger,
+    basicConfig,
+    INFO,
+    ERROR,
+    DEBUG,
+    FileHandler,
+    StreamHandler,
+)
 import gpxpy
 from pathlib import Path
 from argparse import ArgumentParser
@@ -32,20 +40,21 @@ from utils import log_calls, TraceAnalysisException, load_config, load_results
 
 logger = getLogger()
 logger.setLevel(INFO)
-fh = FileHandler('execution.log')
+fh = FileHandler("execution.log")
 fh.setLevel(INFO)
 logger.addHandler(fh)
 ch = StreamHandler()
 ch.setLevel(INFO)
 logger.addHandler(ch)
 
-MAX_SPEED = 45 # knots
-MAX_ACCELERATION = 0.5 # g or +5m/s/s or +10 knots/s, negative acc is not limited ;)
+MAX_SPEED = 45  # knots
+MAX_ACCELERATION = 0.5  # g or +5m/s/s or +10 knots/s, negative acc is not limited ;)
 MAX_FILE_SIZE = 10e6
 DEFAULT_REPORT = {"n": 1, "doppler_ratio": None, "sampling_ratio": None, "std": None}
 
+
 class TraceAnalysis:
-    def __init__(self, gpx_path, config_file='config.yaml', sampling="1S"):
+    def __init__(self, gpx_path, config_file="config.yaml", sampling="1S"):
         self.version = "10th January 2021"
         self.sampling = sampling
         self.gpx_path = gpx_path
@@ -58,7 +67,7 @@ class TraceAnalysis:
         author = self.filename.split("_")[0]
         self.author = f"{author}_{str(self.df.index[0].date())}"
         # debug, select a portion of the trac:
-        #self.df = self.df.loc["2019-04-02 16:34:00+00:00": "2019-04-02 16:36:00+00:00"]
+        # self.df = self.df.loc["2019-04-02 16:34:00+00:00": "2019-04-02 16:36:00+00:00"]
         # original copy that will not be modified: for reference & debug:
         self.raw_df = self.df.copy()
         # filter out speed spikes on self.df:
@@ -70,7 +79,7 @@ class TraceAnalysis:
 
     def load_df(self, gpx_path):
         self.file_size = Path(gpx_path).stat().st_size
-        if  self.file_size > MAX_FILE_SIZE:
+        if self.file_size > MAX_FILE_SIZE:
             raise TraceAnalysisException(
                 f"file {gpx_path} size = {self.file_size/1e6}Mb > {MAX_FILE_SIZE/1e6}Mb"
             )
@@ -211,22 +220,22 @@ class TraceAnalysis:
         :return: modify self.df
         """
         # record acceleration (debug):
-        self.raw_df['acceleration'] = self.raw_df.speed.diff() / (
+        self.raw_df["acceleration"] = self.raw_df.speed.diff() / (
             9.81 * self.raw_df.elapsed_time.diff()
         )
         erratic_data = True
         iter = 1
         self.filtered_events = 0
         df2 = self.df.copy()
-        df2['filtering'] = 0
+        df2["filtering"] = 0
         # limit the # of iterations for speed + avoid infinite loop
         while erratic_data and iter < 5:
-            #err1 = self.filter_on_field(df2, "speed_no_doppler")
+            # err1 = self.filter_on_field(df2, "speed_no_doppler")
             err = self.filter_on_field(df2, "speed")
             self.filtered_events += err
-            erratic_data = err>0
+            erratic_data = err > 0
             iter += 1
-        self.df.loc[df2[df2.filtering==1].index] = np.nan
+        self.df.loc[df2[df2.filtering == 1].index] = np.nan
         self.raw_df["filtering"] = df2.filtering
         self.df = self.df[self.df.speed.notna()]
 
@@ -266,22 +275,17 @@ class TraceAnalysis:
         column_filtering = f"{column}_filtering"
 
         # calculate g acceleration:
-        df2['acceleration'] = df2[column].diff() / (
-            9.81 * df2.elapsed_time.diff()
-        )
+        df2["acceleration"] = df2[column].diff() / (9.81 * df2.elapsed_time.diff())
         # apply our rolling acceleration filter:
         df2[column_filtering] = (
-            df2.acceleration
-            .rolling(20)
-            .apply(rolling_acceleration_filter)
-            .shift(-19)
+            df2.acceleration.rolling(20).apply(rolling_acceleration_filter).shift(-19)
         )
         filtering = pd.Series.to_numpy(df2[column_filtering].copy())
         indices = np.argwhere(filtering > 0).flatten()
         for i in indices:
-            this_range = df2.iloc[int(i): int(i + filtering[i]) + 1].index
+            this_range = df2.iloc[int(i) : int(i + filtering[i]) + 1].index
             df2.loc[this_range, column] = np.nan
-            df2.loc[this_range, 'filtering'] = 1
+            df2.loc[this_range, "filtering"] = 1
 
         # 2 possibilities: interpolate or fill forward the last notna value
         # if we don't do any of the 2, we cannot iterate,
@@ -289,7 +293,7 @@ class TraceAnalysis:
         # can make believe (false) high acceleration spikes after long np.nan filtering
         # it's a rectangular spike vs triangular spike for the interpolate, hence smoother:
         df2[column].interpolate(inplace=True)
-        #df2[column].fillna(method = 'ffill', inplace=True)
+        # df2[column].fillna(method = 'ffill', inplace=True)
         return len(indices)
 
     def generate_series(self):
@@ -334,11 +338,13 @@ class TraceAnalysis:
         sampling_ratio = int(
             100 * len(self.tno_samp[self.tno_samp == 0].dropna()) / len(self.tno_samp)
         )
-        if len(self.tno_samp[self.tsd>5]) == 0:
+        if len(self.tno_samp[self.tsd > 5]) == 0:
             sampling_ratio_5 = 0
         else:
             sampling_ratio_5 = int(
-                100 * len(self.tno_samp[self.tno_samp == 0][self.tsd>5].dropna()) / len(self.tno_samp[self.tsd>5])
+                100
+                * len(self.tno_samp[self.tno_samp == 0][self.tsd > 5].dropna())
+                / len(self.tno_samp[self.tsd > 5])
             )
         logger.info(
             f"\n==========================================================================\n"
@@ -797,7 +803,12 @@ class TraceAnalysis:
 
         # update results with gpx file creator and author and convert to df:
         data = [
-            dict(creator=self.creator, author=self.author, date=str(self.df.index[0].date()), **result)
+            dict(
+                creator=self.creator,
+                author=self.author,
+                date=str(self.df.index[0].date()),
+                **result,
+            )
             for result in results
         ]
         gpx_results = pd.DataFrame(data=data)
@@ -832,8 +843,10 @@ class TraceAnalysis:
             aggfunc=np.mean,
             dropna=False,
         )
-        #date_table = self.all_results.groupby('author').date.min()
-        ranking_results = pd.DataFrame(index=all_results_table.index, columns=self.multi_index_from_config())
+        # date_table = self.all_results.groupby('author').date.min()
+        ranking_results = pd.DataFrame(
+            index=all_results_table.index, columns=self.multi_index_from_config()
+        )
         # rank and fill ranking_results DataFrame:
         ranking = all_results_table.result.rank(
             method="min", ascending=False, na_option="bottom"
@@ -872,10 +885,7 @@ class TraceAnalysis:
         plt.show()
 
     def set_csv_paths(self):
-        result_directory = os.path.join(
-            os.path.dirname(__file__),
-            f"../../csv_results"
-        )
+        result_directory = os.path.join(os.path.dirname(__file__), f"../../csv_results")
         # debug file with the full DataFrame (erased at each run):
         debug_filename = "debug.csv"
         # debug file reduced to the main results timeframe (new for different authors):
@@ -885,13 +895,15 @@ class TraceAnalysis:
         # all time history results by user names (updated after each run):
         all_results_filename = "all_results.csv"
         # all time history results table with ranking (re-created at each run):
-        ranking_results_filename = ("ranking_results.csv")
+        ranking_results_filename = "ranking_results.csv"
 
         self.debug_path = os.path.join(result_directory, debug_filename)
         self.result_debug_path = os.path.join(result_directory, result_debug_filename)
         self.results_path = os.path.join(result_directory, result_filename)
         self.all_results_path = os.path.join(result_directory, all_results_filename)
-        self.ranking_results_path = os.path.join(result_directory, ranking_results_filename)
+        self.ranking_results_path = os.path.join(
+            result_directory, ranking_results_filename
+        )
 
     @log_calls()
     def save_to_csv(self, gpx_results):
@@ -906,8 +918,10 @@ class TraceAnalysis:
         result_debug = self.df_result_debug[self.df_result_debug.speed.notna()]
         result_debug.to_csv(self.result_debug_path)
         gpx_results.to_csv(self.results_path, index=False)
-        if hasattr(self, 'all_results'):
-            self.all_results = self.all_results[self.all_results.creator.notna()].reset_index()
+        if hasattr(self, "all_results"):
+            self.all_results = self.all_results[
+                self.all_results.creator.notna()
+            ].reset_index()
             self.all_results.to_csv(self.all_results_path, index=False)
             self.ranking_results.to_csv(self.ranking_results_path)
 
@@ -920,8 +934,9 @@ def process_args(args):
         gpx_filenames = f
     if d:
         gpx_filenames = [
-            f for f in glob.iglob(
-                os.path.join(Path(d).resolve(), '**/*.gpx'), recursive=True
+            f
+            for f in glob.iglob(
+                os.path.join(Path(d).resolve(), "**/*.gpx"), recursive=True
             )
         ]
     logger.info(f"\nthe following gpx files will be processed:\n" f"{gpx_filenames}")
@@ -941,7 +956,7 @@ parser.add_argument("-rd", "--read_directory", nargs="?", type=str, default="")
 
 if __name__ == "__main__":
     args = parser.parse_args()
-    #basicConfig(level={0: INFO, 1: DEBUG}.get(args.verbose, INFO))
+    # basicConfig(level={0: INFO, 1: DEBUG}.get(args.verbose, INFO))
     config_filename = "config.yaml"  # config of gps functions to call
     gpx_filenames = process_args(args)
     error_dict = {}
@@ -950,7 +965,7 @@ if __name__ == "__main__":
             gpx_jla = TraceAnalysis(gpx_filename, config_filename)
             gpx_results = gpx_jla.call_gps_func_from_config()
             gpx_jla.rank_all_results(gpx_results)
-            #gpx_jla.plot_speed()
+            # gpx_jla.plot_speed()
             gpx_jla.save_to_csv(gpx_results)
         except TraceAnalysisException as te:
             error_dict[gpx_filename] = str(te)
