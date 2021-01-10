@@ -30,12 +30,14 @@ from utils import log_calls, TraceAnalysisException, load_config, load_results
 
 logger = getLogger()
 
-DEFAULT_REPORT = {"n": 1, "doppler_ratio": None, "sampling_ratio": None, "std": None}
 MAX_SPEED = 45 # knots
-MAX_ACCELERATION = 0.5 # g or 5m/s/s
+MAX_ACCELERATION = 0.5 # g or +5m/s/s or +10 knots/s, negative acc is not limited ;)
+MAX_FILE_SIZE = 10e6
+DEFAULT_REPORT = {"n": 1, "doppler_ratio": None, "sampling_ratio": None, "std": None}
 
 class TraceAnalysis:
     def __init__(self, gpx_path, config_file='config.yaml', sampling="1S"):
+        self.version = "10th January 2021"
         self.sampling = sampling
         self.gpx_path = gpx_path
         self.filename = Path(self.gpx_path).stem
@@ -58,38 +60,15 @@ class TraceAnalysis:
         self.clean_df()
         # generate key time series:
         self.generate_series()
-        # if self.tsd.max() > MAX_SPEED:
-        #     raise TraceAnalysisException(
-        #         f"Trace maximum speed after cleaning is = {self.tsd.max()} knots!\n"
-        #         f"abort analysis for speed > {MAX_SPEED}"
-        #     )
-        doppler_ratio = int(100 * len(self.thd[self.thd > 0].dropna()) / len(self.thd))
-        sampling_ratio = int(
-            100 * len(self.tno_samp[self.tno_samp == 0].dropna()) / len(self.tno_samp)
-        )
-        if len(self.tno_samp[self.tsd>5]) == 0:
-            sampling_ratio_5 = 0
-        else:
-            sampling_ratio_5 = int(
-                100 * len(self.tno_samp[self.tno_samp == 0][self.tsd>5].dropna()) / len(self.tno_samp[self.tsd>5])
-            )
-        logger.info(
-            f"\n=======================================\n"
-            f"=======================================\n"
-            f"file loading to pandas DataFrame complete\n"
-            f"creator {self.creator}\n"  # GPS device type: read from gpx file xml infos field
-            f"total distance {round(self.td.sum()/1000,1)} km"
-            f"\noverall doppler_ratio = {doppler_ratio}%\n"
-            f"overall sampling ratio = {sampling_ratio}%\n"
-            f"overall sampling ratio > 5knots = {sampling_ratio_5}%\n"
-            f"filtered {self.filtered_events} events with acceleration > 0.5g\n"
-            f"now running version 09/01/2021\n"
-            f"=======================================\n"
-            f"\n=======================================\n"
-        )
+        self.log_trace_infos()
         self.df_result_debug = pd.DataFrame(index=self.tsd.index)
 
     def load_df(self, gpx_path):
+        self.file_size = Path(gpx_path).stat().st_size
+        if  self.file_size > MAX_FILE_SIZE:
+            raise TraceAnalysisException(
+                f"file {gpx_path} size = {self.file_size/1e6}Mb > {MAX_FILE_SIZE/1e6}Mb"
+            )
         html_soup = self.load_gpx_file_to_html(gpx_path)
         if html_soup is None:
             raise TraceAnalysisException("the loaded gpx file is empty")
@@ -143,7 +122,7 @@ class TraceAnalysis:
         tracks = gpx.tracks
         return tracks
 
-    @log_calls(log_args=False, log_result=True)
+    @log_calls(log_args=False, log_result=False)
     def to_pandas(self, raw_data):
         """
         convert gpx track points to pandas DataFrame
@@ -172,12 +151,13 @@ class TraceAnalysis:
             ts = pd.Series(data=0, index=df.index)
             ts[df.has_doppler == True] = 1
             doppler_ratio = int(100 * sum(ts) / len(ts))
-            logger.warning(
-                f"\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
-                f"Doppler speed is not available on all sampling points\n"
-                f"Only {doppler_ratio}% of the points have doppler data\n"
-                f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
-            )
+            if doppler_ratio < 70:
+                logger.warning(
+                    f"\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
+                    f"Doppler speed is not available on all sampling points\n"
+                    f"Only {doppler_ratio}% of the points have doppler data\n"
+                    f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
+                )
             # if doppler_ratio < 50:
             #     raise TraceAnalysisException(
             #         f"doppler speed is available on only {doppler_ratio}% of data"
@@ -337,6 +317,39 @@ class TraceAnalysis:
         # course (orientation °) cumulated values => take min of the bin
         self.tc = self.df["course"].resample(self.sampling).min().interpolate()
         self.tc_diff = self.diff_clean_ts(self.tc, 300)
+
+        if self.tsd.max() > MAX_SPEED:
+            raise TraceAnalysisException(
+                f"Trace maximum speed after cleaning is = {self.tsd.max()} knots!\n"
+                f"abort analysis for speed > {MAX_SPEED}"
+            )
+
+    def log_trace_infos(self):
+        doppler_ratio = int(100 * len(self.thd[self.thd > 0].dropna()) / len(self.thd))
+        sampling_ratio = int(
+            100 * len(self.tno_samp[self.tno_samp == 0].dropna()) / len(self.tno_samp)
+        )
+        if len(self.tno_samp[self.tsd>5]) == 0:
+            sampling_ratio_5 = 0
+        else:
+            sampling_ratio_5 = int(
+                100 * len(self.tno_samp[self.tno_samp == 0][self.tsd>5].dropna()) / len(self.tno_samp[self.tsd>5])
+            )
+        logger.info(
+            f"\n=======================================\n"
+            f"=======================================\n"
+            f"file size is {self.file_size/1e6}Mb\n"
+            f"file loading to pandas DataFrame complete\n"
+            f"creator {self.creator}\n"  # GPS device type: read from gpx file xml infos field
+            f"total distance {round(self.td.sum()/1000,1)} km"
+            f"\noverall doppler_ratio = {doppler_ratio}%\n"
+            f"overall sampling ratio = {sampling_ratio}%\n"
+            f"overall sampling ratio > 5knots = {sampling_ratio_5}%\n"
+            f"filtered {self.filtered_events} events with acceleration > 0.5g\n"
+            f"now running version {self.version}\n"
+            f"=======================================\n"
+            f"\n=======================================\n"
+        )
 
     def diff_clean_ts(self, ts, threshold):
         """
