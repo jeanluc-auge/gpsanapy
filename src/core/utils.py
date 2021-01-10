@@ -70,10 +70,10 @@ class TraceAnalysisException(Exception):
 
     def __str__(self):
         return (
-            f"\n=======================================\n"
+            f"\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
             f"GPS analysis critical error:\n"
             f"{self.body}\n"
-            f"======================================="
+            f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
         )
 
 def load_config(config_filename=None):
@@ -127,7 +127,7 @@ def load_results(gps_func_list, all_results_filename):
         all_results = pd.read_csv(all_results_filename)
         all_results = all_results.set_index("author")
     except Exception as e:
-        logger.error(
+        logger.warning(
             f"\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
             f"{str(e)}\n"
             f"{all_results_filename} is missing\n"

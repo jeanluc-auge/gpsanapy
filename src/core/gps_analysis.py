@@ -42,17 +42,13 @@ class TraceAnalysis:
         self.sampling = sampling
         self.gpx_path = gpx_path
         self.filename = Path(self.gpx_path).stem
-        self.author = self.filename.split("_")[0]
         self.set_csv_paths()
-        logger.info(
-            f"\n=======================================\n"
-            f"__init__ {self.__class__.__name__} with file {gpx_path}\n"
-            f"author name: {self.author}\n"  # trace author: read from gpx file name
-        )
         self.config = load_config(config_file)
         self.process_config()
         self.df = self.load_df(gpx_path)
         self.process_df()
+        author = self.filename.split("_")[0]
+        self.author = f"{author}_{str(self.df.index[0].date())}"
         # debug, select a portion of the trac:
         #self.df = self.df.loc["2019-04-02 16:34:00+00:00": "2019-04-02 16:36:00+00:00"]
         # original copy that will not be modified: for reference & debug:
@@ -71,7 +67,7 @@ class TraceAnalysis:
                 f"file {gpx_path} size = {self.file_size/1e6}Mb > {MAX_FILE_SIZE/1e6}Mb"
             )
         html_soup = self.load_gpx_file_to_html(gpx_path)
-        if html_soup is None:
+        if not html_soup.gpx:
             raise TraceAnalysisException("the loaded gpx file is empty")
         self.creator = html_soup.gpx.get("creator", "unknown")
         tracks = self.format_html_to_gpx(html_soup)
@@ -91,7 +87,7 @@ class TraceAnalysis:
         except Exception as e:
             logger.exception(e)
             raise TraceAnalysisException(
-                f"could not open and parse to html the gpx file {gpx_path}"
+                f"could not open and parse to html the gpx file {gpx_path} with bs4.BeautifulSoup"
             )
         return html_soup
 
@@ -337,8 +333,10 @@ class TraceAnalysis:
                 100 * len(self.tno_samp[self.tno_samp == 0][self.tsd>5].dropna()) / len(self.tno_samp[self.tsd>5])
             )
         logger.info(
-            f"\n=======================================\n"
-            f"=======================================\n"
+            f"\n==========================================================================\n"
+            f"==========================================================================\n"
+            f"__init__ {self.__class__.__name__} with file {self.gpx_path}\n"
+            f"author name: {self.author}\n"  # trace author: read from gpx file name
             f"file size is {self.file_size/1e6}Mb\n"
             f"file loading to pandas DataFrame complete\n"
             f"creator {self.creator}\n"  # GPS device type: read from gpx file xml infos field
@@ -348,8 +346,8 @@ class TraceAnalysis:
             f"overall sampling ratio > 5knots = {sampling_ratio_5}%\n"
             f"filtered {self.filtered_events} events with acceleration > 0.5g\n"
             f"now running version {self.version}\n"
-            f"=======================================\n"
-            f"\n=======================================\n"
+            f"==========================================================================\n"
+            f"==========================================================================\n"
         )
 
     def diff_clean_ts(self, ts, threshold):
@@ -791,7 +789,7 @@ class TraceAnalysis:
 
         # update results with gpx file creator and author and convert to df:
         data = [
-            dict(creator=self.creator, author=self.author, **result)
+            dict(creator=self.creator, author=self.author, date=str(self.df.index[0].date()), **result)
             for result in results
         ]
         gpx_results = pd.DataFrame(data=data)
@@ -826,6 +824,7 @@ class TraceAnalysis:
             aggfunc=np.mean,
             dropna=False,
         )
+        #date_table = self.all_results.groupby('author').date.min()
         ranking_results = pd.DataFrame(index=all_results_table.index, columns=self.multi_index_from_config())
         # rank and fill ranking_results DataFrame:
         ranking = all_results_table.result.rank(
