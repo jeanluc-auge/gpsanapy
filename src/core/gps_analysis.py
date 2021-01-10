@@ -17,7 +17,8 @@ import glob
 import datetime
 import traceback
 from pathlib import Path
-from logging import getLogger, basicConfig, INFO, ERROR, DEBUG
+import logging
+from logging import getLogger, basicConfig, INFO, ERROR, DEBUG, FileHandler, StreamHandler
 import gpxpy
 from pathlib import Path
 from argparse import ArgumentParser
@@ -30,6 +31,13 @@ import matplotlib.pyplot as plt
 from utils import log_calls, TraceAnalysisException, load_config, load_results
 
 logger = getLogger()
+logger.setLevel(INFO)
+fh = FileHandler('execution.log')
+fh.setLevel(INFO)
+logger.addHandler(fh)
+ch = StreamHandler()
+ch.setLevel(INFO)
+logger.addHandler(ch)
 
 MAX_SPEED = 45 # knots
 MAX_ACCELERATION = 0.5 # g or +5m/s/s or +10 knots/s, negative acc is not limited ;)
@@ -923,17 +931,17 @@ def process_args(args):
 parser = ArgumentParser()
 parser.add_argument("-f", "--gpx_filename", nargs="+", type=Path)
 parser.add_argument("-rd", "--read_directory", nargs="?", type=str, default="")
-parser.add_argument(
-    "-v",
-    "--verbose",
-    action="count",
-    default=0,
-    help="increases verbosity for each occurence",
-)
+# parser.add_argument(
+#     "-v",
+#     "--verbose",
+#     action="count",
+#     default=0,
+#     help="increases verbosity for each occurence",
+# )
 
 if __name__ == "__main__":
     args = parser.parse_args()
-    basicConfig(level={0: INFO, 1: DEBUG}.get(args.verbose, INFO))
+    #basicConfig(level={0: INFO, 1: DEBUG}.get(args.verbose, INFO))
     config_filename = "config.yaml"  # config of gps functions to call
     gpx_filenames = process_args(args)
     error_dict = {}

@@ -106,7 +106,6 @@ def load_config(config_filename=None):
             f"Failed to load workflow from file {config_filename}: {e}"
         )
         return
-    print(config)
     return config
 
 def load_results(gps_func_list, all_results_filename):
