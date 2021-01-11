@@ -195,9 +195,6 @@ class TraceAnalysis:
             self.df.index - self.df.index[0]
         ).astype("timedelta64[s]")
 
-        # add a cumulated distance column (cannot resample on diff!!)
-        self.df["cum_dist"] = self.df.delta_dist.cumsum()
-
         # convert bool to int: needed for rolling window functions
         self.df.loc[self.df.has_doppler == True, "has_doppler"] = 1
         self.df.loc[self.df.has_doppler == False, "has_doppler"] = 0
@@ -230,12 +227,13 @@ class TraceAnalysis:
         df2["filtering"] = 0
         # limit the # of iterations for speed + avoid infinite loop
         while erratic_data and iter < 5:
-            # err1 = self.filter_on_field(df2, "speed_no_doppler")
-            err = self.filter_on_field(df2, "speed")
-            self.filtered_events += err
-            erratic_data = err > 0
+            err1 = self.filter_on_field(df2, "speed_no_doppler")
+            err2 = self.filter_on_field(df2, "speed")
+            self.filtered_events += err2
+            erratic_data = (err1 > 0 or err2>0)
             iter += 1
         self.df.loc[df2[df2.filtering == 1].index] = np.nan
+        self.df.to_csv('csv_results/df_debug.csv')
         self.raw_df["filtering"] = df2.filtering
         self.df = self.df[self.df.speed.notna()]
 
@@ -258,8 +256,9 @@ class TraceAnalysis:
             :return: int # samples count of the interval to filter out
             """
             i = 0
-            # searched irrealisitc >0.5g acceleration spikes
-            if x[0] > MAX_ACCELERATION:
+            # searched irrealistic acceleration[0] > MAX_ACCELERATION spikes
+            # we differentiate very high from high acceleration spikes (2 * )
+            if x[0] > 2*MAX_ACCELERATION:
                 exiting = False
                 for i, a in enumerate(x):
                     # find spike interval length by searching negative spike end
@@ -270,6 +269,13 @@ class TraceAnalysis:
                             break
                         else:
                             exiting = False
+            # faster return condition for low acceleration spikes:
+            # may be a fast leading edge, i.e. fast acceleration after planning
+            # cf kitefoils accelerations are possible in this range and are not spikes
+            elif x[0] > MAX_ACCELERATION:
+                for i,a in enumerate(x):
+                    if a < MAX_ACCELERATION:
+                        break
             return i
 
         column_filtering = f"{column}_filtering"
@@ -607,39 +613,99 @@ class TraceAnalysis:
             f"max rolling({min_samples}) speed = {self.tsd.rolling(min_samples).mean().max()}\n"
             f"max rolling({min_samples}) distance = {self.td.rolling(min_samples).sum().max()}\n"
         )
-        indices = np.argwhere(nd <= threshold).flatten()
-        indices_range = [set(range(int(i - nd[i]), int(i))) for i in indices]
-        # create a list of tupple (speed Vmax_dist, speed_indice_range)
-        speed_list = [(self.tsd[range_i].mean(), range_i) for range_i in indices_range]
-        speed_list.sort(key=lambda tup: tup[0], reverse=True)
+        samples_count = min_samples
 
         k = 1
-        total_range = set([])
         results = []
-        for speed, speed_range in speed_list:
-            if not (speed_range & total_range):
-                result = round(speed, 1)
-                confidence_report = self.append_result_debug(
-                    item_range=self.tsd[speed_range].index,
-                    item_description=description,
-                    item_iter=k,
-                )
-                results.append(
-                    {
-                        "description": description,
-                        "result": result,
-                        "n": k,
-                        **confidence_report,
-                    }
-                )
-                total_range = total_range | speed_range
-                k += 1
-            if k > n:
-                break
+        tsd = self.tsd.copy()
+        td = self.td.copy()
+        while k < n+1:
+            iter = 0
+            while iter < 15: # avoid infinite loop
+                max_rolling_distance_1 = td.rolling(samples_count-1).sum().max()
+                max_rolling_distance_2 = td.rolling(samples_count).sum().max()
+                if max_rolling_distance_1 > dist:
+                    samples_count -= 1
+                elif max_rolling_distance_2 < dist:
+                    samples_count += 1
+                else:
+                    break
+                iter += 1
+
+            distance = max_rolling_distance_2
+            rolling_speed = tsd.rolling(samples_count).mean()
+            rolling_distance = td.rolling(samples_count).sum()
+            td.plot()
+            print(11111111111111111111,rolling_distance.max())
+            result = round(rolling_speed.max(), 1)
+            range_end = rolling_speed.idxmax()
+            range_begin = range_end - datetime.timedelta(seconds=int(samples_count * sampling) - 1)
+            print('!!!!!!!!!!!!!!!!!!!!!!!!',range_end)
+            tsd.loc[range_begin:range_end] = 0
+            print('=============',td[range_begin:range_end].sum())
+            td.loc[range_begin:range_end] = 0
+            logger.info(
+                f"found {samples_count} samples for n={k}:\n"
+                f"max rolling({samples_count}) speed = {result}\n"
+                f"max rolling({samples_count}) distance = {distance}\n"
+            )
+            confidence_report = self.append_result_debug(
+                item_range=self.tsd[range_begin:range_end].index,
+                item_description=description,
+                item_iter=k,
+            )
+            results.append(
+                {
+                    "description": description,
+                    "result": result,
+                    "n": k,
+                    **confidence_report,
+                }
+            )
+            k += 1
+
+        # indices = np.argwhere(nd <= threshold).flatten()
+        # indices_range = [set(range(int(i - nd[i]), int(i))) for i in indices]
+        # # create a list of tupple (speed Vmax_dist, speed_indice_range)
+        # speed_list = [(self.tsd[range_i].mean(), range_i) for range_i in indices_range]
+        # speed_list.sort(key=lambda tup: tup[0], reverse=True)
+        # print(speed_list)
+        # k = 1
+        # total_range = set([])
+        # results = []
+        # for speed, speed_range in speed_list:
+        #     if not (speed_range & total_range):
+        #         result = round(speed, 1)
+        #         confidence_report = self.append_result_debug(
+        #             item_range=self.tsd[speed_range].index,
+        #             item_description=description,
+        #             item_iter=k,
+        #         )
+        #         results.append(
+        #             {
+        #                 "description": description,
+        #                 "result": result,
+        #                 "n": k,
+        #                 **confidence_report,
+        #             }
+        #         )
+        #         total_range = total_range | speed_range
+        #         k += 1
+        #     if k > n:
+        #         break
 
         # ts.index.get_loc(ts2.idxmin('index'))
         # tsd.plot()
         # plt.show()
+        nvdist_speed_results = "\n".join(
+            [f"{result['description']}: {result['result']}" for result in results]
+        )
+        logger.info(
+            f"\n===============================\n"
+            f"Best vmax {n} x {dist}m\n"
+            f"{nvdist_speed_results}"
+            f"\n===============================\n"
+        )
         return results
 
     @log_calls(log_args=True, log_result=False)
@@ -965,7 +1031,7 @@ if __name__ == "__main__":
             gpx_jla = TraceAnalysis(gpx_filename, config_filename)
             gpx_results = gpx_jla.call_gps_func_from_config()
             gpx_jla.rank_all_results(gpx_results)
-            # gpx_jla.plot_speed()
+            gpx_jla.plot_speed()
             gpx_jla.save_to_csv(gpx_results)
         except TraceAnalysisException as te:
             error_dict[gpx_filename] = str(te)
