@@ -2,13 +2,13 @@ speed_xs:
   -
     args:
       s: 1
-      n: 1
+      n: 5
     description: vmax_1s
     ranking_group: vmax
   -
     args:
       s: 10
-      n: 5
+      n: 10
     description: vmax_10s
     ranking_group: vmax
 speed_dist:

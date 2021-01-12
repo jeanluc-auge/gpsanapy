@@ -364,11 +364,11 @@ class TraceAnalysis:
         """
 
         # speed doppler
-        self.tsd = self.df["speed"].resample(self.sampling).mean().interpolate()
-        self.raw_tsd = self.raw_df["speed"].resample(self.sampling).mean()
+        self.tsd = self.df["speed"].interpolate()
+        self.raw_tsd = self.raw_df["speed"]
         # speed no doppler
         self.ts = (
-            self.df["speed_no_doppler"].resample(self.sampling).mean().interpolate()
+            self.df["speed_no_doppler"].interpolate()
         )
         # filtering? yes=1 default=0 (np.nan=0), sum = OR (max):
         self.tf = self.raw_df["filtering"].resample(self.sampling).max()
@@ -377,15 +377,15 @@ class TraceAnalysis:
         self.tno_samp = self.raw_df["filtering"].resample(self.sampling).max()
         self.tno_samp = self.tno_samp.fillna(1).astype(np.int64)
         # has_doppler? yes=1 default=0 (np.nan=0), sum = AND (min):
-        self.thd = self.df["has_doppler"].resample(self.sampling).min()
+        self.thd = self.df["has_doppler"]
         self.thd = self.thd.fillna(0).astype(np.int64)
         # distance: resample on cumulated values => take min of the bin and restore diff:
         # interpolate np.nan after filtering:
-        self.td = self.df['delta_dist'].resample(self.sampling).mean().interpolate()
+        self.td = self.df['delta_dist'].interpolate()
         # regenerate cum_dist after filtering (the cums kept the cumulated spikes!)
         self.tcd = self.td.cumsum()
         # course (orientation °) cumulated values => take min of the bin
-        self.tc = self.df["course"].resample(self.sampling).min().interpolate()
+        self.tc = self.df["course"].interpolate()
         self.tc_diff = self.diff_clean_ts(self.tc, 300)
 
         if self.tsd.max() > MAX_SPEED:
@@ -690,14 +690,10 @@ class TraceAnalysis:
             distance = max_rolling_distance_2
             rolling_speed = tsd.rolling(samples_count).mean()
             rolling_distance = td.rolling(samples_count).sum()
-            td.plot()
-            print(11111111111111111111,rolling_distance.max())
             result = round(rolling_speed.max(), 1)
             range_end = rolling_speed.idxmax()
             range_begin = range_end - datetime.timedelta(seconds=int(samples_count * sampling) - 1)
-            print('!!!!!!!!!!!!!!!!!!!!!!!!',range_end)
             tsd.loc[range_begin:range_end] = 0
-            print('=============',td[range_begin:range_end].sum())
             td.loc[range_begin:range_end] = 0
             logger.info(
                 f"found {samples_count} samples for n={k}:\n"
@@ -749,9 +745,6 @@ class TraceAnalysis:
         #     if k > n:
         #         break
 
-        # ts.index.get_loc(ts2.idxmin('index'))
-        # tsd.plot()
-        # plt.show()
         nvdist_speed_results = "\n".join(
             [f"{result['description']}: {result['result']}" for result in results]
         )
@@ -786,7 +779,7 @@ class TraceAnalysis:
             result = round(ts.max(), 1)
             # remove this speed range to find others:
             tsd[range_begin:range_end] = 0
-            # generate debug report
+            # generate debug report:
             confidence_report = self.append_result_debug(
                 item_range=self.tsd[range_begin:range_end].index,
                 item_description=description,
@@ -859,7 +852,7 @@ class TraceAnalysis:
     @log_calls()
     def process_config(self):
         ranking_groups = {}
-
+        self.gps_func_description = {}
         for gps_func, iterations in self.config.items():
             for iteration in iterations:
                 if iteration["ranking_group"] in ranking_groups:
@@ -870,9 +863,10 @@ class TraceAnalysis:
                     ranking_groups[iteration["ranking_group"]] = [
                         iteration["description"]
                     ]
-        self.gps_func_description = [
-            gps_func for v in ranking_groups.values() for gps_func in v
-        ]
+                self.gps_func_description[iteration["description"]] = iteration["args"]
+        # self.gps_func_description = [
+        #     gps_func for v in ranking_groups.values() for gps_func in v
+        # ]
         self.ranking_groups = ranking_groups
         logger.info(
             f"\nlist of gps functions {self.gps_func_description}\n"
@@ -885,7 +879,7 @@ class TraceAnalysis:
         code1 = []
         code2 = []
         level0 = []
-        level1 = self.gps_func_description
+        level1 = list(self.gps_func_description)
         level2 = ["result", "sampling_ratio", "ranking"]
         i = 0
         for k, v in self.ranking_groups.items():
@@ -1086,7 +1080,7 @@ if __name__ == "__main__":
             gpx_jla = TraceAnalysis(gpx_filename, config_filename)
             gpx_results = gpx_jla.call_gps_func_from_config()
             gpx_jla.rank_all_results(gpx_results)
-            gpx_jla.plot_speed()
+            #gpx_jla.plot_speed()
             gpx_jla.save_to_csv(gpx_results)
         except TraceAnalysisException as te:
             error_dict[gpx_filename] = str(te)

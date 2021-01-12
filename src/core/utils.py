@@ -111,7 +111,7 @@ def load_config(config_filename=None):
     return config
 
 
-def load_results(gps_func_list, all_results_filename):
+def load_results(gps_func_dict, all_results_filename):
     """
     open csv all_results_filename with history of other previous sessions or other riders
     and load it into a pd.DataFrame
@@ -144,12 +144,17 @@ def load_results(gps_func_list, all_results_filename):
         .pivot_table(columns=["description"], dropna=False)
         .columns
     )
-    if set(all_results_gps_func_list) != set(gps_func_list):
+    config_error = False
+    for description in gps_func_dict:
+        if all_results.groupby('description').max().loc[description, 'n'] != gps_func_dict[description].get('n',1):
+            config_error = True
+    if set(all_results_gps_func_list) != set(list(gps_func_dict)) or config_error:
         logger.error(
             f"\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
             f"config in yaml file does not match the config used for all_results.csv\n"
-            f"yaml func list:{set(gps_func_list)}\n"
-            f"vs all_results.csv: {set(all_results_gps_func_list)}"
+            f"yaml func list:{gps_func_dict}\n"
+            f"vs all_results.csv:\n {all_results_gps_func_list}\n"
+            f"{all_results.groupby('description').max().loc[description, 'n']}"
             f"a new all_results.csv file will be created with no ranking history\n"
             f"ranking history in current all_results.csv will be saved as all_results_old.csv\n"
             f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
