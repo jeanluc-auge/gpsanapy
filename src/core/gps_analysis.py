@@ -70,6 +70,7 @@ class TraceAnalysis:
         # self.df = self.df.loc["2019-04-02 16:34:00+00:00": "2019-04-02 16:36:00+00:00"]
         # original copy that will not be modified: for reference & debug:
         self.raw_df = self.df.copy()
+        self.resample_df()
         # filter out speed spikes on self.df:
         self.clean_df()
         # generate key time series:
@@ -310,6 +311,50 @@ class TraceAnalysis:
         # df2[column].fillna(method = 'ffill', inplace=True)
         return len(indices)
 
+    @log_calls()
+    def resample_df(self):
+        """
+        generate key time series with
+            - resampling to self.sampling
+            - aggregation (mean/min/max) for up-sampling
+            - optional interpolate in case of down-sampling (else np.nan)
+        """
+
+        tlon = self.df["lon"].resample(self.sampling).mean().interpolate()
+        tlat = self.df["lat"].resample(self.sampling).mean().interpolate()
+        # add a new column with total elapsed time in seconds:
+        # has_doppler? yes=1 default=0 (np.nan=0), sum = AND (min):
+        thd = self.df["has_doppler"].resample(self.sampling).min()
+        thd = thd.fillna(0).astype(np.int64)
+        # speed doppler
+        tsd = self.df["speed"].resample(self.sampling).mean().interpolate()
+        # speed no doppler
+        ts = (
+            self.df["speed_no_doppler"].resample(self.sampling).mean().interpolate()
+        )
+        # distance: resample on cumulated values => take min of the bin and restore diff:
+        tcd = self.df["cum_dist"].resample(self.sampling).min().interpolate()
+        td = tcd.diff()
+        # course (orientation °) cumulated values => take min of the bin
+        tc = self.df["course"].resample(self.sampling).min().interpolate()
+        df = pd.DataFrame(
+            data = {
+                "lon": tlon,
+                "lat": tlat,
+                "speed": tsd,
+                "speed_no_doppler": ts,
+                "cum_dist": tcd,
+                "delta_dist": td,
+                "has_doppler": thd,
+                "course": tc,
+            }
+        )
+        df["elapsed_time"] = pd.to_timedelta(
+            df.index - df.index[0]
+        ).astype("timedelta64[s]")
+
+        self.df = df
+
     def generate_series(self):
         """
         generate key time series with
@@ -335,8 +380,10 @@ class TraceAnalysis:
         self.thd = self.df["has_doppler"].resample(self.sampling).min()
         self.thd = self.thd.fillna(0).astype(np.int64)
         # distance: resample on cumulated values => take min of the bin and restore diff:
-        self.tcd = self.df["cum_dist"].resample(self.sampling).min().interpolate()
-        self.td = self.tcd.diff()
+        # interpolate np.nan after filtering:
+        self.td = self.df['delta_dist'].resample(self.sampling).mean().interpolate()
+        # regenerate cum_dist after filtering (the cums kept the cumulated spikes!)
+        self.tcd = self.td.cumsum()
         # course (orientation °) cumulated values => take min of the bin
         self.tc = self.df["course"].resample(self.sampling).min().interpolate()
         self.tc_diff = self.diff_clean_ts(self.tc, 300)
