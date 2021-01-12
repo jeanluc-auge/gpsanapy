@@ -48,7 +48,7 @@ ch.setLevel(INFO)
 logger.addHandler(ch)
 
 MAX_SPEED = 45  # knots
-MAX_ACCELERATION = 0.5  # g or +5m/s/s or +10 knots/s, negative acc is not limited ;)
+MAX_ACCELERATION = 0.4  # g or +5m/s/s or +10 knots/s, negative acc is not limited ;)
 MAX_FILE_SIZE = 10e6
 DEFAULT_REPORT = {"n": 1, "doppler_ratio": None, "sampling_ratio": None, "std": None}
 
@@ -148,7 +148,7 @@ class TraceAnalysis:
             {
                 "lon": point.longitude,
                 "lat": point.latitude,
-                "time": point.time,
+                "time": point.time,#datetime.datetime.strptime((str(point.time)).split("+")[0], '%Y-%m-%d %H:%M:%S'),
                 "speed": (point.speed if point.speed else raw_data.get_speed(i)),
                 "speed_no_doppler": raw_data.get_speed(i),
                 "course": point.course_between(raw_data.points[i - 1] if i > 0 else 0),
@@ -195,6 +195,9 @@ class TraceAnalysis:
             self.df.index - self.df.index[0]
         ).astype("timedelta64[s]")
 
+        # add a cumulated distance column (cannot resample on diff!!)
+        self.df["cum_dist"] = self.df.delta_dist.cumsum()
+
         # convert bool to int: needed for rolling window functions
         self.df.loc[self.df.has_doppler == True, "has_doppler"] = 1
         self.df.loc[self.df.has_doppler == False, "has_doppler"] = 0
@@ -213,13 +216,17 @@ class TraceAnalysis:
     def clean_df(self):
         """
         filter self.df on speed_no_doppler and speed fields
-        to remove acceleration spikes > 0.5g
+        to remove acceleration spikes > MAX_ACCELERATION
         :return: modify self.df
         """
         # record acceleration (debug):
-        self.raw_df["acceleration"] = self.raw_df.speed.diff() / (
-            9.81 * self.raw_df.elapsed_time.diff()
+        self.raw_df["acceleration_doppler_speed"] = self.raw_df.speed.diff() / (
+            1.94384*9.81 * self.raw_df.elapsed_time.diff()
         )
+        self.raw_df["acceleration_non_doppler_speed"] = self.raw_df.speed_no_doppler.diff() / (
+            1.94384*9.81 * self.raw_df.elapsed_time.diff()
+        )
+
         erratic_data = True
         iter = 1
         self.filtered_events = 0
@@ -230,19 +237,19 @@ class TraceAnalysis:
             err1 = self.filter_on_field(df2, "speed_no_doppler")
             err2 = self.filter_on_field(df2, "speed")
             self.filtered_events += err2
-            erratic_data = (err1 > 0 or err2>0)
+            erratic_data = (err2 > 0 or err1 > 0)
             iter += 1
         self.df.loc[df2[df2.filtering == 1].index] = np.nan
-        self.df.to_csv('csv_results/df_debug.csv')
+
         self.raw_df["filtering"] = df2.filtering
-        self.df = self.df[self.df.speed.notna()]
+        #self.df = self.df[self.df.speed.notna()]
 
     def filter_on_field(self, df2, column):
         """
         filter a given column in self.df
         by checking its acceleration
         and eliminating (filtering) between
-        positive (acc>0.5g) and negative (acc < -0.1g) spikes
+        positive (acc>0.4g) and negative (acc < -0.1g) spikes
         param column: df column to process
         :return: Bool assessing if filtering occured
         """
@@ -264,7 +271,7 @@ class TraceAnalysis:
                     # find spike interval length by searching negative spike end
                     if a < -0.1:
                         exiting = True
-                    elif exiting and a != np.nan:
+                    elif exiting:
                         if a < MAX_ACCELERATION:
                             break
                         else:
@@ -281,11 +288,12 @@ class TraceAnalysis:
         column_filtering = f"{column}_filtering"
 
         # calculate g acceleration:
-        df2["acceleration"] = df2[column].diff() / (9.81 * df2.elapsed_time.diff())
+        df2["acceleration"] = df2[column].diff() / (1.94384*9.81 * df2.elapsed_time.diff())
         # apply our rolling acceleration filter:
         df2[column_filtering] = (
             df2.acceleration.rolling(20).apply(rolling_acceleration_filter).shift(-19)
         )
+        #df2.to_csv(f'csv_results/df_debug{iter}.csv')
         filtering = pd.Series.to_numpy(df2[column_filtering].copy())
         indices = np.argwhere(filtering > 0).flatten()
         for i in indices:
