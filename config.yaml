@@ -2,26 +2,26 @@ speed_xs:
   -
     args:
       s: 1
-      n: 1
+      n: 2
     description: vmax_1s
     ranking_group: vmax
   -
     args:
       s: 10
-      n: 1
+      n: 2
     description: vmax_10s
     ranking_group: vmax
 speed_dist:
   -
     args:
       dist: 500
-      n: 1
+      n: 2
     description: vmax_500m
     ranking_group: vmax
   -
     args:
       dist: 1000
-      n: 1
+      n: 2
     description: vmax_1000m
     ranking_group: vmax
 planning_ratio:
@@ -40,7 +40,7 @@ v_moy:
 speed_jibe:
   -
     args:
-      n: 1
+      n: 2
     description: vmax_jibe
     ranking_group: jibe
 planning_distance:

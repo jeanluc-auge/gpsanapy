@@ -557,80 +557,6 @@ class TraceAnalysis:
         return results
 
     @log_calls(log_args=True, log_result=True)
-    def deprecated_speed_jibe(self, description, n=5):
-        """
-        !! DEPRECATED: DO NOT USE !!
-        calculate the best jibe min speeds
-        :param n: int number of records
-        :return: list of n * vmin jibe speeds
-        """
-        HALF_JIBE_COURSE = 70
-        FULL_JIBE_COURSE = 130
-        MIN_JIBE_SPEED = 11
-
-        # filter "crazy Yvan" events on course (orientation),
-        # that is: remove all 360° glitchs:
-        # sum course over 5S and 20S windows:
-        tj1 = self.tc.rolling("5S").sum()
-        tj2 = self.tc.rolling("15S").sum().shift(-5)
-        # record min speeds over a 10S window:
-        tsd = self.tsd.rolling("10S").min()
-
-        nsj1 = pd.Series.to_numpy(tj1)
-        nsj2 = pd.Series.to_numpy(tj2)
-        nsd = pd.Series.to_numpy(tsd)
-        # find indices where course changed by more than 70° in 5S
-        indices_j1 = np.argwhere(abs(nsj1) > HALF_JIBE_COURSE).flatten()
-        # # find indices where course changed by more than 130° in 20S
-        indices_j2 = np.argwhere(abs(nsj2) > FULL_JIBE_COURSE).flatten()
-        # # find min speeds > 10 knots:
-        # indices_d = np.argwhere(abs(nsd) > MIN_JIBE_SPEED).flatten()
-        # # merge: new set with elements common to j and d:
-        # indices = list(set(indices_j1) & set(indices_j2) & set(indices_d))
-        # record a 20S range around these indices:
-        indices_range = [
-            set(range(int(i - 10), int(i + 10)))
-            for i in indices_j1
-            if i > 1 and i < len(tsd) - 11
-        ]
-        jibe_list = [
-            (
-                self.tsd[range_i].min(),  # jibe min speed in the 20S range
-                range_i,  # jibe range
-            )
-            for range_i in indices_range
-        ]
-        # reverse sort on jibe speed:
-        jibe_list.sort(key=lambda tup: tup[0], reverse=True)
-
-        # iterate to find n x best jibes v
-        k = 1
-        total_range = set([])
-        results = []
-
-        for jibe_speed, jibe_range in jibe_list:
-            # remove overlapping ranges (jibe already recorded):
-            if not (jibe_range & total_range):
-                confidence_report = self.append_result_debug(
-                    item_range=self.tsd[jibe_range].index,
-                    item_description=description,
-                    item_iter=k,
-                )
-                results.append(
-                    {
-                        "description": description,
-                        "result": jibe_speed,
-                        "n": k,
-                        **confidence_report,
-                    }
-                )
-                total_range = total_range | jibe_range  # append jibe range
-                k += 1
-            if k > n:
-                break
-        return results
-
-    @log_calls(log_args=True, log_result=True)
     def speed_dist(self, description, dist=500, n=5):
         """
         calculate Vmax n x V[distance]
@@ -723,35 +649,91 @@ class TraceAnalysis:
             )
             k += 1
 
-        # indices = np.argwhere(nd <= threshold).flatten()
-        # indices_range = [set(range(int(i - nd[i]), int(i))) for i in indices]
-        # # create a list of tupple (speed Vmax_dist, speed_indice_range)
-        # speed_list = [(self.tsd[range_i].mean(), range_i) for range_i in indices_range]
-        # speed_list.sort(key=lambda tup: tup[0], reverse=True)
-        # print(speed_list)
-        # k = 1
-        # total_range = set([])
-        # results = []
-        # for speed, speed_range in speed_list:
-        #     if not (speed_range & total_range):
-        #         result = round(speed, 1)
-        #         confidence_report = self.append_result_debug(
-        #             item_range=self.tsd[speed_range].index,
-        #             item_description=description,
-        #             item_iter=k,
-        #         )
-        #         results.append(
-        #             {
-        #                 "description": description,
-        #                 "result": result,
-        #                 "n": k,
-        #                 **confidence_report,
-        #             }
-        #         )
-        #         total_range = total_range | speed_range
-        #         k += 1
-        #     if k > n:
-        #         break
+        nvdist_speed_results = "\n".join(
+            [f"{result['description']}: {result['result']}" for result in results]
+        )
+        logger.info(
+            f"\n===============================\n"
+            f"Best vmax {n} x {dist}m\n"
+            f"{nvdist_speed_results}"
+            f"\n===============================\n"
+        )
+        return results
+
+    @log_calls(log_args=True, log_result=True)
+    def deprecated_speed_dist(self, description, dist=500, n=5):
+        """
+        calculate Vmax n x V[distance]
+        :param dist: float distance to consider for speed mean
+        :param n: int number of vmax to record
+        :return: vmax mean over distance dist
+        """
+        def rolling_dist_count(delta_dist):
+            """
+            rolling distance filter
+            count the number of samples needed to reach a given distance
+            :param dist: float distance to reach
+            :return: int  # samples to reach distance dist
+            """
+            delta_dist = delta_dist[::-1]
+            cum_dist = 0
+            for i, d in enumerate(delta_dist):
+                cum_dist += d
+                if cum_dist > dist:
+                    break
+            return i + 1
+
+        sampling = int(self.sampling.strip("S"))
+        min_speed = 7  # knots min expected speed for max window size
+        max_interval = dist / min_speed
+        max_samples = int(max_interval / sampling)
+
+        td = self.td.rolling(max_samples).apply(rolling_dist_count)
+        nd = pd.Series.to_numpy(td)
+        if np.isnan(nd).all():
+            return [{"result": 0, "description": description, **DEFAULT_REPORT}]
+        min_samples = int(np.nanmin(nd))
+        threshold = min(min_samples + 10, max_samples)
+        logger.info(
+            f"\nsearching {n} x v{dist} speed\n"
+            f"over a window of {max_samples} samples\n"
+            f"and found a min of {min_samples*sampling} seconds\n"
+            f"to cover {dist}m"
+        )
+        logger.info(
+            f"checking result:\n"
+            f"max rolling({min_samples}) speed = {self.tsd.rolling(min_samples).mean().max()}\n"
+            f"max rolling({min_samples}) distance = {self.td.rolling(min_samples).sum().max()}\n"
+        )
+
+        indices = np.argwhere(nd <= threshold).flatten()
+        indices_range = [set(range(int(i - nd[i]), int(i))) for i in indices]
+        # create a list of tupple (speed Vmax_dist, speed_indice_range)
+        speed_list = [(self.tsd[range_i].mean(), range_i) for range_i in indices_range]
+        speed_list.sort(key=lambda tup: tup[0], reverse=True)
+        k = 1
+        total_range = set([])
+        results = []
+        for speed, speed_range in speed_list:
+            if not (speed_range & total_range):
+                result = round(speed, 1)
+                confidence_report = self.append_result_debug(
+                    item_range=self.tsd[speed_range].index,
+                    item_description=description,
+                    item_iter=k,
+                )
+                results.append(
+                    {
+                        "description": description,
+                        "result": result,
+                        "n": k,
+                        **confidence_report,
+                    }
+                )
+                total_range = total_range | speed_range
+                k += 1
+            if k > n:
+                break
 
         nvdist_speed_results = "\n".join(
             [f"{result['description']}: {result['result']}" for result in results]
