@@ -48,14 +48,14 @@ ch.setLevel(INFO)
 logger.addHandler(ch)
 
 MAX_SPEED = 45  # knots
-MAX_ACCELERATION = 0.4  # g or +5m/s/s or +10 knots/s, negative acc is not limited ;)
+MAX_ACCELERATION = 0.22  # g or +2.2m/s/s or +4.4 knots/s, negative acc is not limited ;)
 MAX_FILE_SIZE = 10e6
 DEFAULT_REPORT = {"n": 1, "doppler_ratio": None, "sampling_ratio": None, "std": None}
 
 
 class TraceAnalysis:
     def __init__(self, gpx_path, config_file="config.yaml", sampling="1S"):
-        self.version = "10th January 2021"
+        self.version = "12th January 2021"
         self.sampling = sampling
         self.gpx_path = gpx_path
         self.filename = Path(self.gpx_path).stem
