@@ -139,22 +139,20 @@ def load_results(gps_func_dict, all_results_filename):
         return None
 
     # check the loaded results are compatible with the current yaml config:
-    all_results_gps_func_list = (
-        all_results[all_results.n == 1]
-        .pivot_table(columns=["description"], dropna=False)
-        .columns
-    )
-    config_error = False
-    for description in gps_func_dict:
-        if all_results.groupby('description').max().loc[description, 'n'] != gps_func_dict[description].get('n',1):
-            config_error = True
-    if set(all_results_gps_func_list) != set(list(gps_func_dict)) or config_error:
+    config_error = ''
+    all_results_gps_func_list = list(all_results.groupby('description').mean().index)
+    if set(all_results_gps_func_list) ^ set(list(gps_func_dict)):
+        config_error = f"all_results.csv:\n {all_results_gps_func_list}"
+    else:
+        for description in gps_func_dict:
+            if all_results.groupby('description').max().loc[description, 'n'] != gps_func_dict[description].get('n',1):
+                config_error = f"{(all_results.groupby('description').max().loc[description, 'n'])}"
+    if config_error:
         logger.error(
             f"\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
             f"config in yaml file does not match the config used for all_results.csv\n"
             f"yaml func list:{gps_func_dict}\n"
-            f"vs all_results.csv:\n {all_results_gps_func_list}\n"
-            f"{all_results.groupby('description').max().loc[description, 'n']}"
+            f"vs {config_error}\n"
             f"a new all_results.csv file will be created with no ranking history\n"
             f"ranking history in current all_results.csv will be saved as all_results_old.csv\n"
             f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
