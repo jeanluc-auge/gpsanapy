@@ -47,7 +47,17 @@ ch = StreamHandler()
 ch.setLevel(INFO)
 logger.addHandler(ch)
 
-MAX_SPEED = 45  # knots
+AGGRESSIVE_FILTERING = False
+if AGGRESSIVE_FILTERING:
+    MAX_ITER = 3
+    FILTER_WINDOW = 15
+    # and using fillna=ffill
+else:
+    MAX_ITER = 10
+    FILTER_WINDOW = 30
+    # and using fillna=interpolate
+
+MAX_SPEED = 9945  # knots
 MAX_ACCELERATION = 0.22  # g or +2.2m/s/s or +4.4 knots/s, negative acc is not limited ;)
 MAX_FILE_SIZE = 10e6
 DEFAULT_REPORT = {"n": 1, "doppler_ratio": None, "sampling_ratio": None, "std": None}
@@ -67,9 +77,8 @@ class TraceAnalysis:
         author = self.filename.split("_")[0]
         self.author = f"{author}_{str(self.df.index[0].date())}"
         # debug, select a portion of the trac:
-        # self.df = self.df.loc["2019-04-02 16:34:00+00:00": "2019-04-02 16:36:00+00:00"]
+        #self.df = self.df.loc["2019-03-29 13:08:30+00:00": "2019-03-29 13:30:00+00:00"]
         # original copy that will not be modified: for reference & debug:
-
         self.resample_df()
         self.raw_df = self.df.copy()
         # filter out speed spikes on self.df:
@@ -221,6 +230,7 @@ class TraceAnalysis:
         to remove acceleration spikes > MAX_ACCELERATION
         :return: modify self.df
         """
+
         # record acceleration (debug):
         self.raw_df["acceleration_doppler_speed"] = self.raw_df.speed.diff() / (
             1.94384*9.81 * self.raw_df.elapsed_time.diff()
@@ -235,19 +245,18 @@ class TraceAnalysis:
         df2 = self.df.copy()
 
         # limit the # of iterations for speed + avoid infinite loop
-        while erratic_data and iter < 5:
-            err1 = self.filter_on_field(df2, "speed_no_doppler")
-            err2 = self.filter_on_field(df2, "speed")
-            self.filtered_events += err2
-            erratic_data = (err2 > 0 or err1 > 0)
+        while erratic_data and iter < MAX_ITER:
+            err = self.filter_on_field(df2, iter, "speed", "speed_no_doppler")
+            self.filtered_events += err
             iter += 1
+            erratic_data = err>0
         self.df.loc[df2[df2.filtering == 1].index] = np.nan
 
         self.raw_df["filtering"] = df2.filtering
         self.df["filtering"] = df2.filtering
         #self.df = self.df[self.df.speed.notna()]
 
-    def filter_on_field(self, df2, column):
+    def filter_on_field(self, df2, iter, *columns):
         """
         filter a given column in self.df
         by checking its acceleration
@@ -288,38 +297,43 @@ class TraceAnalysis:
                         break
             return i
 
-        column_filtering = f"{column}_filtering"
+        err = 0
+        for column in columns:
+            column_filtering = f"{column}_filtering"
+            # calculate g acceleration:
+            df2["acceleration"] = df2[column].diff() / (1.94384*9.81 * df2.elapsed_time.diff())
+            # apply our rolling acceleration filter:
+            df2[column_filtering] = (
+                df2.acceleration.rolling(FILTER_WINDOW).apply(rolling_acceleration_filter).shift(-FILTER_WINDOW+1)
+            )
+            filtering = pd.Series.to_numpy(df2[column_filtering].copy())
+            indices = np.argwhere(filtering > 0).flatten()
+            err += len(indices)
+            for i in indices:
+                this_range = df2.iloc[int(i) : int(i + filtering[i]) + 1].index
+                df2.loc[this_range, columns] = np.nan
+                df2.loc[this_range, "filtering"] = 1
+            for column in columns:
+                if AGGRESSIVE_FILTERING:
+                    df2.loc[:, column].ffill(inplace=True)
+                else:
+                    df2.loc[:, column].interpolate(inplace=True)
+        #df2.to_csv(f'csv_results/df_debug_{iter}.csv')
+        return err
 
-        # calculate g acceleration:
-        df2["acceleration"] = df2[column].diff() / (1.94384*9.81 * df2.elapsed_time.diff())
-        # apply our rolling acceleration filter:
-        df2[column_filtering] = (
-            df2.acceleration.rolling(20).apply(rolling_acceleration_filter).shift(-19)
-        )
-        #df2.to_csv(f'csv_results/df_debug{iter}.csv')
-        filtering = pd.Series.to_numpy(df2[column_filtering].copy())
-        indices = np.argwhere(filtering > 0).flatten()
-        for i in indices:
-            this_range = df2.iloc[int(i) : int(i + filtering[i]) + 1].index
-            df2.loc[this_range, column] = np.nan
-            df2.loc[this_range, "filtering"] = 1
-
-        # 2 possibilities: interpolate or fill forward the last notna value
-        # if we don't do any of the 2, we cannot iterate,
-        # we chose to interpolate because the forward fill
-        # can make believe (false) high acceleration spikes after long np.nan filtering
-        # it's a rectangular spike vs triangular spike for the interpolate, hence smoother:
-        df2[column].interpolate(inplace=True)
-        # df2[column].fillna(method = 'ffill', inplace=True)
-        return len(indices)
 
     @log_calls()
     def resample_df(self):
         """
-        generate key time series with
+        resample dataframe before filtering
+        always resample on cumulated or absolute values (no diff !)
             - resampling to self.sampling
-            - aggregation (mean/min/max) for up-sampling
-            - optional interpolate in case of down-sampling (else np.nan)
+            - aggregation (mean/min/max) for under-sampling
+            - in case of over-sampling:
+                leave np.nan (raw_df)
+                fillna(0) (has doppler?)
+                interpolate
+
         """
 
         # don't fill nan on gps coordinates:
@@ -367,10 +381,7 @@ class TraceAnalysis:
 
     def generate_series(self):
         """
-        generate key time series with
-            - resampling to self.sampling
-            - aggregation (mean/min/max) for up-sampling
-            - optional interpolate in case of down-sampling (else np.nan)
+        generate key time series with fillna or interpolate after filtering
         """
 
         # speed doppler
@@ -388,7 +399,6 @@ class TraceAnalysis:
         # has_doppler? yes=1 default=0 (np.nan=0), sum = AND (min):
         self.thd = self.df["has_doppler"]
         self.thd = self.thd.fillna(0).astype(np.int64)
-        # distance: resample on cumulated values => take min of the bin and restore diff:
         # interpolate np.nan after filtering:
         self.td = self.df['delta_dist'].interpolate()
         # regenerate cum_dist after filtering (the cums kept the cumulated spikes!)
@@ -626,25 +636,29 @@ class TraceAnalysis:
             rolling_distance = td.rolling(samples_count).sum()
             result = round(rolling_speed.max(), 1)
             range_end = rolling_speed.idxmax()
-            range_begin = range_end - datetime.timedelta(seconds=int(samples_count * sampling) - 1)
-            tsd.loc[range_begin:range_end] = 0
-            td.loc[range_begin:range_end] = 0
-            logger.info(
-                f"found {samples_count} samples for n={k}:\n"
-                f"max rolling({samples_count}) speed = {result}\n"
-                f"max rolling({samples_count}) distance = {distance}\n"
-            )
-            confidence_report = self.append_result_debug(
-                item_range=self.tsd[range_begin:range_end].index,
-                item_description=description,
-                item_iter=k,
-            )
+            if range_end is not np.nan:
+                range_begin = range_end - datetime.timedelta(seconds=int(samples_count * sampling) - 1)
+                tsd.loc[range_begin:range_end] = 0
+                td.loc[range_begin:range_end] = 0
+                logger.info(
+                    f"found {samples_count} samples for n={k}:\n"
+                    f"max rolling({samples_count}) speed = {result}\n"
+                    f"max rolling({samples_count}) distance = {distance}\n"
+                )
+                confidence_report = self.append_result_debug(
+                    item_range=self.tsd[range_begin:range_end].index,
+                    item_description=description,
+                    item_iter=k,
+                )
+            else:
+                confidence_report = DEFAULT_REPORT
+                result = None
             results.append(
                 {
                     "description": description,
                     "result": result,
-                    "n": k,
                     **confidence_report,
+                    "n": k,
                 }
             )
             k += 1
@@ -981,12 +995,23 @@ class TraceAnalysis:
 
     @log_calls()
     def plot_speed(self):
+        fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1)
         dfs = pd.DataFrame(index=self.tsd.index)
         dfs["raw_speed"] = self.raw_tsd
         dfs["speed"] = self.tsd
         dfs["speed_no_doppler"] = self.ts
         # dfs["delta_doppler"] = self.ts - self.tsd
-        dfs.plot()
+        dfs.plot(ax=ax1)
+        try:
+            data = {
+                "diff_course_speed>10": self.tc_diff[self.tsd>12],
+                "distance": self.td,
+            }
+            dfc = pd.DataFrame(index=self.tsd.index, data=data)
+            dfc.plot(ax=ax2)
+        except Exception:
+            pass
+            #stupid error I cant't be bothered
         plt.show()
 
     def set_csv_paths(self):
