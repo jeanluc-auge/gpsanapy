@@ -77,8 +77,8 @@ class TraceAnalysis:
         author = self.filename.split("_")[0]
         self.author = f"{author}_{str(self.df.index[0].date())}"
         # debug, select a portion of the trac:
-        #self.df = self.df.loc["2019-03-29 13:08:30+00:00": "2019-03-29 13:30:00+00:00"]
-        # original copy that will not be modified: for reference & debug:
+        # self.df = self.df.loc["2019-03-29 14:30:00+00:00": "2019-03-29 14:32:00+00:00"]
+        #original copy that will not be modified: for reference & debug:
         self.resample_df()
         self.raw_df = self.df.copy()
         # filter out speed spikes on self.df:
@@ -941,7 +941,7 @@ class TraceAnalysis:
         if all_results is None:
             all_results = gpx_results
         elif self.author in all_results.index:
-            all_results.loc[self.author] = gpx_results
+            all_results.loc[self.author,:] = gpx_results
         else:  # merge
             all_results = pd.concat([all_results, gpx_results])
         logger.debug(
@@ -1076,6 +1076,7 @@ def process_args(args):
 parser = ArgumentParser()
 parser.add_argument("-f", "--gpx_filename", nargs="+", type=Path)
 parser.add_argument("-rd", "--read_directory", nargs="?", type=str, default="")
+parser.add_argument("-p", "--plot", action="count", default=0)
 # parser.add_argument(
 #     "-v",
 #     "--verbose",
@@ -1095,7 +1096,8 @@ if __name__ == "__main__":
             gpx_jla = TraceAnalysis(gpx_filename, config_filename)
             gpx_results = gpx_jla.call_gps_func_from_config()
             gpx_jla.rank_all_results(gpx_results)
-            #gpx_jla.plot_speed()
+            if args.plot > 0:
+                gpx_jla.plot_speed()
             gpx_jla.save_to_csv(gpx_results)
         except TraceAnalysisException as te:
             error_dict[gpx_filename] = str(te)
