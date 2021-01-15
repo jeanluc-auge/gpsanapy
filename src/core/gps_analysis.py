@@ -77,7 +77,7 @@ class TraceAnalysis:
         author = self.filename.split("_")[0]
         self.author = f"{author}_{str(self.df.index[0].date())}"
         # debug, select a portion of the trac:
-        # self.df = self.df.loc["2019-03-29 14:30:00+00:00": "2019-03-29 14:32:00+00:00"]
+        #self.df = self.df.loc["2019-03-29 14:10:00+00:00": "2019-03-29 14:47:00+00:00"]
         #original copy that will not be modified: for reference & debug:
         self.resample_df()
         self.raw_df = self.df.copy()
@@ -542,26 +542,33 @@ class TraceAnalysis:
         results = []
         if len(jibe_speed) == 0:
             # abort: could not find any valid jibe
-            return [{"description": description, "result": None, **DEFAULT_REPORT}]
+            return [
+                {"result": None, "description": description, **DEFAULT_REPORT, 'n': i + 1}
+                for i in range(n)
+            ]
         for i in range(1, n + 1):
             # find the highest speed jibe index and speed and define a [-11s, +11s] centered window
             range_begin = jibe_speed.idxmax() - datetime.timedelta(seconds=11)
             range_end = jibe_speed.idxmax() + datetime.timedelta(seconds=11)
-            result = round(jibe_speed.dropna().max(), 1)
+            if range_end is not np.nan:
+                result = round(jibe_speed.dropna().max(), 1)
 
-            # remove this speed range to find others:
-            jibe_speed[range_begin:range_end] = 0
-            confidence_report = self.append_result_debug(
-                item_range=self.tsd[range_begin:range_end].index,
-                item_description=description,
-                item_iter=i,
-            )
+                # remove this speed range to find others:
+                jibe_speed[range_begin:range_end] = 0
+                confidence_report = self.append_result_debug(
+                    item_range=self.tsd[range_begin:range_end].index,
+                    item_description=description,
+                    item_iter=i,
+                )
+            else:
+                confidence_report = DEFAULT_REPORT
+                result = None
             results.append(
                 {
                     "description": description,
                     "result": result,
-                    "n": i,
                     **confidence_report,
+                    "n": i,
                 }
             )
         return results
@@ -598,7 +605,10 @@ class TraceAnalysis:
         td = self.td.rolling(max_samples).apply(rolling_dist_count)
         nd = pd.Series.to_numpy(td)
         if np.isnan(nd).all():
-            return [{"result": 0, "description": description, **DEFAULT_REPORT}]
+            return [
+                {"result": None, "description": description, **DEFAULT_REPORT, 'n':i+1}
+                for i in range(n)
+            ]
         min_samples = int(np.nanmin(nd))
         threshold = min(min_samples + 10, max_samples)
         logger.info(
