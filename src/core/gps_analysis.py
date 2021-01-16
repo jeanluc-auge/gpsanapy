@@ -57,7 +57,8 @@ else:
     FILTER_WINDOW = 30
     # and using fillna=interpolate
 
-MAX_SPEED = 9945  # knots
+MAX_SPEED = 45  # knots
+TO_KNOT = 1.94384 # * m/s
 MAX_ACCELERATION = 0.22  # g or +2.2m/s/s or +4.4 knots/s, negative acc is not limited ;)
 MAX_FILE_SIZE = 10e6
 DEFAULT_REPORT = {"n": 1, "doppler_ratio": None, "sampling_ratio": None, "std": None}
@@ -67,6 +68,7 @@ class TraceAnalysis:
     def __init__(self, gpx_path, config_file="config.yaml", sampling="1S"):
         self.version = "12th January 2021"
         self.sampling = sampling
+        self.int_sampling = int(sampling.strip("S"))
         self.gpx_path = gpx_path
         self.filename = Path(self.gpx_path).stem
         self.set_csv_paths()
@@ -164,9 +166,9 @@ class TraceAnalysis:
                 "speed_no_doppler": raw_data.get_speed(i),
                 "course": point.course_between(raw_data.points[i - 1] if i > 0 else 0),
                 "has_doppler": bool(point.speed),
-                "delta_dist": (
-                    point.distance_2d(raw_data.points[i - 1]) if i > 0 else 0
-                ),
+                # "delta_dist": (
+                #     point.distance_3d(raw_data.points[i - 1]) if i > 0 else 0
+                # ),
             }
             for i, point in enumerate(raw_data.points)
         ]
@@ -207,7 +209,7 @@ class TraceAnalysis:
         ).astype("timedelta64[s]")
 
         # add a cumulated distance column (cannot resample on diff!!)
-        self.df["cum_dist"] = self.df.delta_dist.cumsum()
+        # self.df["cum_dist"] = self.df.delta_dist.cumsum()
 
         # convert bool to int: needed for rolling window functions
         self.df.loc[self.df.has_doppler == True, "has_doppler"] = 1
@@ -301,7 +303,7 @@ class TraceAnalysis:
         for column in columns:
             column_filtering = f"{column}_filtering"
             # calculate g acceleration:
-            df2["acceleration"] = df2[column].diff() / (1.94384*9.81 * df2.elapsed_time.diff())
+            df2["acceleration"] = df2[column].diff() / (TO_KNOT*9.81 * df2.elapsed_time.diff())
             # apply our rolling acceleration filter:
             df2[column_filtering] = (
                 df2.acceleration.rolling(FILTER_WINDOW).apply(rolling_acceleration_filter).shift(-FILTER_WINDOW+1)
@@ -345,15 +347,17 @@ class TraceAnalysis:
         thd = thd.fillna(0).astype(np.int64)
         # speed doppler
         tsd = self.df["speed"].resample(self.sampling).mean().interpolate()
-        # raw = don't fill nan:
+        # raw = don't fill nan (i.e. no interpolate:
         raw_tsd = self.df["speed"].resample(self.sampling).mean()
         # speed no doppler
         ts = (
             self.df["speed_no_doppler"].resample(self.sampling).mean().interpolate()
         )
-        # distance: resample on cumulated values => take min of the bin and restore diff:
-        tcd = self.df["cum_dist"].resample(self.sampling).min().interpolate()
-        td = tcd.diff()
+        # distance: diff & cumulated calculated from speed and sampling:
+        td = tsd * self.int_sampling / TO_KNOT
+        tcd = td.cumsum()
+        #tcd = self.df["cum_dist"].resample(self.sampling).min().interpolate()
+        #td = tcd.diff()
         # course (orientation °) cumulated values => take min of the bin
         tc = self.df["course"].resample(self.sampling).min().interpolate()
         df = pd.DataFrame(
@@ -399,7 +403,8 @@ class TraceAnalysis:
         # has_doppler? yes=1 default=0 (np.nan=0), sum = AND (min):
         self.thd = self.df["has_doppler"]
         self.thd = self.thd.fillna(0).astype(np.int64)
-        # interpolate np.nan after filtering:
+        # interpolate np.nan after filtering
+        # (we can because we resampled before filtering, therefore sampling is uniform)
         self.td = self.df['delta_dist'].interpolate()
         # regenerate cum_dist after filtering (the cums kept the cumulated spikes!)
         self.tcd = self.td.cumsum()
@@ -505,13 +510,12 @@ class TraceAnalysis:
         :param n: int number of records
         :return: list of n * vmin jibe speeds
         """
-        sampling = int(self.sampling.strip("S"))
         HALF_JIBE_COURSE = 70
         FULL_JIBE_COURSE = 130
         MIN_JIBE_SPEED = 11
-        speed_window = int(20 / sampling)
-        course_window = int(15 / sampling)
-        partial_course_window = int(course_window / 3)
+        speed_window = int(np.ceil(20 / self.int_sampling))
+        course_window = int(np.ceil(15 / self.int_sampling))
+        partial_course_window = int(np.ceil(course_window / 3))
 
         tc = self.tc_diff.copy()
         # remove low speed periods (too many noise in course orientation):
@@ -597,10 +601,9 @@ class TraceAnalysis:
                     break
             return i + 1
 
-        sampling = int(self.sampling.strip("S"))
         min_speed = 7  # knots min expected speed for max window size
         max_interval = dist / min_speed
-        max_samples = int(max_interval / sampling)
+        max_samples = int(max_interval / self.int_sampling)
 
         td = self.td.rolling(max_samples).apply(rolling_dist_count)
         nd = pd.Series.to_numpy(td)
@@ -614,7 +617,7 @@ class TraceAnalysis:
         logger.info(
             f"\nsearching {n} x v{dist} speed\n"
             f"over a window of {max_samples} samples\n"
-            f"and found a min of {min_samples*sampling} seconds\n"
+            f"and found a min of {min_samples*self.int_sampling} seconds\n"
             f"to cover {dist}m"
         )
         logger.info(
@@ -644,10 +647,10 @@ class TraceAnalysis:
             distance = max_rolling_distance_2
             rolling_speed = tsd.rolling(samples_count).mean()
             rolling_distance = td.rolling(samples_count).sum()
-            result = round(rolling_speed.max(), 1)
+            result = round(rolling_speed.max(), 2)
             range_end = rolling_speed.idxmax()
             if range_end is not np.nan:
-                range_begin = range_end - datetime.timedelta(seconds=int(samples_count * sampling) - 1)
+                range_begin = range_end - datetime.timedelta(seconds=int(samples_count * self.int_sampling) - 1)
                 tsd.loc[range_begin:range_end] = 0
                 td.loc[range_begin:range_end] = 0
                 logger.info(
@@ -707,10 +710,9 @@ class TraceAnalysis:
                     break
             return i + 1
 
-        sampling = int(self.sampling.strip("S"))
         min_speed = 7  # knots min expected speed for max window size
         max_interval = dist / min_speed
-        max_samples = int(max_interval / sampling)
+        max_samples = int(max_interval / self.int_sampling)
 
         td = self.td.rolling(max_samples).apply(rolling_dist_count)
         nd = pd.Series.to_numpy(td)
@@ -721,7 +723,7 @@ class TraceAnalysis:
         logger.info(
             f"\nsearching {n} x v{dist} speed\n"
             f"over a window of {max_samples} samples\n"
-            f"and found a min of {min_samples*sampling} seconds\n"
+            f"and found a min of {min_samples*self.int_sampling} seconds\n"
             f"to cover {dist}m"
         )
         logger.info(
