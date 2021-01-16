@@ -6,6 +6,7 @@ import os
 import yaml
 import logging
 import pandas as pd
+from time import time
 
 logger = logging.getLogger()
 
@@ -53,15 +54,28 @@ def log_calls(log_args=False, log_result=False):
             if log_args:
                 logger.info(f"with args: {func_arg_dict}\n")
             # calling function
+            start_time = time()
             result = fn(self, *args, **kwargs)
+            end_time = time()
             # logging results:
+            execution_time = end_time - start_time
+
+            logger.info(
+                f"\nFUNCTION {fn.__name__} ENDS in {round(execution_time*1000, 0)}ms\n"
+            )
             if log_result:
                 logger.info(
-                    f"\nFUNCTION {fn.__name__} ENDS\n"
                     f"with result:\n"
                     f"{result}\n"
                     f"======================================================"
                 )
+            fn_name = func_arg_dict.get('description', fn.__name__)
+            if not hasattr(self, 'fn_execution_time'):
+                self.fn_execution_time = {'total_time': 0}
+            if fn_name != 'call_gps_func_from_config':
+                self.fn_execution_time[fn_name] = execution_time
+                self.fn_execution_time['total_time'] += execution_time
+
             return result
 
         return wrapper

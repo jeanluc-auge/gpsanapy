@@ -57,8 +57,9 @@ else:
     FILTER_WINDOW = 30
     # and using fillna=interpolate
 
-TO_KNOT = 1.94384 # * m/s
+TO_KNOT = 1.94384  # * m/s
 DEFAULT_REPORT = {"n": 1, "doppler_ratio": None, "sampling_ratio": None, "std": None}
+
 
 class TraceAnalysis:
     def __init__(self, gpx_path, config_file="config.yaml"):
@@ -73,8 +74,8 @@ class TraceAnalysis:
         author = self.filename.split("_")[0]
         self.author = f"{author}_{str(self.df.index[0].date())}"
         # debug, select a portion of the trac:
-        #self.df = self.df.loc["2019-03-29 14:10:00+00:00": "2019-03-29 14:47:00+00:00"]
-        #original copy that will not be modified: for reference & debug:
+        # self.df = self.df.loc["2019-03-29 14:10:00+00:00": "2019-03-29 14:47:00+00:00"]
+        # original copy that will not be modified: for reference & debug:
         self.resample_df()
         self.raw_df = self.df.copy()
         # filter out speed spikes on self.df:
@@ -99,12 +100,12 @@ class TraceAnalysis:
                 {ranking_group_name: [fn1_description, ...] }
         :return:
         """
-        for rule, value in self.config['rules'].items():
+        for rule, value in self.config["rules"].items():
             setattr(self, rule, value)
         self.sampling = float(self.time_sampling.strip("S"))
         ranking_groups = {}
         self.gps_func_description = {}
-        for gps_func, iterations in self.config['functions'].items():
+        for gps_func, iterations in self.config["functions"].items():
             for iteration in iterations:
                 if iteration["ranking_group"] in ranking_groups:
                     ranking_groups[iteration["ranking_group"]].append(
@@ -125,7 +126,7 @@ class TraceAnalysis:
         )
 
     def load_df(self, gpx_path):
-        self.file_size = Path(gpx_path).stat().st_size/1e6
+        self.file_size = Path(gpx_path).stat().st_size / 1e6
         if self.file_size > self.max_file_size:
             raise TraceAnalysisException(
                 f"file {gpx_path} size = {self.file_size}Mb > {self.max_file_size}Mb"
@@ -195,7 +196,7 @@ class TraceAnalysis:
             {
                 "lon": point.longitude,
                 "lat": point.latitude,
-                "time": point.time,#datetime.datetime.strptime((str(point.time)).split("+")[0], '%Y-%m-%d %H:%M:%S'),
+                "time": point.time,  # datetime.datetime.strptime((str(point.time)).split("+")[0], '%Y-%m-%d %H:%M:%S'),
                 "speed": (point.speed if point.speed else raw_data.get_speed(i)),
                 "speed_no_doppler": raw_data.get_speed(i),
                 "course": point.course_between(raw_data.points[i - 1] if i > 0 else 0),
@@ -254,10 +255,12 @@ class TraceAnalysis:
 
         # record acceleration (debug):
         self.raw_df["acceleration_doppler_speed"] = self.raw_df.speed.diff() / (
-            1.94384*9.81 * self.raw_df.elapsed_time.diff()
+            1.94384 * 9.81 * self.raw_df.elapsed_time.diff()
         )
-        self.raw_df["acceleration_non_doppler_speed"] = self.raw_df.speed_no_doppler.diff() / (
-            1.94384*9.81 * self.raw_df.elapsed_time.diff()
+        self.raw_df[
+            "acceleration_non_doppler_speed"
+        ] = self.raw_df.speed_no_doppler.diff() / (
+            1.94384 * 9.81 * self.raw_df.elapsed_time.diff()
         )
 
         erratic_data = True
@@ -270,12 +273,12 @@ class TraceAnalysis:
             err = self.filter_on_field(df2, iter, "speed", "speed_no_doppler")
             self.filtered_events += err
             iter += 1
-            erratic_data = err>0
+            erratic_data = err > 0
         self.df.loc[df2[df2.filtering == 1].index] = np.nan
 
         self.raw_df["filtering"] = df2.filtering
         self.df["filtering"] = df2.filtering
-        #self.df = self.df[self.df.speed.notna()]
+        # self.df = self.df[self.df.speed.notna()]
 
     def filter_on_field(self, df2, iter, *columns):
         """
@@ -298,7 +301,7 @@ class TraceAnalysis:
             i = 0
             # searched irrealistic acceleration[0] > max_acceleration spikes
             # we differentiate very high from high acceleration spikes (2 * )
-            if x[0] > 2*self.max_acceleration:
+            if x[0] > 2 * self.max_acceleration:
                 exiting = False
                 for i, a in enumerate(x):
                     # find spike interval length by searching negative spike end
@@ -313,7 +316,7 @@ class TraceAnalysis:
             # may be a fast leading edge, i.e. fast acceleration after planning
             # cf kitefoils accelerations are possible in this range and are not spikes
             elif x[0] > self.max_acceleration:
-                for i,a in enumerate(x):
+                for i, a in enumerate(x):
                     if a < self.max_acceleration:
                         break
             return i
@@ -322,10 +325,14 @@ class TraceAnalysis:
         for column in columns:
             column_filtering = f"{column}_filtering"
             # calculate g acceleration:
-            df2["acceleration"] = df2[column].diff() / (TO_KNOT*9.81 * df2.elapsed_time.diff())
+            df2["acceleration"] = df2[column].diff() / (
+                TO_KNOT * 9.81 * df2.elapsed_time.diff()
+            )
             # apply our rolling acceleration filter:
             df2[column_filtering] = (
-                df2.acceleration.rolling(FILTER_WINDOW).apply(rolling_acceleration_filter).shift(-FILTER_WINDOW+1)
+                df2.acceleration.rolling(FILTER_WINDOW)
+                .apply(rolling_acceleration_filter)
+                .shift(-FILTER_WINDOW + 1)
             )
             filtering = pd.Series.to_numpy(df2[column_filtering].copy())
             indices = np.argwhere(filtering > 0).flatten()
@@ -339,9 +346,8 @@ class TraceAnalysis:
                     df2.loc[:, column].ffill(inplace=True)
                 else:
                     df2.loc[:, column].interpolate(inplace=True)
-        #df2.to_csv(f'csv_results/df_debug_{iter}.csv')
+        # df2.to_csv(f'csv_results/df_debug_{iter}.csv')
         return err
-
 
     @log_calls()
     def resample_df(self):
@@ -370,17 +376,20 @@ class TraceAnalysis:
         raw_tsd = self.df["speed"].resample(self.time_sampling).mean()
         # speed no doppler
         ts = (
-            self.df["speed_no_doppler"].resample(self.time_sampling).mean().interpolate()
+            self.df["speed_no_doppler"]
+            .resample(self.time_sampling)
+            .mean()
+            .interpolate()
         )
         # distance: diff & cumulated calculated from speed and time_sampling:
         td = tsd * self.sampling / TO_KNOT
         tcd = td.cumsum()
-        #tcd = self.df["cum_dist"].resample(self.time_sampling).min().interpolate()
-        #td = tcd.diff()
+        # tcd = self.df["cum_dist"].resample(self.time_sampling).min().interpolate()
+        # td = tcd.diff()
         # course (orientation °) cumulated values => take min of the bin
         tc = self.df["course"].resample(self.time_sampling).min().interpolate()
         df = pd.DataFrame(
-            data = {
+            data={
                 "lon": tlon,
                 "lat": tlat,
                 "speed": tsd,
@@ -394,11 +403,11 @@ class TraceAnalysis:
         )
         # generate time_sampling column based on raw_speed:
         df.loc[df.raw_speed.notna(), "time_sampling"] = 1
-        df['filtering'] = 0
+        df["filtering"] = 0
 
-        df["elapsed_time"] = pd.to_timedelta(
-            df.index - df.index[0]
-        ).astype("timedelta64[s]")
+        df["elapsed_time"] = pd.to_timedelta(df.index - df.index[0]).astype(
+            "timedelta64[s]"
+        )
 
         self.df = df
 
@@ -411,9 +420,7 @@ class TraceAnalysis:
         self.tsd = self.df["speed"].interpolate()
         self.raw_tsd = self.raw_df["raw_speed"]
         # speed no doppler
-        self.ts = (
-            self.df["speed_no_doppler"].interpolate()
-        )
+        self.ts = self.df["speed_no_doppler"].interpolate()
         # filtering? yes=1 :
         self.tf = self.df["filtering"]
         # time_sampling? yes=1 default=0 (np.nan=0)
@@ -424,13 +431,13 @@ class TraceAnalysis:
         self.thd = self.thd.fillna(0).astype(np.int64)
         # interpolate np.nan after filtering
         # (we can because we resampled before filtering, therefore time_sampling is uniform)
-        self.td = self.df['delta_dist'].interpolate()
+        self.td = self.df["delta_dist"].interpolate()
         # regenerate cum_dist after filtering (the cums kept the cumulated spikes!)
         self.tcd = self.td.cumsum()
         # course (orientation °) cumulated values => take min of the bin
         self.tc = self.df["course"].interpolate()
         self.tc_diff = self.diff_clean_ts(self.tc, 300)
-        self.raw_df['filtered_speed'] = self.tsd
+        self.raw_df["filtered_speed"] = self.tsd
         if self.tsd.max() > self.max_speed:
             raise TraceAnalysisException(
                 f"Trace maximum speed after cleaning is = {self.tsd.max()} knots!\n"
@@ -439,9 +446,7 @@ class TraceAnalysis:
 
     def log_trace_infos(self):
         doppler_ratio = int(100 * len(self.thd[self.thd > 0].dropna()) / len(self.thd))
-        sampling_ratio = int(
-            100 * len(self.tsamp[self.tsamp == 1]) / len(self.tsamp)
-        )
+        sampling_ratio = int(100 * len(self.tsamp[self.tsamp == 1]) / len(self.tsamp))
         if len(self.tsamp[self.tsd > 5]) == 0:
             sampling_ratio_5 = 0
         else:
@@ -480,7 +485,7 @@ class TraceAnalysis:
             f"file loading to pandas DataFrame complete\n"
             f"creator {self.creator}\n"  # GPS device type: read from gpx file xml infos field
             f"trace min sampling = {self.trace_sampling}S\n"
-            f"and the trace is analyzed with a sampling = {self.sampling}S\n" 
+            f"and the trace is analyzed with a sampling = {self.sampling}S\n"
             f"Trace total distance = {round(self.td.sum()/1000,1)} km"
             f"\noverall doppler_ratio = {doppler_ratio}%\n"
             f"overall time_sampling ratio = {sampling_ratio}%\n"
@@ -490,7 +495,6 @@ class TraceAnalysis:
             f"==========================================================================\n"
             f"==========================================================================\n"
         )
-
 
     def diff_clean_ts(self, ts, threshold):
         """
@@ -569,9 +573,10 @@ class TraceAnalysis:
         cj1 = (
             abs(tc.rolling(partial_course_window, center=True).sum()) > HALF_JIBE_COURSE
         )
+        print(1111111111111111,cj1.any())
         # find condition2 on 15 samples rolling window:
         cj2 = abs(tc.rolling(course_window, center=True).sum()) > FULL_JIBE_COURSE
-
+        print(222222222222222,cj2.any())
         # # ====== debug starts =====================
         # df = pd.DataFrame(index=tc.index)
         # df['c'] = self.tc
@@ -588,9 +593,15 @@ class TraceAnalysis:
         jibe_speed = self.tsd.rolling(speed_window, center=True).min()[cj1 & cj2]
         results = []
         if len(jibe_speed) == 0:
+            logger.warning(f"could not find any valid jibe")
             # abort: could not find any valid jibe
             return [
-                {"result": None, "description": description, **DEFAULT_REPORT, 'n': i + 1}
+                {
+                    "result": None,
+                    "description": description,
+                    **DEFAULT_REPORT,
+                    "n": i + 1,
+                }
                 for i in range(n)
             ]
         for i in range(1, n + 1):
@@ -702,6 +713,7 @@ class TraceAnalysis:
         :param n: int number of vmax to record
         :return: vmax mean over distance dist
         """
+
         def rolling_dist_count(delta_dist):
             """
             rolling distance filter
@@ -894,7 +906,7 @@ class TraceAnalysis:
         logger.debug(f"ranking results multi index architecture:" f"{mic}")
         return mic
 
-    @log_calls(log_args=True, log_result=True)
+    @log_calls(log_args=False, log_result=True)
     def call_gps_func_from_config(self):
         """
         generate the session performance summary
@@ -906,7 +918,7 @@ class TraceAnalysis:
         results = []
         # iterate over the config and call the referenced functions:
 
-        for gps_func, iterations in self.config['functions'].items():
+        for gps_func, iterations in self.config["functions"].items():
             # the same gps_func key cannot be repeated in the yaml description,
             # so we use an iterations list,
             # in order to call several times the same function with different args if needed:
@@ -936,7 +948,7 @@ class TraceAnalysis:
         if all_results is None:
             all_results = gpx_results
         elif self.author in all_results.index:
-            all_results.loc[self.author,:] = gpx_results
+            all_results.loc[self.author, :] = gpx_results
         else:  # merge
             all_results = pd.concat([all_results, gpx_results])
         logger.debug(
@@ -1002,14 +1014,14 @@ class TraceAnalysis:
             logger.error(f"cannot plot speed")
         try:
             data = {
-                "diff_course_speed>10": self.tc_diff[self.tsd>12],
+                "diff_course_speed>10": self.tc_diff[self.tsd > 12],
                 "distance": self.td,
             }
             dfc = pd.DataFrame(index=self.tsd.index, data=data)
             dfc.plot(ax=ax2)
         except Exception:
             logger.error(f"cannot plot distance and course")
-            #stupid error I cant't be bothered
+            # stupid error I cant't be bothered
         plt.show()
 
     def set_csv_paths(self):
@@ -1053,6 +1065,19 @@ class TraceAnalysis:
             self.all_results.to_csv(self.all_results_path, index=False)
             self.ranking_results.to_csv(self.ranking_results_path)
 
+    def log_computation_time(self):
+        fn_execution_time = {
+            fn: f"executed in {int(100 * time / self.fn_execution_time['total_time'])}% of total time"
+            for fn, time in self.fn_execution_time.items()
+            if fn != "total_time"
+        }
+        logger.info(
+            f"\n===============================================\n"
+            f"total computation time is {self.fn_execution_time['total_time']}\n"
+            f"with the following repartition:\n"
+            f"{json.dumps(fn_execution_time, indent=2)}"
+            f"===============================================\n"
+        )
 
 def process_args(args):
     f = args.gpx_filename
@@ -1094,9 +1119,10 @@ if __name__ == "__main__":
             gpx_jla = TraceAnalysis(gpx_filename, config_filename)
             gpx_results = gpx_jla.call_gps_func_from_config()
             gpx_jla.rank_all_results(gpx_results)
+            gpx_jla.save_to_csv(gpx_results)
+            gpx_jla.log_computation_time()
             if args.plot > 0:
                 gpx_jla.plot_speed()
-            gpx_jla.save_to_csv(gpx_results)
         except TraceAnalysisException as te:
             error_dict[gpx_filename] = str(te)
             logger.error(te)

@@ -1,57 +1,289 @@
 author,creator,date,description,result,n,doppler_ratio,sampling_ratio,std
-FRED_2020-02-18,GpsarPro 5.30,2020-02-18,vmax_1s,33.5,1,100.0,100.0,
-FRED_2020-02-18,GpsarPro 5.30,2020-02-18,vmax_1s,33.3,2,100.0,100.0,
-FRED_2020-02-18,GpsarPro 5.30,2020-02-18,vmax_1s,33.0,3,100.0,100.0,
-FRED_2020-02-18,GpsarPro 5.30,2020-02-18,vmax_1s,32.2,4,100.0,100.0,
-FRED_2020-02-18,GpsarPro 5.30,2020-02-18,vmax_1s,32.2,5,100.0,100.0,
-FRED_2020-02-18,GpsarPro 5.30,2020-02-18,vmax_10s,33.5,1,100.0,100.0,
-FRED_2020-02-18,GpsarPro 5.30,2020-02-18,vmax_10s,33.3,2,100.0,100.0,
-FRED_2020-02-18,GpsarPro 5.30,2020-02-18,vmax_10s,33.0,3,100.0,100.0,
-FRED_2020-02-18,GpsarPro 5.30,2020-02-18,vmax_10s,32.2,4,100.0,100.0,
-FRED_2020-02-18,GpsarPro 5.30,2020-02-18,vmax_10s,32.2,5,100.0,100.0,
-FRED_2020-02-18,GpsarPro 5.30,2020-02-18,vmax_500m,30.22,1,100.0,100.0,1.97
-FRED_2020-02-18,GpsarPro 5.30,2020-02-18,vmax_500m,29.99,2,100.0,100.0,3.32
-FRED_2020-02-18,GpsarPro 5.30,2020-02-18,vmax_500m,29.65,3,100.0,100.0,2.52
-FRED_2020-02-18,GpsarPro 5.30,2020-02-18,vmax_500m,29.43,4,100.0,100.0,2.74
-FRED_2020-02-18,GpsarPro 5.30,2020-02-18,vmax_500m,29.25,5,100.0,100.0,4.51
-FRED_2020-02-18,GpsarPro 5.30,2020-02-18,vmax_1000m,27.6,1,100.0,100.0,2.13
-FRED_2020-02-18,GpsarPro 5.30,2020-02-18,vmax_1000m,27.49,2,100.0,100.0,3.06
-FRED_2020-02-18,GpsarPro 5.30,2020-02-18,vmax_1000m,27.47,3,100.0,100.0,2.77
-FRED_2020-02-18,GpsarPro 5.30,2020-02-18,vmax_1000m,27.26,4,100.0,100.0,3.68
-FRED_2020-02-18,GpsarPro 5.30,2020-02-18,vmax_1000m,26.99,5,100.0,100.0,3.81
-FRED_2020-02-18,GpsarPro 5.30,2020-02-18,planning_ratio>12,86.0,1,,,
-FRED_2020-02-18,GpsarPro 5.30,2020-02-18,Vmoy>12,22.4,1,,,
-FRED_2020-02-18,GpsarPro 5.30,2020-02-18,vmax_jibe,22.2,1,100.0,100.0,6.16
-FRED_2020-02-18,GpsarPro 5.30,2020-02-18,vmax_jibe,19.5,2,100.0,100.0,6.78
-FRED_2020-02-18,GpsarPro 5.30,2020-02-18,vmax_jibe,18.0,3,100.0,100.0,5.43
-FRED_2020-02-18,GpsarPro 5.30,2020-02-18,vmax_jibe,17.8,4,100.0,100.0,10.57
-FRED_2020-02-18,GpsarPro 5.30,2020-02-18,vmax_jibe,17.4,5,100.0,100.0,2.87
-FRED_2020-02-18,GpsarPro 5.30,2020-02-18,planning_distance>12,83.0,1,,,
-2020-07-17-1741_2020-07-17,onandon.be Motion,2020-07-17,vmax_1s,25.7,1,100.0,100.0,
-2020-07-17-1741_2020-07-17,onandon.be Motion,2020-07-17,vmax_1s,25.7,2,100.0,100.0,
-2020-07-17-1741_2020-07-17,onandon.be Motion,2020-07-17,vmax_1s,25.7,3,100.0,100.0,
-2020-07-17-1741_2020-07-17,onandon.be Motion,2020-07-17,vmax_1s,25.7,4,100.0,100.0,
-2020-07-17-1741_2020-07-17,onandon.be Motion,2020-07-17,vmax_1s,25.6,5,100.0,100.0,
-2020-07-17-1741_2020-07-17,onandon.be Motion,2020-07-17,vmax_10s,25.4,1,100.0,100.0,0.23
-2020-07-17-1741_2020-07-17,onandon.be Motion,2020-07-17,vmax_10s,24.7,2,100.0,100.0,0.57
-2020-07-17-1741_2020-07-17,onandon.be Motion,2020-07-17,vmax_10s,23.7,3,100.0,100.0,0.58
-2020-07-17-1741_2020-07-17,onandon.be Motion,2020-07-17,vmax_10s,23.6,4,100.0,100.0,0.88
-2020-07-17-1741_2020-07-17,onandon.be Motion,2020-07-17,vmax_10s,23.5,5,100.0,100.0,0.27
-2020-07-17-1741_2020-07-17,onandon.be Motion,2020-07-17,vmax_500m,21.4,1,100.0,100.0,4.2
-2020-07-17-1741_2020-07-17,onandon.be Motion,2020-07-17,vmax_500m,20.7,2,100.0,100.0,1.89
-2020-07-17-1741_2020-07-17,onandon.be Motion,2020-07-17,vmax_500m,20.3,3,100.0,100.0,1.59
-2020-07-17-1741_2020-07-17,onandon.be Motion,2020-07-17,vmax_500m,20.1,4,100.0,100.0,3.55
-2020-07-17-1741_2020-07-17,onandon.be Motion,2020-07-17,vmax_500m,19.6,5,100.0,100.0,2.48
-2020-07-17-1741_2020-07-17,onandon.be Motion,2020-07-17,vmax_1000m,19.9,1,100.0,100.0,2.85
-2020-07-17-1741_2020-07-17,onandon.be Motion,2020-07-17,vmax_1000m,19.9,2,100.0,100.0,3.44
-2020-07-17-1741_2020-07-17,onandon.be Motion,2020-07-17,vmax_1000m,18.6,3,100.0,100.0,2.51
-2020-07-17-1741_2020-07-17,onandon.be Motion,2020-07-17,vmax_1000m,18.5,4,100.0,100.0,3.27
-2020-07-17-1741_2020-07-17,onandon.be Motion,2020-07-17,vmax_1000m,18.3,5,100.0,100.0,3.38
-2020-07-17-1741_2020-07-17,onandon.be Motion,2020-07-17,planning_ratio>12,76.0,1,,,
-2020-07-17-1741_2020-07-17,onandon.be Motion,2020-07-17,Vmoy>12,18.2,1,,,
-2020-07-17-1741_2020-07-17,onandon.be Motion,2020-07-17,vmax_jibe,14.1,1,100.0,100.0,2.86
-2020-07-17-1741_2020-07-17,onandon.be Motion,2020-07-17,vmax_jibe,12.8,2,100.0,100.0,2.98
-2020-07-17-1741_2020-07-17,onandon.be Motion,2020-07-17,vmax_jibe,12.1,3,100.0,100.0,2.78
-2020-07-17-1741_2020-07-17,onandon.be Motion,2020-07-17,vmax_jibe,12.1,4,100.0,100.0,3.27
-2020-07-17-1741_2020-07-17,onandon.be Motion,2020-07-17,vmax_jibe,12.1,5,100.0,100.0,3.53
-2020-07-17-1741_2020-07-17,onandon.be Motion,2020-07-17,planning_distance>12,11.2,1,,,
+daemon64_2019-08-23,GpsarPro 5.23,2019-08-23,vmax_1s,21.2,1,100.0,100.0,
+daemon64_2019-08-23,GpsarPro 5.23,2019-08-23,vmax_10s,20.8,1,100.0,100.0,0.07
+daemon64_2019-08-23,GpsarPro 5.23,2019-08-23,vmax_500m,20.15,1,100.0,100.0,0.89
+daemon64_2019-08-23,GpsarPro 5.23,2019-08-23,vmax_1000m,20.04,1,100.0,100.0,0.71
+daemon64_2019-08-23,GpsarPro 5.23,2019-08-23,planning_ratio>12,77.0,1,,,
+daemon64_2019-08-23,GpsarPro 5.23,2019-08-23,Vmoy>12,18.2,1,,,
+daemon64_2019-08-23,GpsarPro 5.23,2019-08-23,vmax_jibe,,1,,,
+daemon64_2019-08-23,GpsarPro 5.23,2019-08-23,vmax_jibe,,2,,,
+daemon64_2019-08-23,GpsarPro 5.23,2019-08-23,vmax_jibe,,3,,,
+daemon64_2019-08-23,GpsarPro 5.23,2019-08-23,vmax_jibe,,4,,,
+daemon64_2019-08-23,GpsarPro 5.23,2019-08-23,vmax_jibe,,5,,,
+daemon64_2019-08-23,GpsarPro 5.23,2019-08-23,planning_distance>12,5.0,1,,,
+daemon64_2019-04-28,GpsarPro 5.23,2019-04-28,vmax_1s,19.3,1,100.0,100.0,
+daemon64_2019-04-28,GpsarPro 5.23,2019-04-28,vmax_10s,19.0,1,100.0,100.0,0.18
+daemon64_2019-04-28,GpsarPro 5.23,2019-04-28,vmax_500m,18.04,1,100.0,100.0,0.98
+daemon64_2019-04-28,GpsarPro 5.23,2019-04-28,vmax_1000m,16.36,1,100.0,100.0,1.79
+daemon64_2019-04-28,GpsarPro 5.23,2019-04-28,planning_ratio>12,74.0,1,,,
+daemon64_2019-04-28,GpsarPro 5.23,2019-04-28,Vmoy>12,15.0,1,,,
+daemon64_2019-04-28,GpsarPro 5.23,2019-04-28,vmax_jibe,,1,,,
+daemon64_2019-04-28,GpsarPro 5.23,2019-04-28,vmax_jibe,,2,,,
+daemon64_2019-04-28,GpsarPro 5.23,2019-04-28,vmax_jibe,,3,,,
+daemon64_2019-04-28,GpsarPro 5.23,2019-04-28,vmax_jibe,,4,,,
+daemon64_2019-04-28,GpsarPro 5.23,2019-04-28,vmax_jibe,,5,,,
+daemon64_2019-04-28,GpsarPro 5.23,2019-04-28,planning_distance>12,30.6,1,,,
+bubarWindFoilBNIG14_2019-07-14,Garmin Connect,2019-07-14,vmax_1s,38.2,1,0.0,100.0,
+bubarWindFoilBNIG14_2019-07-14,Garmin Connect,2019-07-14,vmax_10s,27.3,1,0.0,30.0,7.09
+bubarWindFoilBNIG14_2019-07-14,Garmin Connect,2019-07-14,vmax_500m,23.92,1,0.0,85.0,1.14
+bubarWindFoilBNIG14_2019-07-14,Garmin Connect,2019-07-14,vmax_1000m,22.47,1,0.0,81.0,1.76
+bubarWindFoilBNIG14_2019-07-14,Garmin Connect,2019-07-14,planning_ratio>12,87.0,1,,,
+bubarWindFoilBNIG14_2019-07-14,Garmin Connect,2019-07-14,Vmoy>12,19.3,1,,,
+bubarWindFoilBNIG14_2019-07-14,Garmin Connect,2019-07-14,vmax_jibe,13.6,1,0.0,65.0,2.9
+bubarWindFoilBNIG14_2019-07-14,Garmin Connect,2019-07-14,vmax_jibe,13.0,2,0.0,8.0,3.76
+bubarWindFoilBNIG14_2019-07-14,Garmin Connect,2019-07-14,vmax_jibe,11.4,3,0.0,73.0,4.52
+bubarWindFoilBNIG14_2019-07-14,Garmin Connect,2019-07-14,vmax_jibe,0.0,4,0.0,65.0,2.9
+bubarWindFoilBNIG14_2019-07-14,Garmin Connect,2019-07-14,vmax_jibe,0.0,5,0.0,65.0,2.9
+bubarWindFoilBNIG14_2019-07-14,Garmin Connect,2019-07-14,planning_distance>12,53.2,1,,,
+bubar_2019-10-20,Garmin Connect,2019-10-20,vmax_1s,25.5,1,0.0,100.0,
+bubar_2019-10-20,Garmin Connect,2019-10-20,vmax_10s,24.3,1,0.0,100.0,0.62
+bubar_2019-10-20,Garmin Connect,2019-10-20,vmax_500m,22.79,1,0.0,100.0,1.26
+bubar_2019-10-20,Garmin Connect,2019-10-20,vmax_1000m,22.01,1,0.0,100.0,1.08
+bubar_2019-10-20,Garmin Connect,2019-10-20,planning_ratio>12,67.0,1,,,
+bubar_2019-10-20,Garmin Connect,2019-10-20,Vmoy>12,18.6,1,,,
+bubar_2019-10-20,Garmin Connect,2019-10-20,vmax_jibe,11.1,1,0.0,100.0,4.16
+bubar_2019-10-20,Garmin Connect,2019-10-20,vmax_jibe,0.0,2,0.0,100.0,4.16
+bubar_2019-10-20,Garmin Connect,2019-10-20,vmax_jibe,0.0,3,0.0,100.0,4.16
+bubar_2019-10-20,Garmin Connect,2019-10-20,vmax_jibe,0.0,4,0.0,100.0,4.16
+bubar_2019-10-20,Garmin Connect,2019-10-20,vmax_jibe,0.0,5,0.0,100.0,4.16
+bubar_2019-10-20,Garmin Connect,2019-10-20,planning_distance>12,17.1,1,,,
+bubar_2019-04-06,Garmin Connect,2019-04-06,vmax_1s,31.7,1,0.0,100.0,
+bubar_2019-04-06,Garmin Connect,2019-04-06,vmax_10s,24.5,1,0.0,30.0,4.14
+bubar_2019-04-06,Garmin Connect,2019-04-06,vmax_500m,21.01,1,0.0,21.0,1.08
+bubar_2019-04-06,Garmin Connect,2019-04-06,vmax_1000m,20.13,1,0.0,20.0,1.44
+bubar_2019-04-06,Garmin Connect,2019-04-06,planning_ratio>12,62.0,1,,,
+bubar_2019-04-06,Garmin Connect,2019-04-06,Vmoy>12,17.5,1,,,
+bubar_2019-04-06,Garmin Connect,2019-04-06,vmax_jibe,13.1,1,0.0,34.0,2.2
+bubar_2019-04-06,Garmin Connect,2019-04-06,vmax_jibe,11.3,2,0.0,21.0,2.34
+bubar_2019-04-06,Garmin Connect,2019-04-06,vmax_jibe,0.0,3,0.0,21.0,2.34
+bubar_2019-04-06,Garmin Connect,2019-04-06,vmax_jibe,0.0,4,0.0,21.0,2.34
+bubar_2019-04-06,Garmin Connect,2019-04-06,vmax_jibe,0.0,5,0.0,21.0,2.34
+bubar_2019-04-06,Garmin Connect,2019-04-06,planning_distance>12,24.0,1,,,
+bubar_2019-04-17,Garmin Connect,2019-04-17,vmax_1s,23.2,1,0.0,100.0,
+bubar_2019-04-17,Garmin Connect,2019-04-17,vmax_10s,22.8,1,0.0,30.0,0.18
+bubar_2019-04-17,Garmin Connect,2019-04-17,vmax_500m,21.87,1,0.0,35.0,0.71
+bubar_2019-04-17,Garmin Connect,2019-04-17,vmax_1000m,21.56,1,0.0,31.0,0.73
+bubar_2019-04-17,Garmin Connect,2019-04-17,planning_ratio>12,87.0,1,,,
+bubar_2019-04-17,Garmin Connect,2019-04-17,Vmoy>12,18.5,1,,,
+bubar_2019-04-17,Garmin Connect,2019-04-17,vmax_jibe,20.3,1,0.0,34.0,1.24
+bubar_2019-04-17,Garmin Connect,2019-04-17,vmax_jibe,17.2,2,0.0,26.0,1.33
+bubar_2019-04-17,Garmin Connect,2019-04-17,vmax_jibe,15.4,3,0.0,39.0,1.1
+bubar_2019-04-17,Garmin Connect,2019-04-17,vmax_jibe,12.0,4,0.0,56.0,3.55
+bubar_2019-04-17,Garmin Connect,2019-04-17,vmax_jibe,0.0,5,0.0,30.0,1.23
+bubar_2019-04-17,Garmin Connect,2019-04-17,planning_distance>12,65.9,1,,,
+JP_2019-04-02,Movescount - http://www.movescount.com,2019-04-02,vmax_1s,22.4,1,0.0,100.0,
+JP_2019-04-02,Movescount - http://www.movescount.com,2019-04-02,vmax_10s,22.0,1,0.0,100.0,0.23
+JP_2019-04-02,Movescount - http://www.movescount.com,2019-04-02,vmax_500m,20.45,1,0.0,100.0,0.66
+JP_2019-04-02,Movescount - http://www.movescount.com,2019-04-02,vmax_1000m,19.93,1,0.0,100.0,0.87
+JP_2019-04-02,Movescount - http://www.movescount.com,2019-04-02,planning_ratio>12,92.0,1,,,
+JP_2019-04-02,Movescount - http://www.movescount.com,2019-04-02,Vmoy>12,17.1,1,,,
+JP_2019-04-02,Movescount - http://www.movescount.com,2019-04-02,vmax_jibe,11.8,1,0.0,100.0,2.62
+JP_2019-04-02,Movescount - http://www.movescount.com,2019-04-02,vmax_jibe,11.0,2,0.0,100.0,4.06
+JP_2019-04-02,Movescount - http://www.movescount.com,2019-04-02,vmax_jibe,0.0,3,0.0,100.0,2.62
+JP_2019-04-02,Movescount - http://www.movescount.com,2019-04-02,vmax_jibe,0.0,4,0.0,100.0,2.62
+JP_2019-04-02,Movescount - http://www.movescount.com,2019-04-02,vmax_jibe,0.0,5,0.0,100.0,2.62
+JP_2019-04-02,Movescount - http://www.movescount.com,2019-04-02,planning_distance>12,29.3,1,,,
+JP_2019-02-05,GpsarPro 5.23,2019-02-05,vmax_1s,21.8,1,100.0,100.0,
+JP_2019-02-05,GpsarPro 5.23,2019-02-05,vmax_10s,21.5,1,100.0,100.0,0.12
+JP_2019-02-05,GpsarPro 5.23,2019-02-05,vmax_500m,19.51,1,100.0,100.0,0.61
+JP_2019-02-05,GpsarPro 5.23,2019-02-05,vmax_1000m,18.45,1,100.0,100.0,2.41
+JP_2019-02-05,GpsarPro 5.23,2019-02-05,planning_ratio>12,84.0,1,,,
+JP_2019-02-05,GpsarPro 5.23,2019-02-05,Vmoy>12,17.4,1,,,
+JP_2019-02-05,GpsarPro 5.23,2019-02-05,vmax_jibe,12.0,1,100.0,100.0,2.87
+JP_2019-02-05,GpsarPro 5.23,2019-02-05,vmax_jibe,11.9,2,78.0,78.0,2.47
+JP_2019-02-05,GpsarPro 5.23,2019-02-05,vmax_jibe,11.7,3,100.0,100.0,2.6
+JP_2019-02-05,GpsarPro 5.23,2019-02-05,vmax_jibe,11.7,4,100.0,100.0,3.14
+JP_2019-02-05,GpsarPro 5.23,2019-02-05,vmax_jibe,11.7,5,100.0,100.0,2.96
+JP_2019-02-05,GpsarPro 5.23,2019-02-05,planning_distance>12,22.3,1,,,
+JP_2019-09-17,Movescount - http://www.movescount.com,2019-09-17,vmax_1s,25.4,1,0.0,100.0,
+JP_2019-09-17,Movescount - http://www.movescount.com,2019-09-17,vmax_10s,24.7,1,0.0,100.0,0.54
+JP_2019-09-17,Movescount - http://www.movescount.com,2019-09-17,vmax_500m,22.74,1,0.0,100.0,0.76
+JP_2019-09-17,Movescount - http://www.movescount.com,2019-09-17,vmax_1000m,22.3,1,0.0,100.0,1.01
+JP_2019-09-17,Movescount - http://www.movescount.com,2019-09-17,planning_ratio>12,95.0,1,,,
+JP_2019-09-17,Movescount - http://www.movescount.com,2019-09-17,Vmoy>12,19.0,1,,,
+JP_2019-09-17,Movescount - http://www.movescount.com,2019-09-17,vmax_jibe,13.0,1,0.0,100.0,3.29
+JP_2019-09-17,Movescount - http://www.movescount.com,2019-09-17,vmax_jibe,12.2,2,0.0,100.0,3.72
+JP_2019-09-17,Movescount - http://www.movescount.com,2019-09-17,vmax_jibe,12.1,3,0.0,100.0,3.18
+JP_2019-09-17,Movescount - http://www.movescount.com,2019-09-17,vmax_jibe,12.0,4,0.0,95.0,3.37
+JP_2019-09-17,Movescount - http://www.movescount.com,2019-09-17,vmax_jibe,12.0,5,0.0,100.0,2.44
+JP_2019-09-17,Movescount - http://www.movescount.com,2019-09-17,planning_distance>12,43.8,1,,,
+Julbo_2019-03-30,Movescount - http://www.movescount.com,2019-03-30,vmax_1s,23.0,1,0.0,100.0,
+Julbo_2019-03-30,Movescount - http://www.movescount.com,2019-03-30,vmax_10s,22.4,1,0.0,100.0,0.41
+Julbo_2019-03-30,Movescount - http://www.movescount.com,2019-03-30,vmax_500m,21.42,1,0.0,100.0,0.91
+Julbo_2019-03-30,Movescount - http://www.movescount.com,2019-03-30,vmax_1000m,20.38,1,0.0,100.0,1.34
+Julbo_2019-03-30,Movescount - http://www.movescount.com,2019-03-30,planning_ratio>12,76.0,1,,,
+Julbo_2019-03-30,Movescount - http://www.movescount.com,2019-03-30,Vmoy>12,17.7,1,,,
+Julbo_2019-03-30,Movescount - http://www.movescount.com,2019-03-30,vmax_jibe,,1,,,
+Julbo_2019-03-30,Movescount - http://www.movescount.com,2019-03-30,vmax_jibe,,2,,,
+Julbo_2019-03-30,Movescount - http://www.movescount.com,2019-03-30,vmax_jibe,,3,,,
+Julbo_2019-03-30,Movescount - http://www.movescount.com,2019-03-30,vmax_jibe,,4,,,
+Julbo_2019-03-30,Movescount - http://www.movescount.com,2019-03-30,vmax_jibe,,5,,,
+Julbo_2019-03-30,Movescount - http://www.movescount.com,2019-03-30,planning_distance>12,18.8,1,,,
+Julbo_2019-06-22,Movescount - http://www.movescount.com,2019-06-22,vmax_1s,25.4,1,0.0,100.0,
+Julbo_2019-06-22,Movescount - http://www.movescount.com,2019-06-22,vmax_10s,25.0,1,0.0,100.0,0.26
+Julbo_2019-06-22,Movescount - http://www.movescount.com,2019-06-22,vmax_500m,23.89,1,0.0,100.0,1.04
+Julbo_2019-06-22,Movescount - http://www.movescount.com,2019-06-22,vmax_1000m,22.93,1,0.0,100.0,1.22
+Julbo_2019-06-22,Movescount - http://www.movescount.com,2019-06-22,planning_ratio>12,94.0,1,,,
+Julbo_2019-06-22,Movescount - http://www.movescount.com,2019-06-22,Vmoy>12,17.6,1,,,
+Julbo_2019-06-22,Movescount - http://www.movescount.com,2019-06-22,vmax_jibe,,1,,,
+Julbo_2019-06-22,Movescount - http://www.movescount.com,2019-06-22,vmax_jibe,,2,,,
+Julbo_2019-06-22,Movescount - http://www.movescount.com,2019-06-22,vmax_jibe,,3,,,
+Julbo_2019-06-22,Movescount - http://www.movescount.com,2019-06-22,vmax_jibe,,4,,,
+Julbo_2019-06-22,Movescount - http://www.movescount.com,2019-06-22,vmax_jibe,,5,,,
+Julbo_2019-06-22,Movescount - http://www.movescount.com,2019-06-22,planning_distance>12,32.4,1,,,
+Julbo_2019-05-27,Movescount - http://www.movescount.com,2019-05-27,vmax_1s,24.9,1,0.0,100.0,
+Julbo_2019-05-27,Movescount - http://www.movescount.com,2019-05-27,vmax_10s,24.3,1,0.0,100.0,0.47
+Julbo_2019-05-27,Movescount - http://www.movescount.com,2019-05-27,vmax_500m,23.78,1,0.0,100.0,0.78
+Julbo_2019-05-27,Movescount - http://www.movescount.com,2019-05-27,vmax_1000m,20.77,1,0.0,100.0,1.33
+Julbo_2019-05-27,Movescount - http://www.movescount.com,2019-05-27,planning_ratio>12,77.0,1,,,
+Julbo_2019-05-27,Movescount - http://www.movescount.com,2019-05-27,Vmoy>12,18.3,1,,,
+Julbo_2019-05-27,Movescount - http://www.movescount.com,2019-05-27,vmax_jibe,,1,,,
+Julbo_2019-05-27,Movescount - http://www.movescount.com,2019-05-27,vmax_jibe,,2,,,
+Julbo_2019-05-27,Movescount - http://www.movescount.com,2019-05-27,vmax_jibe,,3,,,
+Julbo_2019-05-27,Movescount - http://www.movescount.com,2019-05-27,vmax_jibe,,4,,,
+Julbo_2019-05-27,Movescount - http://www.movescount.com,2019-05-27,vmax_jibe,,5,,,
+Julbo_2019-05-27,Movescount - http://www.movescount.com,2019-05-27,planning_distance>12,14.1,1,,,
+Traces Hugues Foil 29 Juin 2019_2019-06-29,GpsarPro 5.11,2019-06-29,vmax_1s,20.6,1,0.0,100.0,
+Traces Hugues Foil 29 Juin 2019_2019-06-29,GpsarPro 5.11,2019-06-29,vmax_10s,19.4,1,0.0,90.0,0.49
+Traces Hugues Foil 29 Juin 2019_2019-06-29,GpsarPro 5.11,2019-06-29,vmax_500m,18.68,1,0.0,98.0,0.82
+Traces Hugues Foil 29 Juin 2019_2019-06-29,GpsarPro 5.11,2019-06-29,vmax_1000m,18.41,1,0.0,97.0,0.85
+Traces Hugues Foil 29 Juin 2019_2019-06-29,GpsarPro 5.11,2019-06-29,planning_ratio>12,71.0,1,,,
+Traces Hugues Foil 29 Juin 2019_2019-06-29,GpsarPro 5.11,2019-06-29,Vmoy>12,16.3,1,,,
+Traces Hugues Foil 29 Juin 2019_2019-06-29,GpsarPro 5.11,2019-06-29,vmax_jibe,14.6,1,0.0,78.0,0.92
+Traces Hugues Foil 29 Juin 2019_2019-06-29,GpsarPro 5.11,2019-06-29,vmax_jibe,0.0,2,0.0,78.0,0.92
+Traces Hugues Foil 29 Juin 2019_2019-06-29,GpsarPro 5.11,2019-06-29,vmax_jibe,0.0,3,0.0,78.0,0.92
+Traces Hugues Foil 29 Juin 2019_2019-06-29,GpsarPro 5.11,2019-06-29,vmax_jibe,0.0,4,0.0,78.0,0.92
+Traces Hugues Foil 29 Juin 2019_2019-06-29,GpsarPro 5.11,2019-06-29,vmax_jibe,0.0,5,0.0,78.0,0.92
+Traces Hugues Foil 29 Juin 2019_2019-06-29,GpsarPro 5.11,2019-06-29,planning_distance>12,34.7,1,,,
+hugues_2019-05-19,unknown,2019-05-19,vmax_1s,19.6,1,0.0,100.0,
+hugues_2019-05-19,unknown,2019-05-19,vmax_10s,18.7,1,0.0,60.0,0.53
+hugues_2019-05-19,unknown,2019-05-19,vmax_500m,18.21,1,0.0,53.0,0.47
+hugues_2019-05-19,unknown,2019-05-19,vmax_1000m,17.08,1,0.0,51.0,1.73
+hugues_2019-05-19,unknown,2019-05-19,planning_ratio>12,71.0,1,,,
+hugues_2019-05-19,unknown,2019-05-19,Vmoy>12,15.7,1,,,
+hugues_2019-05-19,unknown,2019-05-19,vmax_jibe,,1,,,
+hugues_2019-05-19,unknown,2019-05-19,vmax_jibe,,2,,,
+hugues_2019-05-19,unknown,2019-05-19,vmax_jibe,,3,,,
+hugues_2019-05-19,unknown,2019-05-19,vmax_jibe,,4,,,
+hugues_2019-05-19,unknown,2019-05-19,vmax_jibe,,5,,,
+hugues_2019-05-19,unknown,2019-05-19,planning_distance>12,32.6,1,,,
+HUGUES_2019-07-08,GpsarPro 5.11,2019-07-08,vmax_1s,20.4,1,100.0,100.0,
+HUGUES_2019-07-08,GpsarPro 5.11,2019-07-08,vmax_10s,19.7,1,100.0,100.0,0.39
+HUGUES_2019-07-08,GpsarPro 5.11,2019-07-08,vmax_500m,18.6,1,100.0,100.0,0.84
+HUGUES_2019-07-08,GpsarPro 5.11,2019-07-08,vmax_1000m,17.47,1,100.0,100.0,0.79
+HUGUES_2019-07-08,GpsarPro 5.11,2019-07-08,planning_ratio>12,77.0,1,,,
+HUGUES_2019-07-08,GpsarPro 5.11,2019-07-08,Vmoy>12,15.8,1,,,
+HUGUES_2019-07-08,GpsarPro 5.11,2019-07-08,vmax_jibe,,1,,,
+HUGUES_2019-07-08,GpsarPro 5.11,2019-07-08,vmax_jibe,,2,,,
+HUGUES_2019-07-08,GpsarPro 5.11,2019-07-08,vmax_jibe,,3,,,
+HUGUES_2019-07-08,GpsarPro 5.11,2019-07-08,vmax_jibe,,4,,,
+HUGUES_2019-07-08,GpsarPro 5.11,2019-07-08,vmax_jibe,,5,,,
+HUGUES_2019-07-08,GpsarPro 5.11,2019-07-08,planning_distance>12,48.7,1,,,
+huguesFoil_2019-09-07,unknown,2019-09-07,vmax_1s,21.8,1,0.0,100.0,
+huguesFoil_2019-09-07,unknown,2019-09-07,vmax_10s,20.4,1,0.0,100.0,0.82
+huguesFoil_2019-09-07,unknown,2019-09-07,vmax_500m,18.88,1,0.0,100.0,0.85
+huguesFoil_2019-09-07,unknown,2019-09-07,vmax_1000m,16.62,1,0.0,84.0,3.78
+huguesFoil_2019-09-07,unknown,2019-09-07,planning_ratio>12,69.0,1,,,
+huguesFoil_2019-09-07,unknown,2019-09-07,Vmoy>12,16.4,1,,,
+huguesFoil_2019-09-07,unknown,2019-09-07,vmax_jibe,,1,,,
+huguesFoil_2019-09-07,unknown,2019-09-07,vmax_jibe,,2,,,
+huguesFoil_2019-09-07,unknown,2019-09-07,vmax_jibe,,3,,,
+huguesFoil_2019-09-07,unknown,2019-09-07,vmax_jibe,,4,,,
+huguesFoil_2019-09-07,unknown,2019-09-07,vmax_jibe,,5,,,
+huguesFoil_2019-09-07,unknown,2019-09-07,planning_distance>12,35.7,1,,,
+Roma_2019-09-14,GpsarPro 5.11,2019-09-14,vmax_1s,22.5,1,0.0,100.0,
+Roma_2019-09-14,GpsarPro 5.11,2019-09-14,vmax_10s,21.7,1,0.0,100.0,0.72
+Roma_2019-09-14,GpsarPro 5.11,2019-09-14,vmax_500m,20.33,1,0.0,100.0,0.98
+Roma_2019-09-14,GpsarPro 5.11,2019-09-14,vmax_1000m,19.85,1,0.0,100.0,0.87
+Roma_2019-09-14,GpsarPro 5.11,2019-09-14,planning_ratio>12,89.0,1,,,
+Roma_2019-09-14,GpsarPro 5.11,2019-09-14,Vmoy>12,17.1,1,,,
+Roma_2019-09-14,GpsarPro 5.11,2019-09-14,vmax_jibe,,1,,,
+Roma_2019-09-14,GpsarPro 5.11,2019-09-14,vmax_jibe,,2,,,
+Roma_2019-09-14,GpsarPro 5.11,2019-09-14,vmax_jibe,,3,,,
+Roma_2019-09-14,GpsarPro 5.11,2019-09-14,vmax_jibe,,4,,,
+Roma_2019-09-14,GpsarPro 5.11,2019-09-14,vmax_jibe,,5,,,
+Roma_2019-09-14,GpsarPro 5.11,2019-09-14,planning_distance>12,27.0,1,,,
+Roma22_2019-05-26,unknown,2019-05-26,vmax_1s,24.8,1,0.0,100.0,
+Roma22_2019-05-26,unknown,2019-05-26,vmax_10s,19.4,1,0.0,100.0,0.93
+Roma22_2019-05-26,unknown,2019-05-26,vmax_500m,18.24,1,0.0,98.0,0.94
+Roma22_2019-05-26,unknown,2019-05-26,vmax_1000m,17.24,1,0.0,80.0,1.38
+Roma22_2019-05-26,unknown,2019-05-26,planning_ratio>12,68.0,1,,,
+Roma22_2019-05-26,unknown,2019-05-26,Vmoy>12,15.3,1,,,
+Roma22_2019-05-26,unknown,2019-05-26,vmax_jibe,14.3,1,0.0,65.0,0.71
+Roma22_2019-05-26,unknown,2019-05-26,vmax_jibe,14.3,2,0.0,69.0,0.55
+Roma22_2019-05-26,unknown,2019-05-26,vmax_jibe,14.2,3,0.0,69.0,0.97
+Roma22_2019-05-26,unknown,2019-05-26,vmax_jibe,14.2,4,0.0,65.0,1.14
+Roma22_2019-05-26,unknown,2019-05-26,vmax_jibe,13.9,5,0.0,60.0,1.25
+Roma22_2019-05-26,unknown,2019-05-26,planning_distance>12,23.7,1,,,
+Roma22_2019-05-27,unknown,2019-05-27,vmax_1s,22.6,1,0.0,0.0,
+Roma22_2019-05-27,unknown,2019-05-27,vmax_10s,21.0,1,0.0,0.0,0.96
+Roma22_2019-05-27,unknown,2019-05-27,vmax_500m,18.35,1,0.0,90.0,1.29
+Roma22_2019-05-27,unknown,2019-05-27,vmax_1000m,17.75,1,0.0,88.0,1.33
+Roma22_2019-05-27,unknown,2019-05-27,planning_ratio>12,80.0,1,,,
+Roma22_2019-05-27,unknown,2019-05-27,Vmoy>12,16.1,1,,,
+Roma22_2019-05-27,unknown,2019-05-27,vmax_jibe,15.7,1,0.0,47.0,2.17
+Roma22_2019-05-27,unknown,2019-05-27,vmax_jibe,14.1,2,0.0,73.0,1.43
+Roma22_2019-05-27,unknown,2019-05-27,vmax_jibe,0.0,3,0.0,73.0,1.43
+Roma22_2019-05-27,unknown,2019-05-27,vmax_jibe,0.0,4,0.0,73.0,1.43
+Roma22_2019-05-27,unknown,2019-05-27,vmax_jibe,0.0,5,0.0,73.0,1.43
+Roma22_2019-05-27,unknown,2019-05-27,planning_distance>12,25.0,1,,,
+Roma_2019-07-08,GpsarPro 5.11,2019-07-08,vmax_1s,23.4,1,0.0,100.0,
+Roma_2019-07-08,GpsarPro 5.11,2019-07-08,vmax_10s,22.1,1,0.0,20.0,0.54
+Roma_2019-07-08,GpsarPro 5.11,2019-07-08,vmax_500m,20.03,1,0.0,4.0,1.48
+Roma_2019-07-08,GpsarPro 5.11,2019-07-08,vmax_1000m,18.7,1,0.0,99.0,0.85
+Roma_2019-07-08,GpsarPro 5.11,2019-07-08,planning_ratio>12,84.0,1,,,
+Roma_2019-07-08,GpsarPro 5.11,2019-07-08,Vmoy>12,16.6,1,,,
+Roma_2019-07-08,GpsarPro 5.11,2019-07-08,vmax_jibe,,1,,,
+Roma_2019-07-08,GpsarPro 5.11,2019-07-08,vmax_jibe,,2,,,
+Roma_2019-07-08,GpsarPro 5.11,2019-07-08,vmax_jibe,,3,,,
+Roma_2019-07-08,GpsarPro 5.11,2019-07-08,vmax_jibe,,4,,,
+Roma_2019-07-08,GpsarPro 5.11,2019-07-08,vmax_jibe,,5,,,
+Roma_2019-07-08,GpsarPro 5.11,2019-07-08,planning_distance>12,31.5,1,,,
+Burno22_2019-11-11,Movescount - http://www.movescount.com,2019-11-11,vmax_1s,32.8,1,0.0,100.0,
+Burno22_2019-11-11,Movescount - http://www.movescount.com,2019-11-11,vmax_10s,31.5,1,0.0,100.0,0.89
+Burno22_2019-11-11,Movescount - http://www.movescount.com,2019-11-11,vmax_500m,29.47,1,0.0,100.0,1.75
+Burno22_2019-11-11,Movescount - http://www.movescount.com,2019-11-11,vmax_1000m,23.19,1,0.0,98.0,5.78
+Burno22_2019-11-11,Movescount - http://www.movescount.com,2019-11-11,planning_ratio>12,91.0,1,,,
+Burno22_2019-11-11,Movescount - http://www.movescount.com,2019-11-11,Vmoy>12,19.0,1,,,
+Burno22_2019-11-11,Movescount - http://www.movescount.com,2019-11-11,vmax_jibe,,1,,,
+Burno22_2019-11-11,Movescount - http://www.movescount.com,2019-11-11,vmax_jibe,,2,,,
+Burno22_2019-11-11,Movescount - http://www.movescount.com,2019-11-11,vmax_jibe,,3,,,
+Burno22_2019-11-11,Movescount - http://www.movescount.com,2019-11-11,vmax_jibe,,4,,,
+Burno22_2019-11-11,Movescount - http://www.movescount.com,2019-11-11,vmax_jibe,,5,,,
+Burno22_2019-11-11,Movescount - http://www.movescount.com,2019-11-11,planning_distance>12,42.5,1,,,
+burno22_2019-03-13,Movescount - http://www.movescount.com,2019-03-13,vmax_1s,31.7,1,0.0,100.0,
+burno22_2019-03-13,Movescount - http://www.movescount.com,2019-03-13,vmax_10s,29.4,1,0.0,100.0,2.22
+burno22_2019-03-13,Movescount - http://www.movescount.com,2019-03-13,vmax_500m,22.37,1,0.0,100.0,5.48
+burno22_2019-03-13,Movescount - http://www.movescount.com,2019-03-13,vmax_1000m,18.53,1,0.0,99.0,6.51
+burno22_2019-03-13,Movescount - http://www.movescount.com,2019-03-13,planning_ratio>12,90.0,1,,,
+burno22_2019-03-13,Movescount - http://www.movescount.com,2019-03-13,Vmoy>12,17.2,1,,,
+burno22_2019-03-13,Movescount - http://www.movescount.com,2019-03-13,vmax_jibe,11.8,1,0.0,91.0,2.71
+burno22_2019-03-13,Movescount - http://www.movescount.com,2019-03-13,vmax_jibe,0.0,2,0.0,91.0,2.71
+burno22_2019-03-13,Movescount - http://www.movescount.com,2019-03-13,vmax_jibe,0.0,3,0.0,91.0,2.71
+burno22_2019-03-13,Movescount - http://www.movescount.com,2019-03-13,vmax_jibe,0.0,4,0.0,91.0,2.71
+burno22_2019-03-13,Movescount - http://www.movescount.com,2019-03-13,vmax_jibe,0.0,5,0.0,91.0,2.71
+burno22_2019-03-13,Movescount - http://www.movescount.com,2019-03-13,planning_distance>12,26.8,1,,,
+burno22_2019-01-27,Movescount - http://www.movescount.com,2019-01-27,vmax_1s,30.8,1,0.0,100.0,
+burno22_2019-01-27,Movescount - http://www.movescount.com,2019-01-27,vmax_10s,27.4,1,0.0,100.0,0.45
+burno22_2019-01-27,Movescount - http://www.movescount.com,2019-01-27,vmax_500m,24.39,1,0.0,100.0,2.48
+burno22_2019-01-27,Movescount - http://www.movescount.com,2019-01-27,vmax_1000m,21.66,1,0.0,94.0,4.52
+burno22_2019-01-27,Movescount - http://www.movescount.com,2019-01-27,planning_ratio>12,94.0,1,,,
+burno22_2019-01-27,Movescount - http://www.movescount.com,2019-01-27,Vmoy>12,18.5,1,,,
+burno22_2019-01-27,Movescount - http://www.movescount.com,2019-01-27,vmax_jibe,,1,,,
+burno22_2019-01-27,Movescount - http://www.movescount.com,2019-01-27,vmax_jibe,,2,,,
+burno22_2019-01-27,Movescount - http://www.movescount.com,2019-01-27,vmax_jibe,,3,,,
+burno22_2019-01-27,Movescount - http://www.movescount.com,2019-01-27,vmax_jibe,,4,,,
+burno22_2019-01-27,Movescount - http://www.movescount.com,2019-01-27,vmax_jibe,,5,,,
+burno22_2019-01-27,Movescount - http://www.movescount.com,2019-01-27,planning_distance>12,45.8,1,,,
+example_2019-10-06,Movescount - http://www.movescount.com,2019-10-06,vmax_1s,27.0,1,0.0,100.0,
+example_2019-10-06,Movescount - http://www.movescount.com,2019-10-06,vmax_10s,26.5,1,0.0,100.0,0.55
+example_2019-10-06,Movescount - http://www.movescount.com,2019-10-06,vmax_500m,24.86,1,0.0,100.0,1.07
+example_2019-10-06,Movescount - http://www.movescount.com,2019-10-06,vmax_1000m,23.57,1,0.0,100.0,1.48
+example_2019-10-06,Movescount - http://www.movescount.com,2019-10-06,planning_ratio>12,86.0,1,,,
+example_2019-10-06,Movescount - http://www.movescount.com,2019-10-06,Vmoy>12,19.0,1,,,
+example_2019-10-06,Movescount - http://www.movescount.com,2019-10-06,vmax_jibe,,1,,,
+example_2019-10-06,Movescount - http://www.movescount.com,2019-10-06,vmax_jibe,,2,,,
+example_2019-10-06,Movescount - http://www.movescount.com,2019-10-06,vmax_jibe,,3,,,
+example_2019-10-06,Movescount - http://www.movescount.com,2019-10-06,vmax_jibe,,4,,,
+example_2019-10-06,Movescount - http://www.movescount.com,2019-10-06,vmax_jibe,,5,,,
+example_2019-10-06,Movescount - http://www.movescount.com,2019-10-06,planning_distance>12,31.4,1,,,
