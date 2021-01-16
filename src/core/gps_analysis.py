@@ -629,55 +629,17 @@ class TraceAnalysis:
         :return: vmax mean over distance dist
         """
 
-        def rolling_dist_count(delta_dist):
-            """
-            rolling distance filter
-            count the number of samples needed to reach a given distance
-            :param dist: float distance to reach
-            :return: int  # samples to reach distance dist
-            """
-            delta_dist = delta_dist[::-1]
-            cum_dist = 0
-            for i, d in enumerate(delta_dist):
-                cum_dist += d
-                if cum_dist > dist:
-                    break
-            return i + 1
-
-        min_speed = 7  # knots min expected speed for max window size
-        max_interval = dist / min_speed
-        max_samples = int(max_interval / self.sampling)
-
-        td = self.td.rolling(max_samples).apply(rolling_dist_count)
-        nd = pd.Series.to_numpy(td)
-        if np.isnan(nd).all():
-            return [
-                {"result": None, "description": description, **DEFAULT_REPORT, 'n':i+1}
-                for i in range(n)
-            ]
-        min_samples = int(np.nanmin(nd))
-        threshold = min(min_samples + 10, max_samples)
-        logger.info(
-            f"\nsearching {n} x v{dist} speed\n"
-            f"over a window of {max_samples} samples\n"
-            f"and found a min of {min_samples*self.sampling} seconds\n"
-            f"to cover {dist}m"
-        )
-        logger.info(
-            f"checking result:\n"
-            f"max rolling({min_samples}) speed = {self.tsd.rolling(min_samples).mean().max()}\n"
-            f"max rolling({min_samples}) distance = {self.td.rolling(min_samples).sum().max()}\n"
-        )
-        samples_count = min_samples
-
+        # find a starting point from the max distance in a sample (vmax)
+        samples_count = int(dist / self.td.max()) + 7
+        logger.info(f"starting search with {samples_count} samples")
         k = 1
         results = []
         tsd = self.tsd.copy()
         td = self.td.copy()
-        while k < n+1:
+        while k < n + 1:
             iter = 0
-            while iter < 15: # avoid infinite loop
-                max_rolling_distance_1 = td.rolling(samples_count-1).sum().max()
+            while iter < 50:  # avoid infinite loop
+                max_rolling_distance_1 = td.rolling(samples_count - 1).sum().max()
                 max_rolling_distance_2 = td.rolling(samples_count).sum().max()
                 if max_rolling_distance_1 > dist:
                     samples_count -= 1
@@ -693,7 +655,9 @@ class TraceAnalysis:
             result = round(rolling_speed.max(), 2)
             range_end = rolling_speed.idxmax()
             if range_end is not np.nan:
-                range_begin = range_end - datetime.timedelta(seconds=int(samples_count * self.sampling) - 1)
+                range_begin = range_end - datetime.timedelta(
+                    seconds=int(samples_count * self.sampling) - 1
+                )
                 tsd.loc[range_begin:range_end] = 0
                 td.loc[range_begin:range_end] = 0
                 logger.info(
