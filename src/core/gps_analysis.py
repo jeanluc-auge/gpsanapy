@@ -65,7 +65,7 @@ DEFAULT_REPORT = {"n": 1, "doppler_ratio": None, "sampling_ratio": None, "std": 
 
 
 class TraceAnalysis:
-    def __init__(self, gpx_path, config_file="config.yaml", sampling="1S"):
+    def __init__(self, gpx_path, config_file="config.yaml", sampling="2S"):
         self.version = "12th January 2021"
         self.time_sampling = sampling
         self.sampling = float(sampling.strip("S"))
@@ -174,21 +174,6 @@ class TraceAnalysis:
         ]
         df = pd.DataFrame(split_data)
         # **** data frame doppler checking *****
-        if not df.has_doppler.all():
-            ts = pd.Series(data=0, index=df.index)
-            ts[df.has_doppler == True] = 1
-            doppler_ratio = int(100 * sum(ts) / len(ts))
-            if doppler_ratio < 70:
-                logger.warning(
-                    f"\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
-                    f"Doppler speed is not available on all time_sampling points\n"
-                    f"Only {doppler_ratio}% of the points have doppler data\n"
-                    f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
-                )
-            # if doppler_ratio < 50:
-            #     raise TraceAnalysisException(
-            #         f"doppler speed is available on only {doppler_ratio}% of data"
-            #     )
         return df
 
     def process_df(self):
@@ -200,14 +185,14 @@ class TraceAnalysis:
         self.df = self.df.set_index("time")
 
         # convert ms-1 to knots:
-        self.df.speed = round(self.df.speed * 1.94384, 2)
-        self.df.speed_no_doppler = round(self.df.speed_no_doppler * 1.94384, 2)
+        self.df.speed = round(self.df.speed * TO_KNOT, 2)
+        self.df.speed_no_doppler = round(self.df.speed_no_doppler * TO_KNOT, 2)
 
         # add a new column with total elapsed time in seconds:
         self.df["elapsed_time"] = pd.to_timedelta(
             self.df.index - self.df.index[0]
         ).astype("timedelta64[s]")
-
+        self.trace_sampling = self.df["elapsed_time"].diff().min()
         # add a cumulated distance column (cannot resample on diff!!)
         # self.df["cum_dist"] = self.df.delta_dist.cumsum()
 
@@ -431,6 +416,27 @@ class TraceAnalysis:
                 * len(self.tsamp[self.tsamp == 1][self.tsd > 5])
                 / len(self.tsamp[self.tsd > 5])
             )
+        if doppler_ratio < 70:
+            logger.warning(
+                f"\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
+                f"Doppler speed is not available on all time_sampling points\n"
+                f"Only {doppler_ratio}% of the points have doppler data\n"
+                f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
+            )
+        # if doppler_ratio < 50:
+        #     raise TraceAnalysisException(
+        #         f"doppler speed is available on only {doppler_ratio}% of data"
+        #     )
+        if self.trace_sampling != self.sampling:
+            logger.warning(
+                f"\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
+                f"you are analyzing a trace with a sampling = {self.sampling}S\n"
+                f"but the trace native sampling = {self.trace_sampling}S\n"
+                f"over sampling will slow trace analysis for no better precision\n"
+                f"while under sampling may degrade precision\n"
+                f"please consider modifying sampling in yaml config\n"
+                f"n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
+            )
         logger.info(
             f"\n==========================================================================\n"
             f"==========================================================================\n"
@@ -439,15 +445,18 @@ class TraceAnalysis:
             f"file size is {self.file_size/1e6}Mb\n"
             f"file loading to pandas DataFrame complete\n"
             f"creator {self.creator}\n"  # GPS device type: read from gpx file xml infos field
-            f"total distance {round(self.td.sum()/1000,1)} km"
+            f"trace min sampling = {self.trace_sampling}S\n"
+            f"and the trace is analyzed with a sampling = {self.sampling}S\n" 
+            f"Trace total distance = {round(self.td.sum()/1000,1)} km"
             f"\noverall doppler_ratio = {doppler_ratio}%\n"
             f"overall time_sampling ratio = {sampling_ratio}%\n"
             f"overall time_sampling ratio > 5knots = {sampling_ratio_5}%\n"
-            f"filtered {self.filtered_events} events with acceleration > 0.5g\n"
+            f"filtered {self.filtered_events} events with acceleration > {MAX_ACCELERATION}g\n"
             f"now running version {self.version}\n"
             f"==========================================================================\n"
             f"==========================================================================\n"
         )
+
 
     def diff_clean_ts(self, ts, threshold):
         """
