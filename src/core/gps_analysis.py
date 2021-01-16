@@ -67,8 +67,8 @@ DEFAULT_REPORT = {"n": 1, "doppler_ratio": None, "sampling_ratio": None, "std": 
 class TraceAnalysis:
     def __init__(self, gpx_path, config_file="config.yaml", sampling="1S"):
         self.version = "12th January 2021"
-        self.sampling = sampling
-        self.int_sampling = int(sampling.strip("S"))
+        self.time_sampling = sampling
+        self.sampling = float(sampling.strip("S"))
         self.gpx_path = gpx_path
         self.filename = Path(self.gpx_path).stem
         self.set_csv_paths()
@@ -181,7 +181,7 @@ class TraceAnalysis:
             if doppler_ratio < 70:
                 logger.warning(
                     f"\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
-                    f"Doppler speed is not available on all sampling points\n"
+                    f"Doppler speed is not available on all time_sampling points\n"
                     f"Only {doppler_ratio}% of the points have doppler data\n"
                     f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
                 )
@@ -329,9 +329,9 @@ class TraceAnalysis:
         """
         resample dataframe before filtering
         always resample on cumulated or absolute values (no diff !)
-            - resampling to self.sampling
-            - aggregation (mean/min/max) for under-sampling
-            - in case of over-sampling:
+            - resampling to self.time_sampling
+            - aggregation (mean/min/max) for under-time_sampling
+            - in case of over-time_sampling:
                 leave np.nan (raw_df)
                 fillna(0) (has doppler?)
                 interpolate
@@ -339,27 +339,27 @@ class TraceAnalysis:
         """
 
         # don't fill nan on gps coordinates:
-        tlon = self.df["lon"].resample(self.sampling).mean().interpolate()
-        tlat = self.df["lat"].resample(self.sampling).mean().interpolate()
+        tlon = self.df["lon"].resample(self.time_sampling).mean().interpolate()
+        tlat = self.df["lat"].resample(self.time_sampling).mean().interpolate()
         # add a new column with total elapsed time in seconds:
         # has_doppler? yes=1 default=0 (np.nan=0), sum = AND (min):
-        thd = self.df["has_doppler"].resample(self.sampling).min()
+        thd = self.df["has_doppler"].resample(self.time_sampling).min()
         thd = thd.fillna(0).astype(np.int64)
         # speed doppler
-        tsd = self.df["speed"].resample(self.sampling).mean().interpolate()
+        tsd = self.df["speed"].resample(self.time_sampling).mean().interpolate()
         # raw = don't fill nan (i.e. no interpolate:
-        raw_tsd = self.df["speed"].resample(self.sampling).mean()
+        raw_tsd = self.df["speed"].resample(self.time_sampling).mean()
         # speed no doppler
         ts = (
-            self.df["speed_no_doppler"].resample(self.sampling).mean().interpolate()
+            self.df["speed_no_doppler"].resample(self.time_sampling).mean().interpolate()
         )
-        # distance: diff & cumulated calculated from speed and sampling:
-        td = tsd * self.int_sampling / TO_KNOT
+        # distance: diff & cumulated calculated from speed and time_sampling:
+        td = tsd * self.sampling / TO_KNOT
         tcd = td.cumsum()
-        #tcd = self.df["cum_dist"].resample(self.sampling).min().interpolate()
+        #tcd = self.df["cum_dist"].resample(self.time_sampling).min().interpolate()
         #td = tcd.diff()
         # course (orientation °) cumulated values => take min of the bin
-        tc = self.df["course"].resample(self.sampling).min().interpolate()
+        tc = self.df["course"].resample(self.time_sampling).min().interpolate()
         df = pd.DataFrame(
             data = {
                 "lon": tlon,
@@ -373,8 +373,8 @@ class TraceAnalysis:
                 "course": tc,
             }
         )
-        # generate sampling column based on raw_speed:
-        df.loc[df.raw_speed.notna(), "sampling"] = 1
+        # generate time_sampling column based on raw_speed:
+        df.loc[df.raw_speed.notna(), "time_sampling"] = 1
         df['filtering'] = 0
 
         df["elapsed_time"] = pd.to_timedelta(
@@ -397,14 +397,14 @@ class TraceAnalysis:
         )
         # filtering? yes=1 :
         self.tf = self.df["filtering"]
-        # sampling? yes=1 default=0 (np.nan=0)
-        self.tsamp = self.df["sampling"]
+        # time_sampling? yes=1 default=0 (np.nan=0)
+        self.tsamp = self.df["time_sampling"]
         self.tsamp = self.tsamp.fillna(0).astype(np.int64)
         # has_doppler? yes=1 default=0 (np.nan=0), sum = AND (min):
         self.thd = self.df["has_doppler"]
         self.thd = self.thd.fillna(0).astype(np.int64)
         # interpolate np.nan after filtering
-        # (we can because we resampled before filtering, therefore sampling is uniform)
+        # (we can because we resampled before filtering, therefore time_sampling is uniform)
         self.td = self.df['delta_dist'].interpolate()
         # regenerate cum_dist after filtering (the cums kept the cumulated spikes!)
         self.tcd = self.td.cumsum()
@@ -441,8 +441,8 @@ class TraceAnalysis:
             f"creator {self.creator}\n"  # GPS device type: read from gpx file xml infos field
             f"total distance {round(self.td.sum()/1000,1)} km"
             f"\noverall doppler_ratio = {doppler_ratio}%\n"
-            f"overall sampling ratio = {sampling_ratio}%\n"
-            f"overall sampling ratio > 5knots = {sampling_ratio_5}%\n"
+            f"overall time_sampling ratio = {sampling_ratio}%\n"
+            f"overall time_sampling ratio > 5knots = {sampling_ratio_5}%\n"
             f"filtered {self.filtered_events} events with acceleration > 0.5g\n"
             f"now running version {self.version}\n"
             f"==========================================================================\n"
@@ -513,8 +513,8 @@ class TraceAnalysis:
         HALF_JIBE_COURSE = 70
         FULL_JIBE_COURSE = 130
         MIN_JIBE_SPEED = 11
-        speed_window = int(np.ceil(20 / self.int_sampling))
-        course_window = int(np.ceil(15 / self.int_sampling))
+        speed_window = int(np.ceil(20 / self.sampling))
+        course_window = int(np.ceil(15 / self.sampling))
         partial_course_window = int(np.ceil(course_window / 3))
 
         tc = self.tc_diff.copy()
@@ -603,7 +603,7 @@ class TraceAnalysis:
 
         min_speed = 7  # knots min expected speed for max window size
         max_interval = dist / min_speed
-        max_samples = int(max_interval / self.int_sampling)
+        max_samples = int(max_interval / self.sampling)
 
         td = self.td.rolling(max_samples).apply(rolling_dist_count)
         nd = pd.Series.to_numpy(td)
@@ -617,7 +617,7 @@ class TraceAnalysis:
         logger.info(
             f"\nsearching {n} x v{dist} speed\n"
             f"over a window of {max_samples} samples\n"
-            f"and found a min of {min_samples*self.int_sampling} seconds\n"
+            f"and found a min of {min_samples*self.sampling} seconds\n"
             f"to cover {dist}m"
         )
         logger.info(
@@ -650,7 +650,7 @@ class TraceAnalysis:
             result = round(rolling_speed.max(), 2)
             range_end = rolling_speed.idxmax()
             if range_end is not np.nan:
-                range_begin = range_end - datetime.timedelta(seconds=int(samples_count * self.int_sampling) - 1)
+                range_begin = range_end - datetime.timedelta(seconds=int(samples_count * self.sampling) - 1)
                 tsd.loc[range_begin:range_end] = 0
                 td.loc[range_begin:range_end] = 0
                 logger.info(
@@ -712,7 +712,7 @@ class TraceAnalysis:
 
         min_speed = 7  # knots min expected speed for max window size
         max_interval = dist / min_speed
-        max_samples = int(max_interval / self.int_sampling)
+        max_samples = int(max_interval / self.sampling)
 
         td = self.td.rolling(max_samples).apply(rolling_dist_count)
         nd = pd.Series.to_numpy(td)
@@ -723,7 +723,7 @@ class TraceAnalysis:
         logger.info(
             f"\nsearching {n} x v{dist} speed\n"
             f"over a window of {max_samples} samples\n"
-            f"and found a min of {min_samples*self.int_sampling} seconds\n"
+            f"and found a min of {min_samples*self.sampling} seconds\n"
             f"to cover {dist}m"
         )
         logger.info(
@@ -834,7 +834,7 @@ class TraceAnalysis:
         """
         self.df_result_debug.loc[item_range, "has_doppler?"] = self.thd[item_range]
         self.df_result_debug.loc[item_range, "filtering?"] = self.tf[item_range]
-        self.df_result_debug.loc[item_range, "sampling?"] = self.tsamp[item_range]
+        self.df_result_debug.loc[item_range, "time_sampling?"] = self.tsamp[item_range]
         self.df_result_debug.loc[item_range, "speed"] = self.tsd[item_range]
         self.df_result_debug.loc[item_range, "raw_speed"] = self.raw_tsd[item_range]
         self.df_result_debug.loc[item_range, "speed_no_doppler"] = self.ts[item_range]
@@ -1013,7 +1013,10 @@ class TraceAnalysis:
         dfs["speed"] = self.tsd
         dfs["speed_no_doppler"] = self.ts
         # dfs["delta_doppler"] = self.ts - self.tsd
-        dfs.plot(ax=ax1)
+        try:
+            dfs.plot(ax=ax1)
+        except Exception:
+            logger.error(f"cannot plot speed")
         try:
             data = {
                 "diff_course_speed>10": self.tc_diff[self.tsd>12],
@@ -1022,7 +1025,7 @@ class TraceAnalysis:
             dfc = pd.DataFrame(index=self.tsd.index, data=data)
             dfc.plot(ax=ax2)
         except Exception:
-            pass
+            logger.error(f"cannot plot distance and course")
             #stupid error I cant't be bothered
         plt.show()
 
