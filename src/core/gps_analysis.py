@@ -57,23 +57,19 @@ else:
     FILTER_WINDOW = 30
     # and using fillna=interpolate
 
-MAX_SPEED = 45  # knots
 TO_KNOT = 1.94384 # * m/s
-MAX_ACCELERATION = 0.22  # g or +2.2m/s/s or +4.4 knots/s, negative acc is not limited ;)
-MAX_FILE_SIZE = 10e6
 DEFAULT_REPORT = {"n": 1, "doppler_ratio": None, "sampling_ratio": None, "std": None}
 
-
 class TraceAnalysis:
-    def __init__(self, gpx_path, config_file="config.yaml", sampling="2S"):
-        self.version = "12th January 2021"
+    def __init__(self, gpx_path, config_file="config.yaml", sampling="1S"):
+        self.config = load_config(config_file)
+        self.process_config()
+        self.version = "16th January 2021"
         self.time_sampling = sampling
         self.sampling = float(sampling.strip("S"))
         self.gpx_path = gpx_path
-        self.filename = Path(self.gpx_path).stem
+        self.filename = Path(gpx_path).stem
         self.set_csv_paths()
-        self.config = load_config(config_file)
-        self.process_config()
         self.df = self.load_df(gpx_path)
         self.process_df()
         author = self.filename.split("_")[0]
@@ -90,11 +86,50 @@ class TraceAnalysis:
         self.log_trace_infos()
         self.df_result_debug = pd.DataFrame(index=self.tsd.index)
 
+    @log_calls()
+    def process_config(self):
+        """
+        extract info from yaml config files
+        Parameters:
+            self.config
+        Return:
+            rules:
+                max_speed, max_acceleration, max_file_size, sampling
+            self.gps_func_description
+                { fn_description: 'args': {**fn_kwargs} }
+            self.ranking_groups
+                {ranking_group_name: [fn1_description, ...] }
+        :return:
+        """
+        for rule, value in self.config['rules'].items():
+            setattr(self, rule, value)
+        ranking_groups = {}
+        self.gps_func_description = {}
+        for gps_func, iterations in self.config['functions'].items():
+            for iteration in iterations:
+                if iteration["ranking_group"] in ranking_groups:
+                    ranking_groups[iteration["ranking_group"]].append(
+                        iteration["description"]
+                    )
+                else:
+                    ranking_groups[iteration["ranking_group"]] = [
+                        iteration["description"]
+                    ]
+                self.gps_func_description[iteration["description"]] = iteration["args"]
+        # self.gps_func_description = [
+        #     gps_func for v in ranking_groups.values() for gps_func in v
+        # ]
+        self.ranking_groups = ranking_groups
+        logger.info(
+            f"\nlist of gps functions {self.gps_func_description}\n"
+            f"ranking groups vs gps functions: {self.ranking_groups}\n"
+        )
+
     def load_df(self, gpx_path):
-        self.file_size = Path(gpx_path).stat().st_size
-        if self.file_size > MAX_FILE_SIZE:
+        self.file_size = Path(gpx_path).stat().st_size/1e6
+        if self.file_size > self.max_file_size:
             raise TraceAnalysisException(
-                f"file {gpx_path} size = {self.file_size/1e6}Mb > {MAX_FILE_SIZE/1e6}Mb"
+                f"file {gpx_path} size = {self.file_size}Mb > {self.max_file_size}Mb"
             )
         html_soup = self.load_gpx_file_to_html(gpx_path)
         if not html_soup.gpx:
@@ -201,7 +236,7 @@ class TraceAnalysis:
         self.df.loc[self.df.has_doppler == False, "has_doppler"] = 0
 
         # sunto watches have a False "emulated" doppler that should not be used:
-        if "movescount" in self.creator.lower():
+        if "movescount" in self.creator.lower() and not self.force_doppler_speed:
             logger.warning(
                 f"\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
                 f"deactivating doppler for Movescount watches\n"
@@ -214,7 +249,7 @@ class TraceAnalysis:
     def clean_df(self):
         """
         filter self.df on speed_no_doppler and speed fields
-        to remove acceleration spikes > MAX_ACCELERATION
+        to remove acceleration spikes > max_acceleration
         :return: modify self.df
         """
 
@@ -262,25 +297,25 @@ class TraceAnalysis:
             :return: int # samples count of the interval to filter out
             """
             i = 0
-            # searched irrealistic acceleration[0] > MAX_ACCELERATION spikes
+            # searched irrealistic acceleration[0] > max_acceleration spikes
             # we differentiate very high from high acceleration spikes (2 * )
-            if x[0] > 2*MAX_ACCELERATION:
+            if x[0] > 2*self.max_acceleration:
                 exiting = False
                 for i, a in enumerate(x):
                     # find spike interval length by searching negative spike end
                     if a < -0.1:
                         exiting = True
                     elif exiting:
-                        if a < MAX_ACCELERATION:
+                        if a < self.max_acceleration:
                             break
                         else:
                             exiting = False
             # faster return condition for low acceleration spikes:
             # may be a fast leading edge, i.e. fast acceleration after planning
             # cf kitefoils accelerations are possible in this range and are not spikes
-            elif x[0] > MAX_ACCELERATION:
+            elif x[0] > self.max_acceleration:
                 for i,a in enumerate(x):
-                    if a < MAX_ACCELERATION:
+                    if a < self.max_acceleration:
                         break
             return i
 
@@ -397,10 +432,10 @@ class TraceAnalysis:
         self.tc = self.df["course"].interpolate()
         self.tc_diff = self.diff_clean_ts(self.tc, 300)
         self.raw_df['filtered_speed'] = self.tsd
-        if self.tsd.max() > MAX_SPEED:
+        if self.tsd.max() > self.max_speed:
             raise TraceAnalysisException(
                 f"Trace maximum speed after cleaning is = {self.tsd.max()} knots!\n"
-                f"abort analysis for speed > {MAX_SPEED}"
+                f"abort analysis for speed > {self.max_speed}"
             )
 
     def log_trace_infos(self):
@@ -442,7 +477,7 @@ class TraceAnalysis:
             f"==========================================================================\n"
             f"__init__ {self.__class__.__name__} with file {self.gpx_path}\n"
             f"author name: {self.author}\n"  # trace author: read from gpx file name
-            f"file size is {self.file_size/1e6}Mb\n"
+            f"file size is {self.file_size}Mb\n"
             f"file loading to pandas DataFrame complete\n"
             f"creator {self.creator}\n"  # GPS device type: read from gpx file xml infos field
             f"trace min sampling = {self.trace_sampling}S\n"
@@ -451,7 +486,7 @@ class TraceAnalysis:
             f"\noverall doppler_ratio = {doppler_ratio}%\n"
             f"overall time_sampling ratio = {sampling_ratio}%\n"
             f"overall time_sampling ratio > 5knots = {sampling_ratio_5}%\n"
-            f"filtered {self.filtered_events} events with acceleration > {MAX_ACCELERATION}g\n"
+            f"filtered {self.filtered_events} events with acceleration > {self.max_acceleration}g\n"
             f"now running version {self.version}\n"
             f"==========================================================================\n"
             f"==========================================================================\n"
@@ -874,30 +909,6 @@ class TraceAnalysis:
         )
         return confidence_report
 
-    @log_calls()
-    def process_config(self):
-        ranking_groups = {}
-        self.gps_func_description = {}
-        for gps_func, iterations in self.config.items():
-            for iteration in iterations:
-                if iteration["ranking_group"] in ranking_groups:
-                    ranking_groups[iteration["ranking_group"]].append(
-                        iteration["description"]
-                    )
-                else:
-                    ranking_groups[iteration["ranking_group"]] = [
-                        iteration["description"]
-                    ]
-                self.gps_func_description[iteration["description"]] = iteration["args"]
-        # self.gps_func_description = [
-        #     gps_func for v in ranking_groups.values() for gps_func in v
-        # ]
-        self.ranking_groups = ranking_groups
-        logger.info(
-            f"\nlist of gps functions {self.gps_func_description}\n"
-            f"ranking groups vs gps functions: {self.ranking_groups}\n"
-        )
-
     def multi_index_from_config(self):
         # init multiIndex DataFrame for the ranking_results:
         code0 = []
@@ -932,7 +943,7 @@ class TraceAnalysis:
         results = []
         # iterate over the config and call the referenced functions:
 
-        for gps_func, iterations in self.config.items():
+        for gps_func, iterations in self.config['functions'].items():
             # the same gps_func key cannot be repeated in the yaml description,
             # so we use an iterations list,
             # in order to call several times the same function with different args if needed:
