@@ -61,12 +61,10 @@ TO_KNOT = 1.94384 # * m/s
 DEFAULT_REPORT = {"n": 1, "doppler_ratio": None, "sampling_ratio": None, "std": None}
 
 class TraceAnalysis:
-    def __init__(self, gpx_path, config_file="config.yaml", sampling="1S"):
+    def __init__(self, gpx_path, config_file="config.yaml"):
+        self.version = "16th January 2021"
         self.config = load_config(config_file)
         self.process_config()
-        self.version = "16th January 2021"
-        self.time_sampling = sampling
-        self.sampling = float(sampling.strip("S"))
         self.gpx_path = gpx_path
         self.filename = Path(gpx_path).stem
         self.set_csv_paths()
@@ -94,7 +92,7 @@ class TraceAnalysis:
             self.config
         Return:
             rules:
-                max_speed, max_acceleration, max_file_size, sampling
+                max_speed, max_acceleration, max_file_size, time_sampling, sampling
             self.gps_func_description
                 { fn_description: 'args': {**fn_kwargs} }
             self.ranking_groups
@@ -103,6 +101,7 @@ class TraceAnalysis:
         """
         for rule, value in self.config['rules'].items():
             setattr(self, rule, value)
+        self.sampling = float(self.time_sampling.strip("S"))
         ranking_groups = {}
         self.gps_func_description = {}
         for gps_func, iterations in self.config['functions'].items():
