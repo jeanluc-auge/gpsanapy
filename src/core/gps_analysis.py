@@ -103,8 +103,13 @@ class TraceAnalysis:
         for rule, value in self.config["rules"].items():
             setattr(self, rule, value)
         self.sampling = float(self.time_sampling.strip("S"))
+        self.gps_func_description = {
+            iteration["description"]: iteration["args"]
+            for iterations in self.config["functions"].values()
+            for iteration in iterations
+        }
+
         ranking_groups = {}
-        self.gps_func_description = {}
         for gps_func, iterations in self.config["functions"].items():
             for iteration in iterations:
                 if iteration["ranking_group"] in ranking_groups:
@@ -115,11 +120,8 @@ class TraceAnalysis:
                     ranking_groups[iteration["ranking_group"]] = [
                         iteration["description"]
                     ]
-                self.gps_func_description[iteration["description"]] = iteration["args"]
-        # self.gps_func_description = [
-        #     gps_func for v in ranking_groups.values() for gps_func in v
-        # ]
         self.ranking_groups = ranking_groups
+
         logger.info(
             f"\nlist of gps functions {self.gps_func_description}\n"
             f"ranking groups vs gps functions: {self.ranking_groups}\n"
@@ -213,7 +215,12 @@ class TraceAnalysis:
 
     def process_df(self):
         """
-        self.df DataFrame processing
+        self.df DataFrame processing:
+            - reindexing
+            - elapsed time column with cumulated time in s (needed for acceleration)
+            - trace base sampling (shortest time between speed samples)
+            - convert bool has doppler? column into 0/1 for resampling operations
+        + deactivate doppler for Movescount traces
         """
 
         # reindex on 'time' column for later resample
@@ -388,6 +395,7 @@ class TraceAnalysis:
         # td = tcd.diff()
         # course (orientation °) cumulated values => take min of the bin
         tc = self.df["course"].resample(self.time_sampling).min().interpolate()
+        #tc[tsd < 7] = np.nan
         df = pd.DataFrame(
             data={
                 "lon": tlon,
@@ -435,8 +443,11 @@ class TraceAnalysis:
         # regenerate cum_dist after filtering (the cums kept the cumulated spikes!)
         self.tcd = self.td.cumsum()
         # course (orientation °) cumulated values => take min of the bin
-        self.tc = self.df["course"].interpolate()
-        self.tc_diff = self.diff_clean_ts(self.tc, 300)
+        self.tc_diff = self.diff_clean_ts(self.df.course, 300)
+        self.tc_diff[self.tsd < 5] = np.nan
+        self.tc = self.tc_diff.cumsum()
+        self.raw_df['filtered_course'] = self.tc
+        self.raw_df['filtered_course_diff'] = self.tc_diff
         self.raw_df["filtered_speed"] = self.tsd
         if self.tsd.max() > self.max_speed:
             raise TraceAnalysisException(
@@ -445,6 +456,11 @@ class TraceAnalysis:
             )
 
     def log_trace_infos(self):
+        """
+        compile and log key trace informations
+        of the current gpx file under study
+        :return: logger
+        """
         doppler_ratio = int(100 * len(self.thd[self.thd > 0].dropna()) / len(self.thd))
         sampling_ratio = int(100 * len(self.tsamp[self.tsamp == 1]) / len(self.tsamp))
         if len(self.tsamp[self.tsd > 5]) == 0:
@@ -558,9 +574,9 @@ class TraceAnalysis:
         :return: list of n * vmin jibe speeds
         """
         HALF_JIBE_COURSE = 70
-        FULL_JIBE_COURSE = 130
-        MIN_JIBE_SPEED = 11
-        speed_window = int(np.ceil(20 / self.sampling))
+        FULL_JIBE_COURSE = 150
+        MIN_JIBE_SPEED = 9
+        speed_window = int(np.ceil(30 / self.sampling))
         course_window = int(np.ceil(15 / self.sampling))
         partial_course_window = int(np.ceil(course_window / 3))
 
@@ -573,23 +589,14 @@ class TraceAnalysis:
         cj1 = (
             abs(tc.rolling(partial_course_window, center=True).sum()) > HALF_JIBE_COURSE
         )
-        print(1111111111111111,cj1.any())
         # find condition2 on 15 samples rolling window:
         cj2 = abs(tc.rolling(course_window, center=True).sum()) > FULL_JIBE_COURSE
-        print(222222222222222,cj2.any())
         # # ====== debug starts =====================
-        # df = pd.DataFrame(index=tc.index)
-        # df['c'] = self.tc
-        # df['tc'] = tc
-        # df['tc5']= tc.rolling(5, center=True).sum()
-        # df['tc15'] = tc.rolling(15, center=True).sum()
-        # df['tsd'] = self.tsd
-        # df['tsd20'] = self.tsd.rolling(20, center=True).min()
-        # df['r']=self.tsd.rolling(20, center=True).min()[cj1 & cj2]
-        # df.to_csv('debug_jibe.csv')
+        self.raw_df['jibe_window'] = self.tsd.rolling(speed_window, center=True).min()[cj1 & cj2]
         # # ====== debug ends =====================
 
         # generate a list of all jibes min speed on a 20 samples window for conditions 1 & 2:
+        self.jibe_range = cj1 & cj2 # plot for debug
         jibe_speed = self.tsd.rolling(speed_window, center=True).min()[cj1 & cj2]
         results = []
         if len(jibe_speed) == 0:
@@ -1000,30 +1007,6 @@ class TraceAnalysis:
         self.ranking_results = ranking_results
         return ranking_results
 
-    @log_calls()
-    def plot_speed(self):
-        fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1)
-        dfs = pd.DataFrame(index=self.tsd.index)
-        dfs["raw_speed"] = self.raw_tsd
-        dfs["speed"] = self.tsd
-        dfs["speed_no_doppler"] = self.ts
-        # dfs["delta_doppler"] = self.ts - self.tsd
-        try:
-            dfs.plot(ax=ax1)
-        except Exception:
-            logger.error(f"cannot plot speed")
-        try:
-            data = {
-                "diff_course_speed>10": self.tc_diff[self.tsd > 12],
-                "distance": self.td,
-            }
-            dfc = pd.DataFrame(index=self.tsd.index, data=data)
-            dfc.plot(ax=ax2)
-        except Exception:
-            logger.error(f"cannot plot distance and course")
-            # stupid error I cant't be bothered
-        plt.show()
-
     def set_csv_paths(self):
         result_directory = os.path.join(os.path.dirname(__file__), f"../../csv_results")
         # debug file with the full DataFrame (erased at each run):
@@ -1078,6 +1061,34 @@ class TraceAnalysis:
             f"{json.dumps(fn_execution_time, indent=2)}"
             f"===============================================\n"
         )
+
+    @log_calls()
+    def plot_speed(self):
+        fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1)
+        dfs = pd.DataFrame(index=self.tsd.index)
+        dfs["raw_speed"] = self.raw_tsd
+        dfs["speed"] = self.tsd
+        dfs["speed_no_doppler"] = self.ts
+        # dfs["delta_doppler"] = self.ts - self.tsd
+        try:
+            dfs.plot(ax=ax1)
+        except Exception:
+            logger.error(f"cannot plot speed")
+        try:
+            tjr = self.tc_diff[self.jibe_range]
+            data = {
+                "diff_course_speed>10": self.tc_diff,#[self.tsd > 7],
+                "cum_course_speed>10": self.tc,#[self.tsd > 7],
+                "distance": self.td,
+                "jibe_range": tjr
+            }
+            dfc = pd.DataFrame(index=self.tsd.index, data=data)
+            dfc.plot(ax=ax2)
+        except Exception:
+            logger.error(f"cannot plot distance and course")
+            # stupid error of delta index I cant't be bothered with
+        plt.show()
+
 
 def process_args(args):
     f = args.gpx_filename
