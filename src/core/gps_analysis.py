@@ -578,7 +578,8 @@ class TraceAnalysis:
         MIN_JIBE_SPEED = 9
         speed_window = int(np.ceil(30 / self.sampling))
         course_window = int(np.ceil(15 / self.sampling))
-        partial_course_window = int(np.ceil(course_window / 3))
+        partial_course_window_1 = int(np.ceil(course_window / 3)) # rolling sum
+        partial_course_window_2 = int(np.ceil(course_window*2 / 3)) # rolling max
 
         tc = self.tc_diff.copy()
         # remove low speed periods (too many noise in course orientation):
@@ -587,11 +588,13 @@ class TraceAnalysis:
         tc.iloc[-30:-1] = np.nan
         # find consition 1 on 5 samples rolling window:
         cj1 = (
-            abs(tc.rolling(partial_course_window, center=True).sum()) > HALF_JIBE_COURSE
+            abs(tc.rolling(partial_course_window_1, center=True).sum()).rolling(partial_course_window_2).max() > HALF_JIBE_COURSE
         )
         # find condition2 on 15 samples rolling window:
         cj2 = abs(tc.rolling(course_window, center=True).sum()) > FULL_JIBE_COURSE
         # # ====== debug starts =====================
+        self.raw_df['cj1'] = abs(tc.rolling(partial_course_window_1, center=True).sum()).rolling(partial_course_window_2).max()
+        self.raw_df['cj2'] = abs(tc.rolling(course_window, center=True).sum())
         self.raw_df['jibe_window'] = self.tsd.rolling(speed_window, center=True).min()[cj1 & cj2]
         # # ====== debug ends =====================
 
@@ -813,6 +816,7 @@ class TraceAnalysis:
         nxs_list = []
         results = []
         tsd = self.tsd.copy()
+        exclusion_time = datetime.timedelta(seconds=10)
         for i in range(1, n + 1):
             # calculate s seconds Vmax on all data:
             ts = tsd.rolling(xs).mean()
@@ -820,7 +824,7 @@ class TraceAnalysis:
             range_begin = range_end - datetime.timedelta(seconds=s - 1)
             result = round(ts.max(), 1)
             # remove this speed range to find others:
-            tsd[range_begin:range_end] = 0
+            tsd[range_begin-exclusion_time:range_end+exclusion_time] = 0
             # generate debug report:
             confidence_report = self.append_result_debug(
                 item_range=self.tsd[range_begin:range_end].index,
