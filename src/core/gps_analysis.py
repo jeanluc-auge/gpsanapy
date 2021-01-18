@@ -63,7 +63,7 @@ DEFAULT_REPORT = {"n": 1, "doppler_ratio": None, "sampling_ratio": None, "std": 
 
 class TraceAnalysis:
     def __init__(self, gpx_path, config_file="config.yaml"):
-        self.version = "16th January 2021"
+        self.version = "tag v2 - 17th January 2021"
         self.config = load_config(config_file)
         self.process_config()
         self.gpx_path = gpx_path
