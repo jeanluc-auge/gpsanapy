@@ -1,116 +1,4 @@
 author,creator,date,description,result,n,doppler_ratio,sampling_ratio,std
-FRED_2019-10-01,GpsarPro 5.11,2019-10-01,vmax_1s,34.4,1,100.0,100.0,
-FRED_2019-10-01,GpsarPro 5.11,2019-10-01,vmax_1s,33.9,2,100.0,100.0,
-FRED_2019-10-01,GpsarPro 5.11,2019-10-01,vmax_1s,33.8,3,100.0,100.0,
-FRED_2019-10-01,GpsarPro 5.11,2019-10-01,vmax_1s,33.7,4,100.0,100.0,
-FRED_2019-10-01,GpsarPro 5.11,2019-10-01,vmax_1s,33.6,5,100.0,100.0,
-FRED_2019-10-01,GpsarPro 5.11,2019-10-01,vmax_10s,33.2,1,100.0,100.0,0.98
-FRED_2019-10-01,GpsarPro 5.11,2019-10-01,vmax_10s,33.1,2,100.0,100.0,0.32
-FRED_2019-10-01,GpsarPro 5.11,2019-10-01,vmax_10s,33.0,3,100.0,100.0,0.58
-FRED_2019-10-01,GpsarPro 5.11,2019-10-01,vmax_10s,32.9,4,100.0,100.0,0.64
-FRED_2019-10-01,GpsarPro 5.11,2019-10-01,vmax_10s,32.6,5,100.0,100.0,1.03
-FRED_2019-10-01,GpsarPro 5.11,2019-10-01,vmax_500m,31.99,1,100.0,100.0,0.94
-FRED_2019-10-01,GpsarPro 5.11,2019-10-01,vmax_500m,31.89,2,100.0,100.0,0.72
-FRED_2019-10-01,GpsarPro 5.11,2019-10-01,vmax_500m,31.59,3,100.0,100.0,0.65
-FRED_2019-10-01,GpsarPro 5.11,2019-10-01,vmax_500m,30.54,4,100.0,100.0,1.53
-FRED_2019-10-01,GpsarPro 5.11,2019-10-01,vmax_500m,30.52,5,100.0,100.0,1.15
-FRED_2019-10-01,GpsarPro 5.11,2019-10-01,vmax_1000m,30.1,1,100.0,100.0,2.12
-FRED_2019-10-01,GpsarPro 5.11,2019-10-01,vmax_1000m,28.45,2,100.0,100.0,4.2
-FRED_2019-10-01,GpsarPro 5.11,2019-10-01,vmax_1000m,28.25,3,100.0,100.0,2.72
-FRED_2019-10-01,GpsarPro 5.11,2019-10-01,vmax_1000m,27.89,4,100.0,100.0,4.01
-FRED_2019-10-01,GpsarPro 5.11,2019-10-01,vmax_1000m,27.13,5,100.0,100.0,2.66
-FRED_2019-10-01,GpsarPro 5.11,2019-10-01,planning_ratio>10,96.0,1,,,
-FRED_2019-10-01,GpsarPro 5.11,2019-10-01,Vmoy>10,22.1,1,,,
-FRED_2019-10-01,GpsarPro 5.11,2019-10-01,vmax_jibe,12.0,1,100.0,100.0,4.79
-FRED_2019-10-01,GpsarPro 5.11,2019-10-01,vmax_jibe,0.0,2,100.0,100.0,4.79
-FRED_2019-10-01,GpsarPro 5.11,2019-10-01,vmax_jibe,0.0,3,100.0,100.0,4.79
-FRED_2019-10-01,GpsarPro 5.11,2019-10-01,vmax_jibe,0.0,4,100.0,100.0,4.79
-FRED_2019-10-01,GpsarPro 5.11,2019-10-01,vmax_jibe,0.0,5,100.0,100.0,4.79
-FRED_2019-10-01,GpsarPro 5.11,2019-10-01,planning_distance>10,41.2,1,,,
-FRED_2019-03-04,GPSBabel - http://www.gpsbabel.org,2019-03-04,vmax_1s,31.8,1,100.0,100.0,
-FRED_2019-03-04,GPSBabel - http://www.gpsbabel.org,2019-03-04,vmax_1s,31.3,2,100.0,100.0,
-FRED_2019-03-04,GPSBabel - http://www.gpsbabel.org,2019-03-04,vmax_1s,31.1,3,100.0,100.0,
-FRED_2019-03-04,GPSBabel - http://www.gpsbabel.org,2019-03-04,vmax_1s,30.4,4,100.0,100.0,
-FRED_2019-03-04,GPSBabel - http://www.gpsbabel.org,2019-03-04,vmax_1s,29.2,5,100.0,100.0,
-FRED_2019-03-04,GPSBabel - http://www.gpsbabel.org,2019-03-04,vmax_10s,30.8,1,100.0,100.0,0.78
-FRED_2019-03-04,GPSBabel - http://www.gpsbabel.org,2019-03-04,vmax_10s,30.5,2,100.0,100.0,0.36
-FRED_2019-03-04,GPSBabel - http://www.gpsbabel.org,2019-03-04,vmax_10s,28.1,3,100.0,100.0,0.52
-FRED_2019-03-04,GPSBabel - http://www.gpsbabel.org,2019-03-04,vmax_10s,27.8,4,100.0,100.0,0.36
-FRED_2019-03-04,GPSBabel - http://www.gpsbabel.org,2019-03-04,vmax_10s,27.1,5,100.0,100.0,0.24
-FRED_2019-03-04,GPSBabel - http://www.gpsbabel.org,2019-03-04,vmax_500m,30.25,1,100.0,100.0,0.8
-FRED_2019-03-04,GPSBabel - http://www.gpsbabel.org,2019-03-04,vmax_500m,27.16,2,100.0,100.0,1.0
-FRED_2019-03-04,GPSBabel - http://www.gpsbabel.org,2019-03-04,vmax_500m,27.02,3,100.0,100.0,1.01
-FRED_2019-03-04,GPSBabel - http://www.gpsbabel.org,2019-03-04,vmax_500m,26.46,4,100.0,100.0,0.56
-FRED_2019-03-04,GPSBabel - http://www.gpsbabel.org,2019-03-04,vmax_500m,26.15,5,100.0,100.0,0.6
-FRED_2019-03-04,GPSBabel - http://www.gpsbabel.org,2019-03-04,vmax_1000m,29.78,1,100.0,100.0,1.05
-FRED_2019-03-04,GPSBabel - http://www.gpsbabel.org,2019-03-04,vmax_1000m,26.3,2,100.0,100.0,1.16
-FRED_2019-03-04,GPSBabel - http://www.gpsbabel.org,2019-03-04,vmax_1000m,26.19,3,100.0,100.0,1.52
-FRED_2019-03-04,GPSBabel - http://www.gpsbabel.org,2019-03-04,vmax_1000m,25.9,4,100.0,100.0,0.82
-FRED_2019-03-04,GPSBabel - http://www.gpsbabel.org,2019-03-04,vmax_1000m,25.26,5,100.0,100.0,0.6
-FRED_2019-03-04,GPSBabel - http://www.gpsbabel.org,2019-03-04,planning_ratio>10,98.0,1,,,
-FRED_2019-03-04,GPSBabel - http://www.gpsbabel.org,2019-03-04,Vmoy>10,22.8,1,,,
-FRED_2019-03-04,GPSBabel - http://www.gpsbabel.org,2019-03-04,vmax_jibe,10.4,1,100.0,100.0,3.82
-FRED_2019-03-04,GPSBabel - http://www.gpsbabel.org,2019-03-04,vmax_jibe,10.3,2,100.0,100.0,5.28
-FRED_2019-03-04,GPSBabel - http://www.gpsbabel.org,2019-03-04,vmax_jibe,10.2,3,100.0,100.0,5.65
-FRED_2019-03-04,GPSBabel - http://www.gpsbabel.org,2019-03-04,vmax_jibe,10.2,4,100.0,100.0,5.32
-FRED_2019-03-04,GPSBabel - http://www.gpsbabel.org,2019-03-04,vmax_jibe,9.9,5,100.0,100.0,4.69
-FRED_2019-03-04,GPSBabel - http://www.gpsbabel.org,2019-03-04,planning_distance>10,46.6,1,,,
-FRED_2019-11-09,GPSBabel - http://www.gpsbabel.org,2019-11-09,vmax_1s,36.3,1,100.0,100.0,
-FRED_2019-11-09,GPSBabel - http://www.gpsbabel.org,2019-11-09,vmax_1s,35.0,2,100.0,100.0,
-FRED_2019-11-09,GPSBabel - http://www.gpsbabel.org,2019-11-09,vmax_1s,34.2,3,100.0,100.0,
-FRED_2019-11-09,GPSBabel - http://www.gpsbabel.org,2019-11-09,vmax_1s,32.6,4,100.0,100.0,
-FRED_2019-11-09,GPSBabel - http://www.gpsbabel.org,2019-11-09,vmax_1s,32.4,5,100.0,100.0,
-FRED_2019-11-09,GPSBabel - http://www.gpsbabel.org,2019-11-09,vmax_10s,33.6,1,100.0,100.0,2.2
-FRED_2019-11-09,GPSBabel - http://www.gpsbabel.org,2019-11-09,vmax_10s,32.8,2,100.0,100.0,1.55
-FRED_2019-11-09,GPSBabel - http://www.gpsbabel.org,2019-11-09,vmax_10s,31.8,3,100.0,100.0,0.53
-FRED_2019-11-09,GPSBabel - http://www.gpsbabel.org,2019-11-09,vmax_10s,31.7,4,100.0,100.0,2.12
-FRED_2019-11-09,GPSBabel - http://www.gpsbabel.org,2019-11-09,vmax_10s,31.2,5,100.0,100.0,1.18
-FRED_2019-11-09,GPSBabel - http://www.gpsbabel.org,2019-11-09,vmax_500m,29.0,1,100.0,100.0,2.01
-FRED_2019-11-09,GPSBabel - http://www.gpsbabel.org,2019-11-09,vmax_500m,28.78,2,100.0,100.0,1.14
-FRED_2019-11-09,GPSBabel - http://www.gpsbabel.org,2019-11-09,vmax_500m,28.6,3,100.0,100.0,3.16
-FRED_2019-11-09,GPSBabel - http://www.gpsbabel.org,2019-11-09,vmax_500m,28.46,4,100.0,100.0,1.81
-FRED_2019-11-09,GPSBabel - http://www.gpsbabel.org,2019-11-09,vmax_500m,28.16,5,100.0,100.0,2.41
-FRED_2019-11-09,GPSBabel - http://www.gpsbabel.org,2019-11-09,vmax_1000m,24.78,1,100.0,100.0,5.29
-FRED_2019-11-09,GPSBabel - http://www.gpsbabel.org,2019-11-09,vmax_1000m,24.32,2,100.0,100.0,5.02
-FRED_2019-11-09,GPSBabel - http://www.gpsbabel.org,2019-11-09,vmax_1000m,24.2,3,100.0,100.0,5.22
-FRED_2019-11-09,GPSBabel - http://www.gpsbabel.org,2019-11-09,vmax_1000m,24.1,4,100.0,100.0,5.12
-FRED_2019-11-09,GPSBabel - http://www.gpsbabel.org,2019-11-09,vmax_1000m,22.74,5,100.0,100.0,6.18
-FRED_2019-11-09,GPSBabel - http://www.gpsbabel.org,2019-11-09,planning_ratio>10,93.0,1,,,
-FRED_2019-11-09,GPSBabel - http://www.gpsbabel.org,2019-11-09,Vmoy>10,21.6,1,,,
-FRED_2019-11-09,GPSBabel - http://www.gpsbabel.org,2019-11-09,vmax_jibe,13.4,1,100.0,100.0,4.07
-FRED_2019-11-09,GPSBabel - http://www.gpsbabel.org,2019-11-09,vmax_jibe,12.8,2,100.0,100.0,5.45
-FRED_2019-11-09,GPSBabel - http://www.gpsbabel.org,2019-11-09,vmax_jibe,12.2,3,100.0,100.0,4.41
-FRED_2019-11-09,GPSBabel - http://www.gpsbabel.org,2019-11-09,vmax_jibe,11.7,4,100.0,100.0,7.49
-FRED_2019-11-09,GPSBabel - http://www.gpsbabel.org,2019-11-09,vmax_jibe,11.4,5,100.0,100.0,7.08
-FRED_2019-11-09,GPSBabel - http://www.gpsbabel.org,2019-11-09,planning_distance>10,31.2,1,,,
-FRED_2019-08-10,GpsarPro 5.11,2019-08-10,vmax_1s,32.9,1,100.0,100.0,
-FRED_2019-08-10,GpsarPro 5.11,2019-08-10,vmax_1s,30.1,2,100.0,100.0,
-FRED_2019-08-10,GpsarPro 5.11,2019-08-10,vmax_1s,30.1,3,100.0,100.0,
-FRED_2019-08-10,GpsarPro 5.11,2019-08-10,vmax_1s,30.1,4,100.0,100.0,
-FRED_2019-08-10,GpsarPro 5.11,2019-08-10,vmax_1s,30.0,5,100.0,100.0,
-FRED_2019-08-10,GpsarPro 5.11,2019-08-10,vmax_10s,31.6,1,100.0,100.0,0.77
-FRED_2019-08-10,GpsarPro 5.11,2019-08-10,vmax_10s,29.8,2,100.0,100.0,0.17
-FRED_2019-08-10,GpsarPro 5.11,2019-08-10,vmax_10s,29.3,3,100.0,100.0,0.67
-FRED_2019-08-10,GpsarPro 5.11,2019-08-10,vmax_10s,29.1,4,100.0,100.0,0.81
-FRED_2019-08-10,GpsarPro 5.11,2019-08-10,vmax_10s,29.0,5,100.0,100.0,0.29
-FRED_2019-08-10,GpsarPro 5.11,2019-08-10,vmax_500m,29.66,1,100.0,100.0,1.88
-FRED_2019-08-10,GpsarPro 5.11,2019-08-10,vmax_500m,29.16,2,100.0,100.0,0.67
-FRED_2019-08-10,GpsarPro 5.11,2019-08-10,vmax_500m,28.23,3,100.0,100.0,0.71
-FRED_2019-08-10,GpsarPro 5.11,2019-08-10,vmax_500m,28.06,4,100.0,100.0,0.44
-FRED_2019-08-10,GpsarPro 5.11,2019-08-10,vmax_500m,27.95,5,100.0,100.0,1.17
-FRED_2019-08-10,GpsarPro 5.11,2019-08-10,vmax_1000m,28.72,1,100.0,100.0,0.78
-FRED_2019-08-10,GpsarPro 5.11,2019-08-10,vmax_1000m,27.82,2,100.0,100.0,0.65
-FRED_2019-08-10,GpsarPro 5.11,2019-08-10,vmax_1000m,26.72,3,100.0,100.0,1.09
-FRED_2019-08-10,GpsarPro 5.11,2019-08-10,vmax_1000m,26.7,4,100.0,100.0,3.12
-FRED_2019-08-10,GpsarPro 5.11,2019-08-10,vmax_1000m,26.68,5,100.0,100.0,1.02
-FRED_2019-08-10,GpsarPro 5.11,2019-08-10,planning_ratio>10,94.0,1,,,
-FRED_2019-08-10,GpsarPro 5.11,2019-08-10,Vmoy>10,21.4,1,,,
-FRED_2019-08-10,GpsarPro 5.11,2019-08-10,vmax_jibe,11.8,1,100.0,100.0,4.55
-FRED_2019-08-10,GpsarPro 5.11,2019-08-10,vmax_jibe,11.8,2,100.0,100.0,5.27
-FRED_2019-08-10,GpsarPro 5.11,2019-08-10,vmax_jibe,11.5,3,100.0,100.0,3.79
-FRED_2019-08-10,GpsarPro 5.11,2019-08-10,vmax_jibe,11.5,4,100.0,100.0,4.21
-FRED_2019-08-10,GpsarPro 5.11,2019-08-10,vmax_jibe,11.2,5,86.0,86.0,4.72
-FRED_2019-08-10,GpsarPro 5.11,2019-08-10,planning_distance>10,101.4,1,,,
 FRED_2019-03-10,GpsarPro 5.11,2019-03-10,vmax_1s,35.6,1,100.0,100.0,
 FRED_2019-03-10,GpsarPro 5.11,2019-03-10,vmax_1s,35.6,2,100.0,100.0,
 FRED_2019-03-10,GpsarPro 5.11,2019-03-10,vmax_1s,35.5,3,100.0,100.0,
@@ -131,14 +19,14 @@ FRED_2019-03-10,GpsarPro 5.11,2019-03-10,vmax_1000m,23.48,2,100.0,100.0,4.9
 FRED_2019-03-10,GpsarPro 5.11,2019-03-10,vmax_1000m,22.88,3,100.0,100.0,2.57
 FRED_2019-03-10,GpsarPro 5.11,2019-03-10,vmax_1000m,22.33,4,100.0,100.0,6.0
 FRED_2019-03-10,GpsarPro 5.11,2019-03-10,vmax_1000m,22.33,5,100.0,100.0,7.59
-FRED_2019-03-10,GpsarPro 5.11,2019-03-10,planning_ratio>10,89.0,1,,,
-FRED_2019-03-10,GpsarPro 5.11,2019-03-10,Vmoy>10,20.4,1,,,
+FRED_2019-03-10,GpsarPro 5.11,2019-03-10,planning_ratio>12,87.0,1,,,
+FRED_2019-03-10,GpsarPro 5.11,2019-03-10,Vmoy>12,20.8,1,,,
 FRED_2019-03-10,GpsarPro 5.11,2019-03-10,vmax_jibe,11.2,1,100.0,100.0,3.28
 FRED_2019-03-10,GpsarPro 5.11,2019-03-10,vmax_jibe,9.5,2,100.0,100.0,3.5
-FRED_2019-03-10,GpsarPro 5.11,2019-03-10,vmax_jibe,9.2,3,100.0,100.0,4.14
+FRED_2019-03-10,GpsarPro 5.11,2019-03-10,vmax_jibe,0.0,3,100.0,100.0,3.28
 FRED_2019-03-10,GpsarPro 5.11,2019-03-10,vmax_jibe,0.0,4,100.0,100.0,3.28
 FRED_2019-03-10,GpsarPro 5.11,2019-03-10,vmax_jibe,0.0,5,100.0,100.0,3.28
-FRED_2019-03-10,GpsarPro 5.11,2019-03-10,planning_distance>10,30.2,1,,,
+FRED_2019-03-10,GpsarPro 5.11,2019-03-10,planning_distance>12,29.5,1,,,
 FRED_2019-09-06,GpsarPro 5.11,2019-09-06,vmax_1s,30.5,1,100.0,100.0,
 FRED_2019-09-06,GpsarPro 5.11,2019-09-06,vmax_1s,28.0,2,100.0,100.0,
 FRED_2019-09-06,GpsarPro 5.11,2019-09-06,vmax_1s,27.4,3,100.0,100.0,
@@ -159,151 +47,39 @@ FRED_2019-09-06,GpsarPro 5.11,2019-09-06,vmax_1000m,24.55,2,100.0,100.0,1.25
 FRED_2019-09-06,GpsarPro 5.11,2019-09-06,vmax_1000m,24.45,3,100.0,100.0,1.42
 FRED_2019-09-06,GpsarPro 5.11,2019-09-06,vmax_1000m,24.43,4,100.0,100.0,1.54
 FRED_2019-09-06,GpsarPro 5.11,2019-09-06,vmax_1000m,24.3,5,100.0,100.0,1.27
-FRED_2019-09-06,GpsarPro 5.11,2019-09-06,planning_ratio>10,96.0,1,,,
-FRED_2019-09-06,GpsarPro 5.11,2019-09-06,Vmoy>10,21.9,1,,,
+FRED_2019-09-06,GpsarPro 5.11,2019-09-06,planning_ratio>12,96.0,1,,,
+FRED_2019-09-06,GpsarPro 5.11,2019-09-06,Vmoy>12,22.0,1,,,
 FRED_2019-09-06,GpsarPro 5.11,2019-09-06,vmax_jibe,11.1,1,100.0,100.0,4.23
 FRED_2019-09-06,GpsarPro 5.11,2019-09-06,vmax_jibe,9.5,2,100.0,100.0,5.71
 FRED_2019-09-06,GpsarPro 5.11,2019-09-06,vmax_jibe,9.5,3,100.0,100.0,4.68
 FRED_2019-09-06,GpsarPro 5.11,2019-09-06,vmax_jibe,9.0,4,100.0,100.0,4.96
 FRED_2019-09-06,GpsarPro 5.11,2019-09-06,vmax_jibe,0.0,5,100.0,100.0,4.68
-FRED_2019-09-06,GpsarPro 5.11,2019-09-06,planning_distance>10,60.1,1,,,
-FRED_2019-01-26,GPSBabel - http://www.gpsbabel.org,2019-01-26,vmax_1s,30.6,1,100.0,100.0,
-FRED_2019-01-26,GPSBabel - http://www.gpsbabel.org,2019-01-26,vmax_1s,30.3,2,100.0,100.0,
-FRED_2019-01-26,GPSBabel - http://www.gpsbabel.org,2019-01-26,vmax_1s,30.3,3,100.0,100.0,
-FRED_2019-01-26,GPSBabel - http://www.gpsbabel.org,2019-01-26,vmax_1s,30.0,4,100.0,100.0,
-FRED_2019-01-26,GPSBabel - http://www.gpsbabel.org,2019-01-26,vmax_1s,29.8,5,100.0,100.0,
-FRED_2019-01-26,GPSBabel - http://www.gpsbabel.org,2019-01-26,vmax_10s,29.5,1,100.0,100.0,0.81
-FRED_2019-01-26,GPSBabel - http://www.gpsbabel.org,2019-01-26,vmax_10s,29.5,2,100.0,100.0,0.49
-FRED_2019-01-26,GPSBabel - http://www.gpsbabel.org,2019-01-26,vmax_10s,29.2,3,100.0,100.0,0.88
-FRED_2019-01-26,GPSBabel - http://www.gpsbabel.org,2019-01-26,vmax_10s,29.2,4,100.0,100.0,0.78
-FRED_2019-01-26,GPSBabel - http://www.gpsbabel.org,2019-01-26,vmax_10s,28.8,5,100.0,100.0,0.79
-FRED_2019-01-26,GPSBabel - http://www.gpsbabel.org,2019-01-26,vmax_500m,27.04,1,100.0,100.0,2.32
-FRED_2019-01-26,GPSBabel - http://www.gpsbabel.org,2019-01-26,vmax_500m,26.41,2,100.0,100.0,0.85
-FRED_2019-01-26,GPSBabel - http://www.gpsbabel.org,2019-01-26,vmax_500m,25.75,3,100.0,100.0,1.18
-FRED_2019-01-26,GPSBabel - http://www.gpsbabel.org,2019-01-26,vmax_500m,25.69,4,100.0,100.0,3.24
-FRED_2019-01-26,GPSBabel - http://www.gpsbabel.org,2019-01-26,vmax_500m,25.37,5,100.0,100.0,1.19
-FRED_2019-01-26,GPSBabel - http://www.gpsbabel.org,2019-01-26,vmax_1000m,23.27,1,100.0,100.0,4.57
-FRED_2019-01-26,GPSBabel - http://www.gpsbabel.org,2019-01-26,vmax_1000m,23.25,2,100.0,100.0,3.76
-FRED_2019-01-26,GPSBabel - http://www.gpsbabel.org,2019-01-26,vmax_1000m,22.9,3,100.0,100.0,3.86
-FRED_2019-01-26,GPSBabel - http://www.gpsbabel.org,2019-01-26,vmax_1000m,22.85,4,100.0,100.0,4.75
-FRED_2019-01-26,GPSBabel - http://www.gpsbabel.org,2019-01-26,vmax_1000m,22.73,5,100.0,100.0,2.93
-FRED_2019-01-26,GPSBabel - http://www.gpsbabel.org,2019-01-26,planning_ratio>10,93.0,1,,,
-FRED_2019-01-26,GPSBabel - http://www.gpsbabel.org,2019-01-26,Vmoy>10,21.3,1,,,
-FRED_2019-01-26,GPSBabel - http://www.gpsbabel.org,2019-01-26,vmax_jibe,12.6,1,100.0,100.0,4.83
-FRED_2019-01-26,GPSBabel - http://www.gpsbabel.org,2019-01-26,vmax_jibe,12.2,2,100.0,100.0,5.12
-FRED_2019-01-26,GPSBabel - http://www.gpsbabel.org,2019-01-26,vmax_jibe,11.9,3,100.0,100.0,3.82
-FRED_2019-01-26,GPSBabel - http://www.gpsbabel.org,2019-01-26,vmax_jibe,10.8,4,100.0,100.0,4.48
-FRED_2019-01-26,GPSBabel - http://www.gpsbabel.org,2019-01-26,vmax_jibe,10.7,5,100.0,100.0,4.48
-FRED_2019-01-26,GPSBabel - http://www.gpsbabel.org,2019-01-26,planning_distance>10,59.3,1,,,
-FRED_2019-01-13,GpsarPro 5.11,2019-01-13,vmax_1s,32.2,1,100.0,100.0,
-FRED_2019-01-13,GpsarPro 5.11,2019-01-13,vmax_1s,32.0,2,100.0,100.0,
-FRED_2019-01-13,GpsarPro 5.11,2019-01-13,vmax_1s,31.7,3,100.0,100.0,
-FRED_2019-01-13,GpsarPro 5.11,2019-01-13,vmax_1s,31.4,4,100.0,100.0,
-FRED_2019-01-13,GpsarPro 5.11,2019-01-13,vmax_1s,31.0,5,100.0,100.0,
-FRED_2019-01-13,GpsarPro 5.11,2019-01-13,vmax_10s,30.9,1,100.0,100.0,0.74
-FRED_2019-01-13,GpsarPro 5.11,2019-01-13,vmax_10s,30.7,2,100.0,100.0,0.51
-FRED_2019-01-13,GpsarPro 5.11,2019-01-13,vmax_10s,30.7,3,100.0,100.0,0.55
-FRED_2019-01-13,GpsarPro 5.11,2019-01-13,vmax_10s,30.4,4,100.0,100.0,0.29
-FRED_2019-01-13,GpsarPro 5.11,2019-01-13,vmax_10s,29.9,5,100.0,100.0,1.39
-FRED_2019-01-13,GpsarPro 5.11,2019-01-13,vmax_500m,29.87,1,100.0,100.0,0.89
-FRED_2019-01-13,GpsarPro 5.11,2019-01-13,vmax_500m,29.74,2,100.0,100.0,0.79
-FRED_2019-01-13,GpsarPro 5.11,2019-01-13,vmax_500m,29.61,3,100.0,100.0,1.07
-FRED_2019-01-13,GpsarPro 5.11,2019-01-13,vmax_500m,28.18,4,100.0,100.0,0.99
-FRED_2019-01-13,GpsarPro 5.11,2019-01-13,vmax_500m,27.35,5,100.0,100.0,1.13
-FRED_2019-01-13,GpsarPro 5.11,2019-01-13,vmax_1000m,28.51,1,100.0,100.0,1.56
-FRED_2019-01-13,GpsarPro 5.11,2019-01-13,vmax_1000m,27.09,2,100.0,100.0,2.84
-FRED_2019-01-13,GpsarPro 5.11,2019-01-13,vmax_1000m,26.89,3,100.0,100.0,1.95
-FRED_2019-01-13,GpsarPro 5.11,2019-01-13,vmax_1000m,26.85,4,100.0,100.0,1.08
-FRED_2019-01-13,GpsarPro 5.11,2019-01-13,vmax_1000m,26.13,5,100.0,100.0,1.16
-FRED_2019-01-13,GpsarPro 5.11,2019-01-13,planning_ratio>10,94.0,1,,,
-FRED_2019-01-13,GpsarPro 5.11,2019-01-13,Vmoy>10,21.8,1,,,
-FRED_2019-01-13,GpsarPro 5.11,2019-01-13,vmax_jibe,11.1,1,100.0,100.0,8.01
-FRED_2019-01-13,GpsarPro 5.11,2019-01-13,vmax_jibe,10.3,2,100.0,100.0,5.3
-FRED_2019-01-13,GpsarPro 5.11,2019-01-13,vmax_jibe,10.1,3,100.0,100.0,4.32
-FRED_2019-01-13,GpsarPro 5.11,2019-01-13,vmax_jibe,9.8,4,100.0,100.0,7.03
-FRED_2019-01-13,GpsarPro 5.11,2019-01-13,vmax_jibe,9.7,5,100.0,100.0,4.82
-FRED_2019-01-13,GpsarPro 5.11,2019-01-13,planning_distance>10,59.3,1,,,
-FRED_2019-03-03,GpsarPro 5.11,2019-03-03,vmax_1s,30.9,1,100.0,100.0,
-FRED_2019-03-03,GpsarPro 5.11,2019-03-03,vmax_1s,30.5,2,100.0,100.0,
-FRED_2019-03-03,GpsarPro 5.11,2019-03-03,vmax_1s,29.5,3,100.0,100.0,
-FRED_2019-03-03,GpsarPro 5.11,2019-03-03,vmax_1s,29.2,4,100.0,100.0,
-FRED_2019-03-03,GpsarPro 5.11,2019-03-03,vmax_1s,29.1,5,100.0,100.0,
-FRED_2019-03-03,GpsarPro 5.11,2019-03-03,vmax_10s,30.2,1,100.0,100.0,0.67
-FRED_2019-03-03,GpsarPro 5.11,2019-03-03,vmax_10s,29.8,2,100.0,100.0,0.46
-FRED_2019-03-03,GpsarPro 5.11,2019-03-03,vmax_10s,28.5,3,100.0,100.0,0.29
-FRED_2019-03-03,GpsarPro 5.11,2019-03-03,vmax_10s,28.5,4,100.0,100.0,0.65
-FRED_2019-03-03,GpsarPro 5.11,2019-03-03,vmax_10s,27.2,5,100.0,100.0,0.29
-FRED_2019-03-03,GpsarPro 5.11,2019-03-03,vmax_500m,26.55,1,100.0,100.0,2.33
-FRED_2019-03-03,GpsarPro 5.11,2019-03-03,vmax_500m,26.01,2,100.0,100.0,4.61
-FRED_2019-03-03,GpsarPro 5.11,2019-03-03,vmax_500m,25.88,3,100.0,100.0,2.98
-FRED_2019-03-03,GpsarPro 5.11,2019-03-03,vmax_500m,25.39,4,100.0,100.0,2.34
-FRED_2019-03-03,GpsarPro 5.11,2019-03-03,vmax_500m,23.97,5,100.0,100.0,1.54
-FRED_2019-03-03,GpsarPro 5.11,2019-03-03,vmax_1000m,26.17,1,100.0,100.0,2.73
-FRED_2019-03-03,GpsarPro 5.11,2019-03-03,vmax_1000m,24.75,2,100.0,100.0,1.94
-FRED_2019-03-03,GpsarPro 5.11,2019-03-03,vmax_1000m,22.25,3,100.0,100.0,1.38
-FRED_2019-03-03,GpsarPro 5.11,2019-03-03,vmax_1000m,22.02,4,100.0,100.0,3.15
-FRED_2019-03-03,GpsarPro 5.11,2019-03-03,vmax_1000m,20.91,5,100.0,100.0,3.87
-FRED_2019-03-03,GpsarPro 5.11,2019-03-03,planning_ratio>10,94.0,1,,,
-FRED_2019-03-03,GpsarPro 5.11,2019-03-03,Vmoy>10,20.2,1,,,
-FRED_2019-03-03,GpsarPro 5.11,2019-03-03,vmax_jibe,16.0,1,100.0,100.0,4.57
-FRED_2019-03-03,GpsarPro 5.11,2019-03-03,vmax_jibe,14.3,2,100.0,100.0,4.06
-FRED_2019-03-03,GpsarPro 5.11,2019-03-03,vmax_jibe,13.8,3,100.0,100.0,5.48
-FRED_2019-03-03,GpsarPro 5.11,2019-03-03,vmax_jibe,12.6,4,100.0,100.0,6.13
-FRED_2019-03-03,GpsarPro 5.11,2019-03-03,vmax_jibe,12.5,5,100.0,100.0,4.68
-FRED_2019-03-03,GpsarPro 5.11,2019-03-03,planning_distance>10,18.4,1,,,
-FRED_2019-02-28,GpsarPro 5.11,2019-02-28,vmax_1s,34.5,1,100.0,100.0,
-FRED_2019-02-28,GpsarPro 5.11,2019-02-28,vmax_1s,34.1,2,100.0,100.0,
-FRED_2019-02-28,GpsarPro 5.11,2019-02-28,vmax_1s,33.4,3,100.0,100.0,
-FRED_2019-02-28,GpsarPro 5.11,2019-02-28,vmax_1s,33.1,4,100.0,100.0,
-FRED_2019-02-28,GpsarPro 5.11,2019-02-28,vmax_1s,33.0,5,100.0,100.0,
-FRED_2019-02-28,GpsarPro 5.11,2019-02-28,vmax_10s,33.4,1,100.0,100.0,1.01
-FRED_2019-02-28,GpsarPro 5.11,2019-02-28,vmax_10s,33.3,2,100.0,100.0,0.63
-FRED_2019-02-28,GpsarPro 5.11,2019-02-28,vmax_10s,32.7,3,100.0,100.0,0.49
-FRED_2019-02-28,GpsarPro 5.11,2019-02-28,vmax_10s,32.1,4,100.0,100.0,1.02
-FRED_2019-02-28,GpsarPro 5.11,2019-02-28,vmax_10s,31.8,5,100.0,100.0,0.74
-FRED_2019-02-28,GpsarPro 5.11,2019-02-28,vmax_500m,31.07,1,100.0,100.0,1.99
-FRED_2019-02-28,GpsarPro 5.11,2019-02-28,vmax_500m,31.0,2,100.0,100.0,1.4
-FRED_2019-02-28,GpsarPro 5.11,2019-02-28,vmax_500m,30.6,3,100.0,100.0,2.12
-FRED_2019-02-28,GpsarPro 5.11,2019-02-28,vmax_500m,30.3,4,100.0,100.0,0.81
-FRED_2019-02-28,GpsarPro 5.11,2019-02-28,vmax_500m,30.01,5,100.0,100.0,2.43
-FRED_2019-02-28,GpsarPro 5.11,2019-02-28,vmax_1000m,28.46,1,100.0,100.0,2.15
-FRED_2019-02-28,GpsarPro 5.11,2019-02-28,vmax_1000m,27.96,2,100.0,100.0,1.74
-FRED_2019-02-28,GpsarPro 5.11,2019-02-28,vmax_1000m,27.84,3,100.0,100.0,3.26
-FRED_2019-02-28,GpsarPro 5.11,2019-02-28,vmax_1000m,27.77,4,100.0,100.0,2.17
-FRED_2019-02-28,GpsarPro 5.11,2019-02-28,vmax_1000m,27.7,5,100.0,100.0,3.23
-FRED_2019-02-28,GpsarPro 5.11,2019-02-28,planning_ratio>10,97.0,1,,,
-FRED_2019-02-28,GpsarPro 5.11,2019-02-28,Vmoy>10,23.5,1,,,
-FRED_2019-02-28,GpsarPro 5.11,2019-02-28,vmax_jibe,13.1,1,100.0,100.0,3.53
-FRED_2019-02-28,GpsarPro 5.11,2019-02-28,vmax_jibe,12.2,2,100.0,100.0,5.6
-FRED_2019-02-28,GpsarPro 5.11,2019-02-28,vmax_jibe,11.9,3,100.0,100.0,4.75
-FRED_2019-02-28,GpsarPro 5.11,2019-02-28,vmax_jibe,11.8,4,100.0,100.0,4.97
-FRED_2019-02-28,GpsarPro 5.11,2019-02-28,vmax_jibe,11.7,5,100.0,100.0,4.99
-FRED_2019-02-28,GpsarPro 5.11,2019-02-28,planning_distance>10,77.3,1,,,
-Julbo_2019-03-02,Movescount - http://www.movescount.com,2019-03-02,vmax_1s,41.8,1,0.0,100.0,
-Julbo_2019-03-02,Movescount - http://www.movescount.com,2019-03-02,vmax_1s,33.6,2,0.0,100.0,
-Julbo_2019-03-02,Movescount - http://www.movescount.com,2019-03-02,vmax_1s,32.4,3,0.0,100.0,
-Julbo_2019-03-02,Movescount - http://www.movescount.com,2019-03-02,vmax_1s,31.8,4,0.0,100.0,
-Julbo_2019-03-02,Movescount - http://www.movescount.com,2019-03-02,vmax_1s,31.6,5,0.0,100.0,
-Julbo_2019-03-02,Movescount - http://www.movescount.com,2019-03-02,vmax_10s,33.6,1,0.0,100.0,7.6
-Julbo_2019-03-02,Movescount - http://www.movescount.com,2019-03-02,vmax_10s,32.0,2,0.0,100.0,0.27
-Julbo_2019-03-02,Movescount - http://www.movescount.com,2019-03-02,vmax_10s,31.3,3,0.0,100.0,0.46
-Julbo_2019-03-02,Movescount - http://www.movescount.com,2019-03-02,vmax_10s,30.8,4,0.0,100.0,0.46
-Julbo_2019-03-02,Movescount - http://www.movescount.com,2019-03-02,vmax_10s,30.6,5,0.0,100.0,0.46
-Julbo_2019-03-02,Movescount - http://www.movescount.com,2019-03-02,vmax_500m,30.46,1,0.0,100.0,1.34
-Julbo_2019-03-02,Movescount - http://www.movescount.com,2019-03-02,vmax_500m,30.42,2,0.0,100.0,0.82
-Julbo_2019-03-02,Movescount - http://www.movescount.com,2019-03-02,vmax_500m,29.3,3,0.0,100.0,0.56
-Julbo_2019-03-02,Movescount - http://www.movescount.com,2019-03-02,vmax_500m,28.88,4,0.0,100.0,1.27
-Julbo_2019-03-02,Movescount - http://www.movescount.com,2019-03-02,vmax_500m,28.82,5,0.0,100.0,1.63
-Julbo_2019-03-02,Movescount - http://www.movescount.com,2019-03-02,vmax_1000m,28.53,1,0.0,100.0,2.11
-Julbo_2019-03-02,Movescount - http://www.movescount.com,2019-03-02,vmax_1000m,28.23,2,0.0,100.0,1.23
-Julbo_2019-03-02,Movescount - http://www.movescount.com,2019-03-02,vmax_1000m,28.05,3,0.0,100.0,0.92
-Julbo_2019-03-02,Movescount - http://www.movescount.com,2019-03-02,vmax_1000m,27.78,4,0.0,100.0,2.82
-Julbo_2019-03-02,Movescount - http://www.movescount.com,2019-03-02,vmax_1000m,27.58,5,0.0,100.0,2.04
-Julbo_2019-03-02,Movescount - http://www.movescount.com,2019-03-02,planning_ratio>10,90.0,1,,,
-Julbo_2019-03-02,Movescount - http://www.movescount.com,2019-03-02,Vmoy>10,23.4,1,,,
-Julbo_2019-03-02,Movescount - http://www.movescount.com,2019-03-02,vmax_jibe,15.9,1,0.0,65.0,3.59
-Julbo_2019-03-02,Movescount - http://www.movescount.com,2019-03-02,vmax_jibe,14.5,2,0.0,60.0,3.7
-Julbo_2019-03-02,Movescount - http://www.movescount.com,2019-03-02,vmax_jibe,0.0,3,0.0,60.0,3.7
-Julbo_2019-03-02,Movescount - http://www.movescount.com,2019-03-02,vmax_jibe,0.0,4,0.0,60.0,3.7
-Julbo_2019-03-02,Movescount - http://www.movescount.com,2019-03-02,vmax_jibe,0.0,5,0.0,60.0,3.7
-Julbo_2019-03-02,Movescount - http://www.movescount.com,2019-03-02,planning_distance>10,49.6,1,,,
+FRED_2019-09-06,GpsarPro 5.11,2019-09-06,planning_distance>12,59.8,1,,,
+2019-04-02-1738_2019-04-02,onandon.be Motion,2019-04-02,vmax_1s,25.1,1,100.0,100.0,
+2019-04-02-1738_2019-04-02,onandon.be Motion,2019-04-02,vmax_1s,24.8,2,100.0,100.0,
+2019-04-02-1738_2019-04-02,onandon.be Motion,2019-04-02,vmax_1s,24.6,3,100.0,100.0,
+2019-04-02-1738_2019-04-02,onandon.be Motion,2019-04-02,vmax_1s,24.4,4,100.0,100.0,
+2019-04-02-1738_2019-04-02,onandon.be Motion,2019-04-02,vmax_1s,24.2,5,100.0,100.0,
+2019-04-02-1738_2019-04-02,onandon.be Motion,2019-04-02,vmax_10s,23.9,1,100.0,100.0,0.61
+2019-04-02-1738_2019-04-02,onandon.be Motion,2019-04-02,vmax_10s,23.7,2,100.0,100.0,0.73
+2019-04-02-1738_2019-04-02,onandon.be Motion,2019-04-02,vmax_10s,23.6,3,100.0,100.0,0.56
+2019-04-02-1738_2019-04-02,onandon.be Motion,2019-04-02,vmax_10s,23.5,4,100.0,100.0,0.7
+2019-04-02-1738_2019-04-02,onandon.be Motion,2019-04-02,vmax_10s,23.2,5,100.0,100.0,0.62
+2019-04-02-1738_2019-04-02,onandon.be Motion,2019-04-02,vmax_500m,22.11,1,100.0,100.0,0.81
+2019-04-02-1738_2019-04-02,onandon.be Motion,2019-04-02,vmax_500m,22.01,2,100.0,100.0,0.58
+2019-04-02-1738_2019-04-02,onandon.be Motion,2019-04-02,vmax_500m,21.33,3,100.0,100.0,1.52
+2019-04-02-1738_2019-04-02,onandon.be Motion,2019-04-02,vmax_500m,21.04,4,100.0,100.0,1.05
+2019-04-02-1738_2019-04-02,onandon.be Motion,2019-04-02,vmax_500m,20.62,5,100.0,100.0,1.34
+2019-04-02-1738_2019-04-02,onandon.be Motion,2019-04-02,vmax_1000m,21.33,1,100.0,100.0,1.34
+2019-04-02-1738_2019-04-02,onandon.be Motion,2019-04-02,vmax_1000m,21.15,2,100.0,100.0,1.16
+2019-04-02-1738_2019-04-02,onandon.be Motion,2019-04-02,vmax_1000m,20.17,3,100.0,100.0,1.51
+2019-04-02-1738_2019-04-02,onandon.be Motion,2019-04-02,vmax_1000m,19.81,4,100.0,100.0,2.67
+2019-04-02-1738_2019-04-02,onandon.be Motion,2019-04-02,vmax_1000m,19.78,5,100.0,100.0,2.87
+2019-04-02-1738_2019-04-02,onandon.be Motion,2019-04-02,planning_ratio>12,90.0,1,,,
+2019-04-02-1738_2019-04-02,onandon.be Motion,2019-04-02,Vmoy>12,17.9,1,,,
+2019-04-02-1738_2019-04-02,onandon.be Motion,2019-04-02,vmax_jibe,13.6,1,100.0,100.0,2.97
+2019-04-02-1738_2019-04-02,onandon.be Motion,2019-04-02,vmax_jibe,13.0,2,100.0,100.0,1.66
+2019-04-02-1738_2019-04-02,onandon.be Motion,2019-04-02,vmax_jibe,12.7,3,100.0,100.0,2.17
+2019-04-02-1738_2019-04-02,onandon.be Motion,2019-04-02,vmax_jibe,12.7,4,100.0,100.0,2.66
+2019-04-02-1738_2019-04-02,onandon.be Motion,2019-04-02,vmax_jibe,12.6,5,91.0,91.0,4.32
+2019-04-02-1738_2019-04-02,onandon.be Motion,2019-04-02,planning_distance>12,32.9,1,,,

@@ -331,13 +331,17 @@ class TraceAnalysis:
         err = 0
         for column in columns:
             column_filtering = f"{column}_filtering"
+            column_acceleration = f"{column}_acceleration"
             # calculate g acceleration:
-            df2["acceleration"] = df2[column].diff() / (
+            df2[column_acceleration] = df2[column].diff() / (
                 TO_KNOT * 9.81 * df2.elapsed_time.diff()
             )
-            # apply our rolling acceleration filter:
+            acceleration_max = df2[column_acceleration].max()
+            if acceleration_max <= self.max_acceleration: # save execution time
+                break
+            # now filter and apply our rolling acceleration filter:
             df2[column_filtering] = (
-                df2.acceleration.rolling(FILTER_WINDOW)
+                df2[column_acceleration].rolling(FILTER_WINDOW)
                 .apply(rolling_acceleration_filter)
                 .shift(-FILTER_WINDOW + 1)
             )
@@ -353,6 +357,11 @@ class TraceAnalysis:
                     df2.loc[:, column].ffill(inplace=True)
                 else:
                     df2.loc[:, column].interpolate(inplace=True)
+            logger.info(
+                f"***********************************************\n"
+                f"applied rolling acceleration filter on {column}\n"
+                f"and filtered {len(indices)} events with an acceleration max = {round(acceleration_max,3)}\n"
+            )
         # df2.to_csv(f'csv_results/df_debug_{iter}.csv')
         return err
 
@@ -395,7 +404,7 @@ class TraceAnalysis:
         # td = tcd.diff()
         # course (orientation °) cumulated values => take min of the bin
         tc = self.df["course"].resample(self.time_sampling).min().interpolate()
-        #tc[tsd < 7] = np.nan
+        # tc[tsd < 7] = np.nan
         df = pd.DataFrame(
             data={
                 "lon": tlon,
@@ -446,8 +455,8 @@ class TraceAnalysis:
         self.tc_diff = self.diff_clean_ts(self.df.course, 300)
         self.tc_diff[self.tsd < 5] = np.nan
         self.tc = self.tc_diff.cumsum()
-        self.raw_df['filtered_course'] = self.tc
-        self.raw_df['filtered_course_diff'] = self.tc_diff
+        self.raw_df["filtered_course"] = self.tc
+        self.raw_df["filtered_course_diff"] = self.tc_diff
         self.raw_df["filtered_speed"] = self.tsd
         if self.tsd.max() > self.max_speed:
             raise TraceAnalysisException(
@@ -578,8 +587,8 @@ class TraceAnalysis:
         MIN_JIBE_SPEED = 9
         speed_window = int(np.ceil(30 / self.sampling))
         course_window = int(np.ceil(15 / self.sampling))
-        partial_course_window_1 = int(np.ceil(course_window / 3)) # rolling sum
-        partial_course_window_2 = int(np.ceil(course_window*2 / 3)) # rolling max
+        partial_course_window_1 = int(np.ceil(course_window / 3))  # rolling sum
+        partial_course_window_2 = int(np.ceil(course_window * 2 / 3))  # rolling max
 
         tc = self.tc_diff.copy()
         # remove low speed periods (too many noise in course orientation):
@@ -588,18 +597,27 @@ class TraceAnalysis:
         tc.iloc[-30:-1] = np.nan
         # find consition 1 on 5 samples rolling window:
         cj1 = (
-            abs(tc.rolling(partial_course_window_1, center=True).sum()).rolling(partial_course_window_2).max() > HALF_JIBE_COURSE
+            abs(tc.rolling(partial_course_window_1, center=True).sum())
+            .rolling(partial_course_window_2)
+            .max()
+            > HALF_JIBE_COURSE
         )
         # find condition2 on 15 samples rolling window:
         cj2 = abs(tc.rolling(course_window, center=True).sum()) > FULL_JIBE_COURSE
         # # ====== debug starts =====================
-        self.raw_df['cj1'] = abs(tc.rolling(partial_course_window_1, center=True).sum()).rolling(partial_course_window_2).max()
-        self.raw_df['cj2'] = abs(tc.rolling(course_window, center=True).sum())
-        self.raw_df['jibe_window'] = self.tsd.rolling(speed_window, center=True).min()[cj1 & cj2]
+        self.raw_df["cj1"] = (
+            abs(tc.rolling(partial_course_window_1, center=True).sum())
+            .rolling(partial_course_window_2)
+            .max()
+        )
+        self.raw_df["cj2"] = abs(tc.rolling(course_window, center=True).sum())
+        self.raw_df["jibe_window"] = self.tsd.rolling(speed_window, center=True).min()[
+            cj1 & cj2
+        ]
         # # ====== debug ends =====================
 
         # generate a list of all jibes min speed on a 20 samples window for conditions 1 & 2:
-        self.jibe_range = cj1 & cj2 # plot for debug
+        self.jibe_range = cj1 & cj2  # plot for debug
         jibe_speed = self.tsd.rolling(speed_window, center=True).min()[cj1 & cj2]
         results = []
         if len(jibe_speed) == 0:
@@ -824,7 +842,7 @@ class TraceAnalysis:
             range_begin = range_end - datetime.timedelta(seconds=s - 1)
             result = round(ts.max(), 1)
             # remove this speed range to find others:
-            tsd[range_begin-exclusion_time:range_end+exclusion_time] = 0
+            tsd[range_begin - exclusion_time : range_end + exclusion_time] = 0
             # generate debug report:
             confidence_report = self.append_result_debug(
                 item_range=self.tsd[range_begin:range_end].index,
@@ -1054,7 +1072,7 @@ class TraceAnalysis:
 
     def log_computation_time(self):
         fn_execution_time = {
-            fn: f"executed in {int(100 * time / self.fn_execution_time['total_time'])}% of total time"
+            fn: f"executed in {round(100 * time / self.fn_execution_time['total_time'],1)}% of total time"
             for fn, time in self.fn_execution_time.items()
             if fn != "total_time"
         }
@@ -1081,10 +1099,10 @@ class TraceAnalysis:
         try:
             tjr = self.tc_diff[self.jibe_range]
             data = {
-                "diff_course_speed>10": self.tc_diff,#[self.tsd > 7],
-                "cum_course_speed>10": self.tc,#[self.tsd > 7],
+                "diff_course_speed>10": self.tc_diff,  # [self.tsd > 7],
+                "cum_course_speed>10": self.tc,  # [self.tsd > 7],
                 "distance": self.td,
-                "jibe_range": tjr
+                "jibe_range": tjr,
             }
             dfc = pd.DataFrame(index=self.tsd.index, data=data)
             dfc.plot(ax=ax2)
