@@ -1058,6 +1058,8 @@ class TraceAnalysis:
 
     def set_csv_paths(self):
         result_directory = os.path.join(os.path.dirname(__file__), f"../../csv_results")
+        if not Path(result_directory).is_dir():
+            os.makedirs(result_directory)
         # debug file with the full DataFrame (erased at each run):
         debug_filename = "debug.csv"
         # debug file reduced to the main results timeframe (new for different authors):
