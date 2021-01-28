@@ -6,6 +6,7 @@ import os
 import yaml
 import logging
 import pandas as pd
+import numpy as np
 from time import time
 
 logger = logging.getLogger()
@@ -15,12 +16,15 @@ def log_calls(log_args=False, log_result=False):
     def outer_wrap(fn):
         """
         class method decorator: intensive & pretty logging interest
-        log the method name and args (excluding self)
-
+        log
+            method name
+            execution time
+            optional: args (excluding self) and results
         args
             fn: the method to be decorated
         return:
             the decorated method
+            self.fn_execution_time dict
 
         """
 
@@ -70,8 +74,9 @@ def log_calls(log_args=False, log_result=False):
                     f"======================================================"
                 )
             fn_name = func_arg_dict.get('description', fn.__name__)
-            if not hasattr(self, 'fn_execution_time'):
+            if not hasattr(self, 'fn_execution_time'): # init
                 self.fn_execution_time = {'total_time': 0}
+            # don't log time of call_gps_func_from_config because it calls every other functions
             if fn_name != 'call_gps_func_from_config':
                 self.fn_execution_time[fn_name] = execution_time
                 self.fn_execution_time['total_time'] += execution_time
@@ -95,6 +100,23 @@ class TraceAnalysisException(Exception):
             f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
         )
 
+
+def reduce_value_bloc(ts, window=3):
+    """
+    takes pd Series with islands of values between np.nan
+    and return a pd Serie with islands of values reduced to the min of the island
+    :param df:
+    :return: Pandas Time Serie with islands of values between np.nan reduced to the min of the bloc
+    """
+    i = 1
+    ts0 = ts.copy()
+    while i < 5:
+        # iterate backward:
+        ts1 = ts0.rolling(window).min().shift(-window+1).fillna(ts0)
+        #iterate forward:
+        ts0 = ts1.rolling(window).min().fillna(ts1)
+        i += 1
+    return ts0
 
 def load_config(config_filename=None):
     """Load config files

@@ -36,7 +36,7 @@ from bs4 import BeautifulSoup, element
 import matplotlib.pyplot as plt
 
 
-from utils import log_calls, TraceAnalysisException, load_config, load_results
+from utils import log_calls, TraceAnalysisException, load_config, load_results, reduce_value_bloc
 
 logger = getLogger()
 logger.setLevel(INFO)
@@ -63,7 +63,7 @@ DEFAULT_REPORT = {"n": 1, "doppler_ratio": None, "sampling_ratio": None, "std": 
 
 class TraceAnalysis:
     def __init__(self, gpx_path, config_file="config.yaml"):
-        self.version = "tag v2 - 17th January 2021"
+        self.version = "28th January 2021"
         self.config = load_config(config_file)
         self.process_config()
         self.gpx_path = gpx_path
@@ -582,43 +582,70 @@ class TraceAnalysis:
         :param n: int number of records
         :return: list of n * vmin jibe speeds
         """
-        HALF_JIBE_COURSE = 70
-        FULL_JIBE_COURSE = 150
+        PARTIAL_COURSE = 75
+        FULL_COURSE = 135
         MIN_JIBE_SPEED = 9
-        speed_window = int(np.ceil(30 / self.sampling))
-        course_window = int(np.ceil(15 / self.sampling))
-        partial_course_window_1 = int(np.ceil(course_window / 3))  # rolling sum
-        partial_course_window_2 = int(np.ceil(course_window * 2 / 3))  # rolling max
+        speed_window = int(np.ceil(19 / self.sampling)) # 24s
+        full_course_window = int(np.ceil(18 / self.sampling)) # 18s
+        partial_course_window = int(np.ceil(full_course_window / 3))  # 6s
 
         tc = self.tc_diff.copy()
-        # remove low speed periods (too many noise in course orientation):
-        tc[self.tsd.rolling(speed_window, center=True).min() < MIN_JIBE_SPEED] = np.nan
+
+        #=====================================================================
+        # CONDITION 0 = min speed > MIN_JIBE_SPEED in the speed_window around the jibe (center)
+        # i.e. speed > 9knots in a 20s window
+        # remove low speed periods (too many noise in course orientation) on speed_window:
+        tc[self.tsd.rolling(partial_course_window, center=True).min() < MIN_JIBE_SPEED] = np.nan
         tc.iloc[0:30] = np.nan
         tc.iloc[-30:-1] = np.nan
-        # find consition 1 on 5 samples rolling window:
+        # =====================================================================
+        # CONDITION 1 = cumulated course > HALF_JIBE_COURSE in the partial_course_window1 around jibe (center)
+        # i.e. cumulated course > 70° in a 5s window
+        #   => rolling(partial_course_window, center=True).sum()
+        # + check this condition in the last partial_course_window2 samples
+        #   => rolling(partial_course_window_2).max()
+        # find condition 1 on 5 samples rolling window:
         cj1 = (
-            abs(tc.rolling(partial_course_window_1, center=True).sum())
-            .rolling(partial_course_window_2)
+            abs(tc.rolling(partial_course_window, center=True).sum())
+            .rolling(partial_course_window)
             .max()
-            > HALF_JIBE_COURSE
+            > PARTIAL_COURSE
         )
+        # =====================================================================
+        # CONDITION 2 = cumulated course > FULL_COURSE in the full_course_window around jibe (center)
+        # i.e. cumulated course > 150° in 15s window
+        #   => rolling(full_course_window, center=True).sum()
         # find condition2 on 15 samples rolling window:
-        cj2 = abs(tc.rolling(course_window, center=True).sum()) > FULL_JIBE_COURSE
+        cj2 = (
+            abs(tc.rolling(full_course_window, center=True).sum())
+            .rolling(partial_course_window)
+            .max()
+            > FULL_COURSE
+        )
+        # =====================================================================
+        # APPLY CONDITION 1  & 2
+        self.jibe_range = cj1 & cj2  # plot for debug
+
+        jibe_speed = self.tsd.rolling(speed_window, center=True).min()
+        jibe_speed[~(self.jibe_range)] = np.nan
+        jibe_speed = reduce_value_bloc(jibe_speed)
         # # ====== debug starts =====================
         self.raw_df["cj1"] = (
-            abs(tc.rolling(partial_course_window_1, center=True).sum())
-            .rolling(partial_course_window_2)
+            abs(tc.rolling(partial_course_window, center=True).sum())
+            .rolling(partial_course_window)
             .max()
         )
-        self.raw_df["cj2"] = abs(tc.rolling(course_window, center=True).sum())
-        self.raw_df["jibe_window"] = self.tsd.rolling(speed_window, center=True).min()[
-            cj1 & cj2
-        ]
+        self.raw_df["cj2"] = (
+            abs(tc.rolling(full_course_window, center=True).sum())
+                .rolling(partial_course_window)
+                .max()
+        )
+        self.raw_df["full_course_window"] = jibe_speed.copy()
         # # ====== debug ends =====================
 
         # generate a list of all jibes min speed on a 20 samples window for conditions 1 & 2:
-        self.jibe_range = cj1 & cj2  # plot for debug
-        jibe_speed = self.tsd.rolling(speed_window, center=True).min()[cj1 & cj2]
+
+        jibe_speed = jibe_speed[cj1 & cj2]
         results = []
         if len(jibe_speed) == 0:
             logger.warning(f"could not find any valid jibe")
@@ -637,7 +664,7 @@ class TraceAnalysis:
             range_begin = jibe_speed.idxmax() - datetime.timedelta(seconds=11)
             range_end = jibe_speed.idxmax() + datetime.timedelta(seconds=11)
             if range_end is not np.nan:
-                result = round(jibe_speed.dropna().max(), 1)
+                result = round(jibe_speed.dropna().max(), 2)
 
                 # remove this speed range to find others:
                 jibe_speed[range_begin:range_end] = 0
@@ -840,7 +867,7 @@ class TraceAnalysis:
             ts = tsd.rolling(xs).mean()
             range_end = ts.idxmax()
             range_begin = range_end - datetime.timedelta(seconds=s - 1)
-            result = round(ts.max(), 1)
+            result = round(ts.max(), 2)
             # remove this speed range to find others:
             tsd[range_begin - exclusion_time : range_end + exclusion_time] = 0
             # generate debug report:
@@ -1078,7 +1105,7 @@ class TraceAnalysis:
         }
         logger.info(
             f"\n===============================================\n"
-            f"total computation time is {self.fn_execution_time['total_time']}\n"
+            f"total computation time is {round(self.fn_execution_time['total_time'],2)} s\n"
             f"with the following repartition:\n"
             f"{json.dumps(fn_execution_time, indent=2)}"
             f"===============================================\n"
