@@ -595,7 +595,7 @@ class TraceAnalysis:
         # CONDITION 0 = min speed > MIN_JIBE_SPEED in the speed_window around the jibe (center)
         # i.e. speed > 9knots in a 20s window
         # remove low speed periods (too many noise in course orientation) on speed_window:
-        tc[self.tsd.rolling(partial_course_window, center=True).min() < MIN_JIBE_SPEED] = np.nan
+        tc[self.tsd < MIN_JIBE_SPEED] = np.nan
         tc.iloc[0:30] = np.nan
         tc.iloc[-30:-1] = np.nan
         # =====================================================================
