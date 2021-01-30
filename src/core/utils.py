@@ -101,7 +101,7 @@ class TraceAnalysisException(Exception):
         )
 
 
-def reduce_value_bloc(ts, window=3):
+def reduce_value_bloc(ts, window=3, roll_func='min'):
     """
     takes pd Series with islands of values between np.nan
     and return a pd Serie with islands of values reduced to the min of the island
@@ -110,11 +110,14 @@ def reduce_value_bloc(ts, window=3):
     """
     i = 1
     ts0 = ts.copy()
-    while i < 5:
+    if roll_func == 'min':
+        ts2 = ts0.rolling(window).max().fillna(ts0)
+        ts0 = ts2
+    while i < 10:
         # iterate backward:
-        ts1 = ts0.rolling(window).min().shift(-window+1).fillna(ts0)
+        ts1 = getattr(ts0.rolling(window), roll_func)().shift(-window+1).fillna(ts0)
         #iterate forward:
-        ts0 = ts1.rolling(window).min().fillna(ts1)
+        ts0 = getattr(ts1.rolling(window), roll_func)().fillna(ts1)
         i += 1
     return ts0
 
