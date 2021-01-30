@@ -591,10 +591,11 @@ class TraceAnalysis:
         """
         PARTIAL_COURSE = 75
         FULL_COURSE = 135
-        MIN_JIBE_SPEED = 9
+        MIN_JIBE_SPEED = 10
         # speed_window = int(np.ceil(18 / self.sampling))
-        full_course_window = int(np.ceil(16 / self.sampling))  # 18s
-        partial_course_window = int(np.ceil(full_course_window / 3))  # 6s
+        full_course_window = int(np.ceil(16 / self.sampling))  # 16s
+        speed_exclusion = int(np.ceil(full_course_window*2 / 3))
+        partial_course_window = int(np.ceil(full_course_window / 3))  # 5s
         rolling_extension = int(np.ceil(full_course_window / 6))
         tc = self.tc_diff.copy()
         ts = self.tsd.copy()
@@ -604,7 +605,8 @@ class TraceAnalysis:
         # i.e. speed > 9knots in a 20s window
         # remove low speed periods (too many noise in course orientation) on speed_window:
         tc[self.tsd < MIN_JIBE_SPEED] = np.nan
-        ts[self.tsd < MIN_JIBE_SPEED] = np.nan
+        ts[self.tsd.rolling(speed_exclusion, center=True).min() < MIN_JIBE_SPEED] = np.nan
+        #ts[self.tsd < MIN_JIBE_SPEED] = np.nan
         tc.iloc[0:30] = np.nan
         tc.iloc[-30:-1] = np.nan
         # =====================================================================
@@ -634,28 +636,31 @@ class TraceAnalysis:
         # =====================================================================
 
         # CONDITION 3 = speed dip
-        acceleration1 = round(ts.ewm(2).mean().shift(-1), 2)
-        acceleration2 = acceleration1.diff().diff().ewm(3).mean().shift(-2)
-        acceleration3 = round(
-            ts.diff().rolling(4, center=True).mean().diff().ewm(4).mean().shift(-2), 2
-        )
+        # acceleration1 = round(ts.ewm(2).mean().shift(-1), 2)
+        # acceleration2 = acceleration1.diff().diff().ewm(3).mean().shift(-2)
+        # acceleration3 = round(
+        #     ts.diff().rolling(4, center=True).mean().diff().ewm(4).mean().shift(-2), 2
+        # )
+
+
         # =====================================================================
         # APPLY CONDITION 1  & 2
         self.jibe_range = cj1 & cj2  # save it to plot for debug
-        jibe_speed = ts.rolling(full_course_window, center=True).min()
+        jibe_speed = ts.rolling(full_course_window, center=True, min_periods=1).min()
         jibe_speed[~(self.jibe_range)] = np.nan
-        # jibe_speed = reduce_value_bloc(jibe_speed)
 
+        # identify center of jibe = highest instantaneous course
         course_max = (abs(tc.rolling(rolling_extension, center=True).sum()))
         course_max[~self.jibe_range] = np.nan
-        course_max = reduce_value_bloc(course_max, roll_func='max')
+        reduced_course_max = reduce_value_bloc(course_max, roll_func='max')
+        jibe_speed[course_max-reduced_course_max<-0.01] = np.nan
         # jibe_speed3 = ts.copy()
         # jibe_speed3[acceleration2<0.1] = np.nan
         # jibe_speed3 = jibe_speed3.rolling(full_course_window, center=True, min_periods=1).min()
         # # ====== debug starts =====================
-        self.raw_df["acceleration1"] = acceleration1
-        self.raw_df["acceleration2"] = acceleration2
-        self.raw_df["acceleration3"] = acceleration3
+        # self.raw_df["acceleration1"] = acceleration1
+        # self.raw_df["acceleration2"] = acceleration2
+        # self.raw_df["acceleration3"] = acceleration3
         self.raw_df["cj1"] = (
             abs(tc.rolling(partial_course_window, center=True).sum())
             .rolling(rolling_extension)
@@ -668,7 +673,8 @@ class TraceAnalysis:
         )
         self.raw_df["cj3"] = abs(tc.rolling(rolling_extension, center=True).sum())
         self.raw_df["speed cj1+cj2"] = jibe_speed.copy()
-        self.raw_df["course_max"] = course_max
+        self.raw_df["reduced_course_max"] = reduced_course_max
+        self.raw_df["ts"] = ts
         # self.raw_df["speed 3"] = jibe_speed3
         # # ====== debug ends =====================
 
