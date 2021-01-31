@@ -69,7 +69,7 @@ DEFAULT_REPORT = {"n": 1, "doppler_ratio": None, "sampling_ratio": None, "std": 
 
 class TraceAnalysis:
     def __init__(self, gpx_path, config_file="config.yaml"):
-        self.version = "28th January 2021"
+        self.version = "January 31, 2021"
         self.config = load_config(config_file)
         self.process_config()
         self.gpx_path = gpx_path
@@ -591,10 +591,10 @@ class TraceAnalysis:
         """
         PARTIAL_COURSE = 75
         FULL_COURSE = 135
-        MIN_JIBE_SPEED = 10
-        # speed_window = int(np.ceil(18 / self.sampling))
+        MIN_JIBE_SPEED = 11
+        speed_window = int(np.ceil(20 / self.sampling))
+        speed_shift = int(np.ceil(13 / self.sampling))
         full_course_window = int(np.ceil(16 / self.sampling))  # 16s
-        speed_exclusion = int(np.ceil(full_course_window*2 / 3))
         partial_course_window = int(np.ceil(full_course_window / 3))  # 5s
         rolling_extension = int(np.ceil(full_course_window / 6))
         tc = self.tc_diff.copy()
@@ -605,82 +605,79 @@ class TraceAnalysis:
         # i.e. speed > 9knots in a 20s window
         # remove low speed periods (too many noise in course orientation) on speed_window:
         tc[self.tsd < MIN_JIBE_SPEED] = np.nan
-        ts[self.tsd.rolling(speed_exclusion, center=True).min() < MIN_JIBE_SPEED] = np.nan
-        #ts[self.tsd < MIN_JIBE_SPEED] = np.nan
+        # consider a speed_exclusion zone around min speed:
+        ts[ts < MIN_JIBE_SPEED] = np.nan
+        #ts[self.tsd.rolling(speed_shift, center=True).min() < MIN_JIBE_SPEED] = np.nan
+        # arbitrarily remove start and end of session:
         tc.iloc[0:30] = np.nan
         tc.iloc[-30:-1] = np.nan
         # =====================================================================
         # CONDITION 1 = cumulated course > HALF_JIBE_COURSE in the partial_course_window1 around jibe (center)
+        # do not include partial rolling data (no min_periods)
         # i.e. cumulated course > 70° in a 5s window
         #   => rolling(partial_course_window, center=True).sum()
         # + check this condition in the last partial_course_window2 samples
         #   => rolling(partial_course_window_2).max()
         # find condition 1 on 5 samples rolling window:
-        cj1 = (
+        j1 = (
             abs(tc.rolling(partial_course_window, center=True).sum())
             .rolling(rolling_extension)
             .max()
-            > PARTIAL_COURSE
         )
+        cj1 = j1  > PARTIAL_COURSE
         # =====================================================================
         # CONDITION 2 = cumulated course > FULL_COURSE in the full_course_window around jibe (center)
+        # do not include partial rolling data
         # i.e. cumulated course > 150° in 15s window
         #   => rolling(full_course_window, center=True).sum()
         # find condition2 on 15 samples rolling window:
-        cj2 = (
+        j2 = (
             abs(tc.rolling(full_course_window, center=True).sum())
             .rolling(rolling_extension)
             .max()
-            > FULL_COURSE
         )
+        cj2 = j2 > FULL_COURSE
         # =====================================================================
-
-        # CONDITION 3 = speed dip
+        j3 = (abs(tc.rolling(rolling_extension, center=True).sum()))
+        # TODO ? condition on speed dip: search for inflexion points in speed
         # acceleration1 = round(ts.ewm(2).mean().shift(-1), 2)
         # acceleration2 = acceleration1.diff().diff().ewm(3).mean().shift(-2)
         # acceleration3 = round(
         #     ts.diff().rolling(4, center=True).mean().diff().ewm(4).mean().shift(-2), 2
         # )
-
-
-        # =====================================================================
-        # APPLY CONDITION 1  & 2
-        self.jibe_range = cj1 & cj2  # save it to plot for debug
-        jibe_speed = ts.rolling(full_course_window, center=True, min_periods=1).min()
-        jibe_speed[~(self.jibe_range)] = np.nan
-
-        # identify center of jibe = highest instantaneous course
-        course_max = (abs(tc.rolling(rolling_extension, center=True).sum()))
-        course_max[~self.jibe_range] = np.nan
-        reduced_course_max = reduce_value_bloc(course_max, roll_func='max')
-        jibe_speed[course_max-reduced_course_max<-0.01] = np.nan
         # jibe_speed3 = ts.copy()
         # jibe_speed3[acceleration2<0.1] = np.nan
         # jibe_speed3 = jibe_speed3.rolling(full_course_window, center=True, min_periods=1).min()
-        # # ====== debug starts =====================
-        # self.raw_df["acceleration1"] = acceleration1
-        # self.raw_df["acceleration2"] = acceleration2
-        # self.raw_df["acceleration3"] = acceleration3
-        self.raw_df["cj1"] = (
-            abs(tc.rolling(partial_course_window, center=True).sum())
-            .rolling(rolling_extension)
-            .max()
-        )
-        self.raw_df["cj2"] = (
-            abs(tc.rolling(full_course_window, center=True).sum())
-            .rolling(rolling_extension)
-            .max()
-        )
-        self.raw_df["cj3"] = abs(tc.rolling(rolling_extension, center=True).sum())
-        self.raw_df["speed cj1+cj2"] = jibe_speed.copy()
+        # =====================================================================
+        # APPLY CONDITION 1  & 2
+        self.jibe_range = cj1 & cj2 # save it to plot for debug
+        # search for min speed, including partial rolling data
+        jibe_speed12 = ts.rolling(speed_window, min_periods=1).min().shift(-speed_shift)
+        #jibe_speed12 = ts.rolling(speed_window, center=True, min_periods=1).min()
+        jibe_speed12[~(self.jibe_range)] = np.nan
+        # =====================================================================
+        # identify center of jibe = highest instantaneous course
+
+        course_max = j3.copy()
+        course_max[~self.jibe_range] = np.nan
+        reduced_course_max = reduce_value_bloc(course_max, roll_func='max')
+        jibe_speed123 = jibe_speed12.copy()
+        jibe_speed123[course_max-reduced_course_max<-0.01] = np.nan
+        jibe_speed123[course_max<PARTIAL_COURSE/2] = np.nan
+
+        # ====== debug starts =====================
+        self.raw_df["cj1"] = j1
+        self.raw_df["cj2"] = j2
+        self.raw_df["cj3"] = j3
+        self.raw_df["speed cj1+cj2+cj3"] = jibe_speed123.copy()
+        self.raw_df["speed cj1+cj2"] = jibe_speed12.copy()
         self.raw_df["reduced_course_max"] = reduced_course_max
         self.raw_df["ts"] = ts
         # self.raw_df["speed 3"] = jibe_speed3
         # # ====== debug ends =====================
 
         # generate a list of all jibes min speed on a 20 samples window for conditions 1 & 2:
-
-        jibe_speed = jibe_speed[self.jibe_range]
+        jibe_speed = jibe_speed123[self.jibe_range]
         results = []
         if len(jibe_speed) == 0:
             logger.warning(f"could not find any valid jibe")
@@ -719,6 +716,15 @@ class TraceAnalysis:
                     "n": i,
                 }
             )
+        nvjibe_speed_results = "\n".join(
+            [f"{result['description']}: {result['result']}" for result in results]
+        )
+        logger.info(
+            f"\n===============================\n"
+            f"Best jibe min speed x {n} \n"
+            f"{nvjibe_speed_results}"
+            f"\n===============================\n"
+        )
         return results
 
     @log_calls(log_args=True, log_result=True)
@@ -881,7 +887,7 @@ class TraceAnalysis:
         )
         return results
 
-    @log_calls(log_args=True, log_result=False)
+    @log_calls(log_args=True, log_result=True)
     def speed_xs(self, description, s=10, n=10):
         """
         calculate Vmax: n * x seconds
