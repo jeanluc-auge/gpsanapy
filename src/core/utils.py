@@ -8,6 +8,9 @@ import logging
 import pandas as pd
 import numpy as np
 from time import time
+from pandas.plotting import parallel_coordinates, andrews_curves
+import matplotlib.pyplot as plt
+#from bokeh.plotting import figure, output_file, show
 
 logger = logging.getLogger()
 
@@ -73,13 +76,13 @@ def log_calls(log_args=False, log_result=False):
                     f"{result}\n"
                     f"======================================================"
                 )
-            fn_name = func_arg_dict.get('description', fn.__name__)
-            if not hasattr(self, 'fn_execution_time'): # init
-                self.fn_execution_time = {'total_time': 0}
+            fn_name = func_arg_dict.get("description", fn.__name__)
+            if not hasattr(self, "fn_execution_time"):  # init
+                self.fn_execution_time = {"total_time": 0}
             # don't log time of call_gps_func_from_config because it calls every other functions
-            if fn_name != 'call_gps_func_from_config':
+            if fn_name != "call_gps_func_from_config":
                 self.fn_execution_time[fn_name] = execution_time
-                self.fn_execution_time['total_time'] += execution_time
+                self.fn_execution_time["total_time"] += execution_time
 
             return result
 
@@ -101,7 +104,7 @@ class TraceAnalysisException(Exception):
         )
 
 
-def reduce_value_bloc(ts, window=3, roll_func='min'):
+def reduce_value_bloc(ts, window=3, roll_func="min"):
     """
     takes pd Series with islands of values between np.nan
     and return a pd Serie with islands of values reduced to the min of the island
@@ -110,16 +113,17 @@ def reduce_value_bloc(ts, window=3, roll_func='min'):
     """
     i = 1
     ts0 = ts.copy()
-    if roll_func == 'min':
+    if roll_func == "min":
         ts2 = ts0.rolling(window).max().fillna(ts0)
         ts0 = ts2
     while i < 10:
         # iterate backward:
-        ts1 = getattr(ts0.rolling(window), roll_func)().shift(-window+1).fillna(ts0)
-        #iterate forward:
+        ts1 = getattr(ts0.rolling(window), roll_func)().shift(-window + 1).fillna(ts0)
+        # iterate forward:
         ts0 = getattr(ts1.rolling(window), roll_func)().fillna(ts1)
         i += 1
     return ts0
+
 
 def load_config(config_filename=None):
     """Load config files
@@ -150,14 +154,83 @@ def load_config(config_filename=None):
     return config
 
 
-def load_results(gps_func_dict, all_results_filename):
+def build_crunch_df(df, result_types):
+    if not result_types:
+        return
+    df2 = pd.DataFrame(
+        data={
+            result_type: df[df.description == result_type].result
+            for result_type in result_types
+            if (df.description == result_type).any()
+        }
+    )
+    return df2
+
+
+def process_config_plot(all_results, config_plot_file="config_report.yaml"):
+    if all_results is None:
+        return
+
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(nrows=2, ncols=2)
+    config_plot = load_config(config_plot_file)
+    # do not plot 0 results:
+    all_results.astype({'result':'float64'}).dtypes
+    all_results.loc[all_results.result < 10, 'result'] = np.nan
+
+    result_types = config_plot.get('distribution', [])
+    # density plot:
+    all_results2 = all_results.reset_index(drop=True)
+    df = build_crunch_df(all_results2, result_types)
+    df.plot.kde(ax=ax1)
+    ax1.set_title("speed density")
+    ax1.set_xlabel("speed (kn)")
+    # parallel coordinates plot:
+    all_results2 = all_results.set_index(pd.to_datetime(all_results.date))
+    all_results2 = all_results2.set_index(all_results2.index.year)
+    df = build_crunch_df(all_results2, result_types)
+    df = df.reset_index()
+    df0 = df.copy()
+    parallel_coordinates(df, 'date', colormap="winter", ax=ax2)
+
+    #andrews_curves(df, 'date', colormap="winter", ax=ax2)
+    #cumulated
+    result_types = config_plot.get('cumulated', [])
+    all_results2 = all_results.set_index(pd.to_datetime(all_results.date))
+    df = build_crunch_df(all_results2, result_types)
+    df = df.resample('M').sum()
+    df['cum_planning_distance>12'] = df['planning_distance>12'].cumsum()
+    df.plot(ax=ax3)
+    ax3.set_ylabel("distance (km)")
+    # simple_plot
+    result_types = config_plot.get('simple_plot', [])
+    all_results2 = all_results.set_index(pd.to_datetime(all_results.date))
+    df = build_crunch_df(all_results2, result_types)
+    #df = df.resample('M').mean()
+    df=df.reset_index()
+    df.plot.scatter(x='date', y='Vmoy>12', ax=ax4)
+
+    result_types = config_plot.get('distribution', [])
+    fig, axx = plt.subplots(nrows=len(result_types))
+    for i, result_type in enumerate(list(result_types)):
+        data = {
+            f"{result_type}_{year}": df0.loc[df0.date==year, result_type].reset_index(drop=True)
+            for year in set(df0.date)
+        }
+        df2 = pd.DataFrame(data = data)
+        df2.plot.kde(ax=axx[i])
+
+def load_results(all_results_filename, gps_func_dict=None):
     """
-    open csv all_results_filename with history of other previous sessions or other riders
+    open csv all_results_filename (typically all_results.csv: see gps_analysis.set_csv_paths)
+    with history of other previous sessions or other riders
     and load it into a pd.DataFrame
-        - if the history all_results_filename is missing, a new history file is created with the same name
-        - if the yaml config does not match the opened history file,
-            a new history file is created with the same name
-            and the older saved under "all_results_old.csv"
+    IF THE YAML CONFIG FILE IS MODIFIED BETWEEN 2 RECORDS, THEY CANNOT BE MERGED IN THE SAME HISTORY
+        - if the history all_results_filename is missing:
+            => a new history file is created with the same name
+        - if the yaml config does not match the structure of the opened all_results file
+        (typically because the yaml config has been modified since then):
+            => a new history file is created with the same name
+            => and the older saved under "all_results_old.csv"
     :param gps_func_list: list func to calls from yaml config file
     :param all_results_filename: str name of the history file
     :return: pd.DataFrame all_results from csv all_results_filename
@@ -176,15 +249,18 @@ def load_results(gps_func_dict, all_results_filename):
             f"\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
         )
         return None
-
+    if not gps_func_dict:
+        return all_results
     # check the loaded results are compatible with the current yaml config:
-    config_error = ''
-    all_results_gps_func_list = list(all_results.groupby('description').mean().index)
+    config_error = ""
+    all_results_gps_func_list = list(all_results.groupby("description").mean().index)
     if set(all_results_gps_func_list) ^ set(list(gps_func_dict)):
         config_error = f"all_results.csv:\n {all_results_gps_func_list}"
     else:
         for description in gps_func_dict:
-            if all_results.groupby('description').max().loc[description, 'n'] != gps_func_dict[description].get('n',1):
+            if all_results.groupby("description").max().loc[
+                description, "n"
+            ] != gps_func_dict[description].get("n", 1):
                 config_error = f"{(all_results.groupby('description').max().loc[description, 'n'])}"
     if config_error:
         logger.error(

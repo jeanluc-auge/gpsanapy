@@ -1,0 +1,10 @@
+distribution:
+  - vmax_1s
+  - vmax_10s
+  - vmax_500m
+  - vmax_1000m
+  - vmax_jibe
+cumulated:
+  - planning_distance>12
+simple_plot:
+  - Vmoy>12

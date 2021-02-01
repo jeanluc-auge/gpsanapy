@@ -35,13 +35,13 @@ import numpy as np
 from bs4 import BeautifulSoup, element
 import matplotlib.pyplot as plt
 
-
 from utils import (
     log_calls,
     TraceAnalysisException,
     load_config,
     load_results,
     reduce_value_bloc,
+    process_config_plot,
 )
 
 logger = getLogger()
@@ -69,9 +69,8 @@ DEFAULT_REPORT = {"n": 1, "doppler_ratio": None, "sampling_ratio": None, "std": 
 
 class TraceAnalysis:
     def __init__(self, gpx_path, config_file="config.yaml"):
-        self.version = "January 31, 2021"
-        self.config = load_config(config_file)
-        self.process_config()
+        self.version = "February 1, 2021"
+        self.process_config(config_file)
         self.gpx_path = gpx_path
         self.filename = Path(gpx_path).stem
         self.set_csv_paths()
@@ -92,7 +91,7 @@ class TraceAnalysis:
         self.df_result_debug = pd.DataFrame(index=self.tsd.index)
 
     @log_calls()
-    def process_config(self):
+    def process_config(self, config_file):
         """
         extract info from yaml config files
         Parameters:
@@ -106,6 +105,7 @@ class TraceAnalysis:
                 {ranking_group_name: [fn1_description, ...] }
         :return:
         """
+        self.config = load_config(config_file)
         for rule, value in self.config["rules"].items():
             setattr(self, rule, value)
         self.sampling = float(self.time_sampling.strip("S"))
@@ -132,6 +132,8 @@ class TraceAnalysis:
             f"\nlist of gps functions {self.gps_func_description}\n"
             f"ranking groups vs gps functions: {self.ranking_groups}\n"
         )
+
+
 
     def load_df(self, gpx_path):
         self.file_size = Path(gpx_path).stat().st_size / 1e6
@@ -1041,7 +1043,7 @@ class TraceAnalysis:
 
     def merge_all_results(self, gpx_results):
         # merge DataFrames current gpx_results with all_results history
-        all_results = load_results(self.gps_func_description, self.all_results_path)
+        all_results = load_results(self.all_results_path, self.gps_func_description)
         if all_results is None:
             all_results = gpx_results
         elif self.author in all_results.index:
@@ -1124,21 +1126,27 @@ class TraceAnalysis:
     def save_to_csv(self, gpx_results):
         """
         save to csv file the simulation results and infos (debug)
-        :return: 3 csv files
-            - debug.csv with the full DataFrame after filtering
-            - result_debug.csv with the runs details of each result
-            - result.csv result summary
+        :return: 5 csv files
+            - self.raw_df (debug.csv) with the full DataFrame
+            - filename_result_debug.csv with the runs details of each result
+            - filename_result.csv result summary
+            - all_results.csv history swap file
+            - ranking_results.csv history compilation/presentation file
         """
+        # *********** self.raw_df: debug.csv ***********
         self.raw_df.to_csv(self.debug_path)
+        # *********** self.df_result_debug: filename_result_debug.csv ***********
         result_debug = self.df_result_debug[self.df_result_debug.speed.notna()]
         result_debug.to_csv(self.result_debug_path)
+        # *********** gpx_results: filename_result.csv ***********
         gpx_results.to_csv(self.results_path, index=False)
-        if hasattr(self, "all_results"):
-            self.all_results = self.all_results[
-                self.all_results.creator.notna()
-            ].reset_index()
-            self.all_results.to_csv(self.all_results_path, index=False)
-            self.ranking_results.to_csv(self.ranking_results_path)
+        # ****** self.all_results _history swap file_: all_results.csv *******
+        self.all_results = self.all_results[
+            self.all_results.creator.notna()
+        ].reset_index()
+        self.all_results.to_csv(self.all_results_path, index=False)
+        # **** self.ranking_results history output file ranking_results.csv
+        self.ranking_results.to_csv(self.ranking_results_path)
 
     def log_computation_time(self):
         fn_execution_time = {
@@ -1185,6 +1193,7 @@ class TraceAnalysis:
 def process_args(args):
     f = args.gpx_filename
     d = args.read_directory
+    gpx_filenames = []
 
     if f:
         gpx_filenames = f
@@ -1195,14 +1204,22 @@ def process_args(args):
                 os.path.join(Path(d).resolve(), "**/*.gpx"), recursive=True
             )
         ]
+
     logger.info(f"\nthe following gpx files will be processed:\n" f"{gpx_filenames}")
     return gpx_filenames
+
+def crunch_data():
+    result_directory = os.path.join(os.path.dirname(__file__), f"../../csv_results")
+    all_results_path = os.path.join(result_directory, 'all_results.csv')
+    all_results = load_results(all_results_path)
+    process_config_plot(all_results)
 
 
 parser = ArgumentParser()
 parser.add_argument("-f", "--gpx_filename", nargs="+", type=Path)
 parser.add_argument("-rd", "--read_directory", nargs="?", type=str, default="")
 parser.add_argument("-p", "--plot", action="count", default=0)
+parser.add_argument("-c", "--crunch_data", action="count", default=0)
 # parser.add_argument(
 #     "-v",
 #     "--verbose",
@@ -1217,6 +1234,7 @@ if __name__ == "__main__":
     config_filename = "config.yaml"  # config of gps functions to call
     gpx_filenames = process_args(args)
     error_dict = {}
+    all_results = None
     for gpx_filename in gpx_filenames:
         try:
             gpx_jla = TraceAnalysis(gpx_filename, config_filename)
@@ -1224,6 +1242,7 @@ if __name__ == "__main__":
             gpx_jla.rank_all_results(gpx_results)
             gpx_jla.save_to_csv(gpx_results)
             gpx_jla.log_computation_time()
+            all_results = gpx_jla.all_results
             if args.plot > 0:
                 gpx_jla.plot_speed()
         except TraceAnalysisException as te:
@@ -1236,6 +1255,11 @@ if __name__ == "__main__":
                 f"with traceback:\n {traceback.format_exc()}"
             )
             logger.error(e)
+
+    if args.crunch_data > 0:
+        crunch_data()
+        plt.show()
+
     for f, e in error_dict.items():
         logger.error(
             f"\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
