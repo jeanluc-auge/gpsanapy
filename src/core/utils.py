@@ -167,7 +167,7 @@ def build_crunch_df(df, result_types):
     return df2
 
 
-def process_config_plot(all_results, config_plot_file="config_report.yaml"):
+def process_config_plot(all_results, config_plot_file):
     if all_results is None:
         return
 

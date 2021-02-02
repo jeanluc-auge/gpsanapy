@@ -68,8 +68,15 @@ DEFAULT_REPORT = {"n": 1, "doppler_ratio": None, "sampling_ratio": None, "std": 
 
 
 class TraceAnalysis:
-    def __init__(self, gpx_path, config_file="config.yaml"):
-        self.version = "February 1, 2021"
+    # some key cls attributs:
+    root_dir = os.path.join(os.path.dirname(__file__), "../../")
+    results_dir = os.path.join(root_dir, "csv_results")
+    results_swap_file = os.path.join(results_dir, "all_results.csv")
+    version = "February 1, 2021"
+
+    def __init__(self, gpx_path, config_file=None):
+        if not config_file:
+            config_file = os.path.join(self.root_dir, 'config.yaml')
         self.process_config(config_file)
         self.gpx_path = gpx_path
         self.filename = Path(gpx_path).stem
@@ -371,7 +378,6 @@ class TraceAnalysis:
                 f"applied rolling acceleration filter on {column}\n"
                 f"and filtered {len(indices)} events with an acceleration max = {round(acceleration_max,3)}\n"
             )
-        # df2.to_csv(f'csv_results/df_debug_{iter}.csv')
         return err
 
     @log_calls()
@@ -1043,7 +1049,7 @@ class TraceAnalysis:
 
     def merge_all_results(self, gpx_results):
         # merge DataFrames current gpx_results with all_results history
-        all_results = load_results(self.all_results_path, self.gps_func_description)
+        all_results = load_results(self.results_swap_file, self.gps_func_description)
         if all_results is None:
             all_results = gpx_results
         elif self.author in all_results.index:
@@ -1100,9 +1106,8 @@ class TraceAnalysis:
         return ranking_results
 
     def set_csv_paths(self):
-        result_directory = os.path.join(os.path.dirname(__file__), f"../../csv_results")
-        if not Path(result_directory).is_dir():
-            os.makedirs(result_directory)
+        if not Path(self.results_dir).is_dir():
+            os.makedirs(self.results_dir)
         # debug file with the full DataFrame (erased at each run):
         debug_filename = "debug.csv"
         # debug file reduced to the main results timeframe (new for different authors):
@@ -1110,16 +1115,15 @@ class TraceAnalysis:
         # result file of the current run (new for different authors):
         result_filename = f"{self.filename}_result.csv"
         # all time history results by user names (updated after each run):
-        all_results_filename = "all_results.csv"
+        # = TraceAnalysis.results_swap_file
         # all time history results table with ranking (re-created at each run):
         ranking_results_filename = "ranking_results.csv"
 
-        self.debug_path = os.path.join(result_directory, debug_filename)
-        self.result_debug_path = os.path.join(result_directory, result_debug_filename)
-        self.results_path = os.path.join(result_directory, result_filename)
-        self.all_results_path = os.path.join(result_directory, all_results_filename)
+        self.debug_path = os.path.join(self.results_dir, debug_filename)
+        self.result_debug_path = os.path.join(self.results_dir, result_debug_filename)
+        self.results_path = os.path.join(self.results_dir, result_filename)
         self.ranking_results_path = os.path.join(
-            result_directory, ranking_results_filename
+            self.results_dir, ranking_results_filename
         )
 
     @log_calls()
@@ -1144,7 +1148,7 @@ class TraceAnalysis:
         self.all_results = self.all_results[
             self.all_results.creator.notna()
         ].reset_index()
-        self.all_results.to_csv(self.all_results_path, index=False)
+        self.all_results.to_csv(self.results_swap_file, index=False)
         # **** self.ranking_results history output file ranking_results.csv
         self.ranking_results.to_csv(self.ranking_results_path)
 
@@ -1209,10 +1213,13 @@ def process_args(args):
     return gpx_filenames
 
 def crunch_data():
-    result_directory = os.path.join(os.path.dirname(__file__), f"../../csv_results")
-    all_results_path = os.path.join(result_directory, 'all_results.csv')
-    all_results = load_results(all_results_path)
-    process_config_plot(all_results)
+    """
+    crunch all results data
+    :return: hostory plots analysis
+    """
+    config_plot_file = os.path.join(TraceAnalysis.root_dir, "config_plot.yaml")
+    all_results = load_results(TraceAnalysis.results_swap_file)
+    process_config_plot(all_results, config_plot_file)
 
 
 parser = ArgumentParser()

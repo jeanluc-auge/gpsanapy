@@ -5,3 +5,4 @@ numpy
 pyyaml
 bs4
 matplotlib
+scipy
