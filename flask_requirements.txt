@@ -1,0 +1,3 @@
+Werkzeug==0.16.0
+flask==1.1.1
+flask_restplus==0.13.0

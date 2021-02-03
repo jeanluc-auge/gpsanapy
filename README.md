@@ -18,12 +18,13 @@ author_filename.gpx is the gps session file that you want to analyse.
 
 ## options
 
--  -f loop over several gpx files:<br>
+-  **-f** loop over several gpx files:<br>
 python3 src/core/gps_analysis.py -f file_1.gpx file_i.gpx ...<br>
 make sure that the different files have different author_... prefix 
-- -rd loop recursively over all gpx files of a given directory and subdir:<br>
+- **-rd** loop recursively over all gpx files of a given directory and subdir:<br>
 python3 src/core/gps_analysis.py -rd directory_name
-- -p plot speed, distance and course (orientation) results
+- **-p** plot speed, distance and course (orientation) results
+- **-c** crunch data with matplotlib graphs. Use history results from csv_results/all_results.csv and can be run without a gpx file 
 
 The results of all the gpx files are ranked and aggregated in the same ranking_results.csv file (see output)
 
