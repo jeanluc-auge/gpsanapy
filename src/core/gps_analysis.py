@@ -42,6 +42,7 @@ from utils import (
     load_results,
     reduce_value_bloc,
     process_config_plot,
+    coroutine,
 )
 
 logger = getLogger()
@@ -65,7 +66,7 @@ else:
 
 TO_KNOT = 1.94384  # * m/s
 DEFAULT_REPORT = {"n": 1, "doppler_ratio": None, "sampling_ratio": None, "std": None}
-
+DOPPLER_EXCLUSION_LIST = ('movescount', 'waterspeed') # do not use doppler with these watches
 
 class TraceAnalysis:
     # some key cls attributs:
@@ -74,7 +75,9 @@ class TraceAnalysis:
     results_swap_file = os.path.join(results_dir, "all_results.csv")
     version = "February 1, 2021"
 
-    def __init__(self, gpx_path, config_file=None):
+    def __init__(self, gpx_path, config_file=None, **params):
+        self.log_info = self.appender('info')
+        self.log_warning = self.appender('warning')
         if not config_file:
             config_file = os.path.join(self.root_dir, 'config.yaml')
         self.process_config(config_file)
@@ -96,6 +99,21 @@ class TraceAnalysis:
         self.generate_series()
         self.log_trace_infos()
         self.df_result_debug = pd.DataFrame(index=self.tsd.index)
+
+    @coroutine
+    def appender(self, level):
+        """
+        a co routine that logs to logger.{level} and self.log_{level}_list
+        :param level: log level
+        :return: self.log_{level}_list a list of import logs for the flask api response
+        """
+        setattr(self, f"log_{level}_list", [])
+        to_list = getattr(self, f"log_{level}_list")
+        while True:
+            log = yield
+            to_logger = "\n".join(log)
+            getattr(logger, level)(to_logger)
+            to_list += log
 
     @log_calls()
     def process_config(self, config_file):
@@ -194,9 +212,10 @@ class TraceAnalysis:
         for el in html_soup.findAll("gpxdata:speed"):
             el.unwrap()
         # remove <extensions> tag:
+        for el in html_soup.findAll("gpxtpx:trackpointextension"):
+            el.unwrap()
         for el in html_soup.findAll("extensions"):
             el.unwrap()
-
         gpx = gpxpy.parse(str(html_soup), version="1.0")
         tracks = gpx.tracks
         return tracks
@@ -257,13 +276,14 @@ class TraceAnalysis:
         self.df.loc[self.df.has_doppler == True, "has_doppler"] = 1
         self.df.loc[self.df.has_doppler == False, "has_doppler"] = 0
 
-        # sunto watches have a False "emulated" doppler that should not be used:
-        if "movescount" in self.creator.lower() and not self.force_doppler_speed:
-            logger.warning(
-                f"\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
-                f"deactivating doppler for Movescount watches\n"
-                f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
-            )
+        # sunto and apple watches have a False "emulated" doppler that should not be used:
+        watch = [x for x in DOPPLER_EXCLUSION_LIST if x in self.creator.lower()]
+        if watch and not self.force_doppler_speed:
+            self.log_warning.send([
+                f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",
+                f"deactivating doppler for {watch[0]} watches",
+                f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",
+            ])
             self.df["speed"] = self.df.speed_no_doppler
             self.df["has_doppler"] = 0
 
@@ -496,45 +516,41 @@ class TraceAnalysis:
                 / len(self.tsamp[self.tsd > 5])
             )
         if doppler_ratio < 70:
-            logger.warning(
-                f"\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
-                f"Doppler speed is not available on all time_sampling points\n"
-                f"Only {doppler_ratio}% of the points have doppler data\n"
-                f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
-            )
+            self.log_warning.send([
+                f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",
+                f"Doppler speed is not available on all time_sampling points",
+                f"Only {doppler_ratio}% of the points have doppler data",
+                f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",
+            ])
         # if doppler_ratio < 50:
         #     raise TraceAnalysisException(
         #         f"doppler speed is available on only {doppler_ratio}% of data"
         #     )
         if self.trace_sampling != self.sampling:
-            logger.warning(
-                f"\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
-                f"you are analyzing a trace with a sampling = {self.sampling}S\n"
-                f"but the trace native sampling = {self.trace_sampling}S\n"
-                f"over sampling will slow trace analysis for no better precision\n"
-                f"while under sampling may degrade precision\n"
-                f"please consider modifying sampling in yaml config\n"
-                f"n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
-            )
-        logger.info(
-            f"\n==========================================================================\n"
-            f"==========================================================================\n"
-            f"__init__ {self.__class__.__name__} with file {self.gpx_path}\n"
-            f"author name: {self.author}\n"  # trace author: read from gpx file name
-            f"file size is {self.file_size}Mb\n"
-            f"file loading to pandas DataFrame complete\n"
-            f"creator {self.creator}\n"  # GPS device type: read from gpx file xml infos field
-            f"trace min sampling = {self.trace_sampling}S\n"
-            f"and the trace is analyzed with a sampling = {self.sampling}S\n"
-            f"Trace total distance = {round(self.td.sum()/1000,1)} km"
-            f"\noverall doppler_ratio = {doppler_ratio}%\n"
-            f"overall time_sampling ratio = {sampling_ratio}%\n"
-            f"overall time_sampling ratio > 5knots = {sampling_ratio_5}%\n"
-            f"filtered {self.filtered_events} events with acceleration > {self.max_acceleration}g\n"
-            f"now running version {self.version}\n"
-            f"==========================================================================\n"
-            f"==========================================================================\n"
-        )
+            self.log_warning.send([
+                f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",
+                f"you are analyzing a trace with a sampling = {self.sampling}S",
+                f"but the trace native sampling = {self.trace_sampling}S",
+                f"over sampling will slow trace analysis for no better precision",
+                f"while under sampling may degrade precision",
+                f"please consider modifying sampling in yaml config",
+                f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",
+            ])
+        self.log_info.send([
+            f"__init__ {self.__class__.__name__} with file {self.gpx_path}",
+            f"author name: {self.author}",  # trace author: read from gpx file name
+            f"file size is {self.file_size}Mb",
+            f"file loading to pandas DataFrame complete",
+            f"creator {self.creator}",  # GPS device type: read from gpx file xml infos field
+            f"trace min sampling = {self.trace_sampling}S",
+            f"and the trace is analyzed with a sampling = {self.sampling}S",
+            f"Trace total distance = {round(self.td.sum() / 1000, 1)} km",
+            f"overall doppler_ratio = {doppler_ratio}%",
+            f"overall time_sampling ratio = {sampling_ratio}%",
+            f"overall time_sampling ratio > 5knots = {sampling_ratio_5}%",
+            f"filtered {self.filtered_events} events with acceleration > {self.max_acceleration}g",
+            f"now running version {self.version}",
+        ])
 
     def diff_clean_ts(self, ts, threshold):
         """
@@ -1244,14 +1260,13 @@ if __name__ == "__main__":
     all_results = None
     for gpx_filename in gpx_filenames:
         try:
-            gpx_jla = TraceAnalysis(gpx_filename, config_filename)
-            gpx_results = gpx_jla.call_gps_func_from_config()
-            gpx_jla.rank_all_results(gpx_results)
-            gpx_jla.save_to_csv(gpx_results)
-            gpx_jla.log_computation_time()
-            all_results = gpx_jla.all_results
+            gpsana_client = TraceAnalysis(gpx_filename, config_filename)
+            gpx_results = gpsana_client.call_gps_func_from_config()
+            gpsana_client.rank_all_results(gpx_results)
+            gpsana_client.save_to_csv(gpx_results)
+            gpsana_client.log_computation_time()
             if args.plot > 0:
-                gpx_jla.plot_speed()
+                gpsana_client.plot_speed()
         except TraceAnalysisException as te:
             error_dict[gpx_filename] = str(te)
             logger.error(te)

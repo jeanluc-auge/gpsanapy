@@ -91,6 +91,15 @@ def log_calls(log_args=False, log_result=False):
     return outer_wrap
 
 
+def coroutine(func):
+    def wrapper(self, *args, **kwargs):
+        generator = func(self, *args, **kwargs)
+        next(generator)
+        return generator
+
+    return wrapper
+
+
 class TraceAnalysisException(Exception):
     def __init__(self, body):
         self.body = body
@@ -165,6 +174,27 @@ def build_crunch_df(df, result_types):
         }
     )
     return df2
+
+
+def gpx_results_to_json(gpx_results):
+    """
+    flask server interest
+    returns a json output from DataFrame individual results
+    :param gpx_results: Pandas.DataFrame of individual results
+    :return: json results for flask Response
+    """
+    results = gpx_results.reset_index()
+
+    data_info = {
+        'user': results.author.iloc[0],
+        'creator': gpx_results.creator.iloc[0],
+        'date': gpx_results.date.iloc[0]
+    }
+    data_perf = {
+        f'{gpx_results.description.iloc[i]} n={gpx_results.n.iloc[i]}': gpx_results.result.iloc[i]
+        for i in range(0, len(gpx_results))
+    }
+    return {**data_info, **data_perf}
 
 
 def process_config_plot(all_results, config_plot_file):
