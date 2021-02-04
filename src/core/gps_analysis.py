@@ -73,7 +73,7 @@ class TraceAnalysis:
     root_dir = os.path.join(os.path.dirname(__file__), "../../")
     results_dir = os.path.join(root_dir, "csv_results")
     results_swap_file = os.path.join(results_dir, "all_results.csv")
-    version = "February 1, 2021"
+    version = "February 4, 2021"
 
     def __init__(self, gpx_path, config_file=None, **params):
         self.log_info = self.appender('info')
