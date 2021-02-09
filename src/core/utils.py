@@ -10,7 +10,7 @@ import numpy as np
 from time import time
 from pandas.plotting import parallel_coordinates, andrews_curves
 import matplotlib.pyplot as plt
-#from bokeh.plotting import figure, output_file, show
+
 
 logger = logging.getLogger()
 

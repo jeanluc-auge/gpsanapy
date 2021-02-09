@@ -41,7 +41,6 @@ from utils import (
     load_config,
     load_results,
     reduce_value_bloc,
-    process_config_plot,
     coroutine,
 )
 
@@ -1233,6 +1232,8 @@ def crunch_data():
     crunch all results data
     :return: hostory plots analysis
     """
+    from utils import process_config_plot
+
     config_plot_file = os.path.join(TraceAnalysis.root_dir, "config_plot.yaml")
     all_results = load_results(TraceAnalysis.results_swap_file)
     process_config_plot(all_results, config_plot_file)
