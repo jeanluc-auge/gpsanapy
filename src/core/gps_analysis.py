@@ -44,15 +44,26 @@ from utils import (
     coroutine,
 )
 
+TO_KNOT = 1.94384  # * m/s
+DEFAULT_REPORT = {"n": 1, "doppler_ratio": None, "sampling_ratio": None, "std": None}
+DOPPLER_EXCLUSION_LIST = ('movescount', 'waterspeed') # do not use doppler with these watches
+ROOT_DIR = os.path.join(os.path.dirname(__file__), "../../")
+RESULTS_DIR = os.path.join(ROOT_DIR, "csv_results")
+CONFIG_DIR = os.path.join(ROOT_DIR, "config")
+if not Path(RESULTS_DIR).is_dir():
+    os.makedirs(RESULTS_DIR)
+
 logger = getLogger()
 logger.setLevel(INFO)
-fh = FileHandler("execution.log")
+log_path = os.path.join(RESULTS_DIR, "execution.log")
+fh = FileHandler(log_path)
 fh.setLevel(INFO)
 logger.addHandler(fh)
 ch = StreamHandler()
 ch.setLevel(INFO)
 logger.addHandler(ch)
 
+# deprecated, do not modify:
 AGGRESSIVE_FILTERING = False
 if AGGRESSIVE_FILTERING:
     MAX_ITER = 3
@@ -62,31 +73,38 @@ else:
     MAX_ITER = 10
     FILTER_WINDOW = 30
     # and using fillna=interpolate
-
-TO_KNOT = 1.94384  # * m/s
-DEFAULT_REPORT = {"n": 1, "doppler_ratio": None, "sampling_ratio": None, "std": None}
-DOPPLER_EXCLUSION_LIST = ('movescount', 'waterspeed') # do not use doppler with these watches
+# deprecated end
 
 class TraceAnalysis:
     # some key cls attributs:
-    root_dir = os.path.join(os.path.dirname(__file__), "../../")
-    results_dir = os.path.join(root_dir, "csv_results")
+    root_dir = ROOT_DIR
+    results_dir = RESULTS_DIR
+    config_dir = CONFIG_DIR
     results_swap_file = os.path.join(results_dir, "all_results.csv")
     version = "February 4, 2021"
 
     def __init__(self, gpx_path, config_file=None, **params):
+        """
+        :param gpx_path:
+        :param config_file:
+        :param params:
+            author str
+            spot str
+            support str
+        """
         self.log_info = self.appender('info')
         self.log_warning = self.appender('warning')
         if not config_file:
-            config_file = os.path.join(self.root_dir, 'config.yaml')
+            config_file = os.path.join(self.config_dir, 'config.yaml')
         self.process_config(config_file)
         self.gpx_path = gpx_path
         self.filename = Path(gpx_path).stem
         self.set_csv_paths()
         self.df = self.load_df(gpx_path)
         self.process_df()
-        author = self.filename.split("_")[0]
-        self.author = f"{author}_{str(self.df.index[0].date())}"
+        self.author = params.get('author', self.filename.split("_")[0])
+        self.spot = params.get('spot', '')
+        self.support = params.get('support', '')
         # debug, select a portion of the trac:
         # self.df = self.df.loc["2019-03-29 14:10:00+00:00": "2019-03-29 14:47:00+00:00"]
         # original copy that will not be modified: for reference & debug:
@@ -1121,8 +1139,6 @@ class TraceAnalysis:
         return ranking_results
 
     def set_csv_paths(self):
-        if not Path(self.results_dir).is_dir():
-            os.makedirs(self.results_dir)
         # debug file with the full DataFrame (erased at each run):
         debug_filename = "debug.csv"
         # debug file reduced to the main results timeframe (new for different authors):
@@ -1211,7 +1227,13 @@ class TraceAnalysis:
 
 def process_args(args):
     f = args.gpx_filename
+    rd = args.recursive_read_directory
     d = args.read_directory
+    if d:
+        recursive = False
+    elif rd:
+        recursive = True
+        d = rd
     gpx_filenames = []
 
     if f:
@@ -1220,7 +1242,7 @@ def process_args(args):
         gpx_filenames = [
             f
             for f in glob.iglob(
-                os.path.join(Path(d).resolve(), "**/*.gpx"), recursive=True
+                os.path.join(Path(d).resolve(), "**/*.gpx"), recursive=recursive
             )
         ]
 
@@ -1234,14 +1256,15 @@ def crunch_data():
     """
     from utils import process_config_plot
 
-    config_plot_file = os.path.join(TraceAnalysis.root_dir, "config_plot.yaml")
+    config_plot_file = os.path.join(TraceAnalysis.config_dir, "config_plot.yaml")
     all_results = load_results(TraceAnalysis.results_swap_file)
     process_config_plot(all_results, config_plot_file)
 
 
 parser = ArgumentParser()
 parser.add_argument("-f", "--gpx_filename", nargs="+", type=Path)
-parser.add_argument("-rd", "--read_directory", nargs="?", type=str, default="")
+parser.add_argument("-rd", "--recursive_read_directory", nargs="?", type=str, default="")
+parser.add_argument("-d", "--read_directory", nargs="?", type=str, default="")
 parser.add_argument("-p", "--plot", action="count", default=0)
 parser.add_argument("-c", "--crunch_data", action="count", default=0)
 # parser.add_argument(
@@ -1255,7 +1278,7 @@ parser.add_argument("-c", "--crunch_data", action="count", default=0)
 if __name__ == "__main__":
     args = parser.parse_args()
     # basicConfig(level={0: INFO, 1: DEBUG}.get(args.verbose, INFO))
-    config_filename = "config.yaml"  # config of gps functions to call
+    config_filename = os.path.join(TraceAnalysis.config_dir,"config.yaml")  # config of gps functions to call
     gpx_filenames = process_args(args)
     error_dict = {}
     all_results = None

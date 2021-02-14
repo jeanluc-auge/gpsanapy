@@ -6,4 +6,4 @@ pyyaml
 bs4
 matplotlib
 scipy
-# bokeh
+bokeh
