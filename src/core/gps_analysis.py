@@ -45,6 +45,7 @@ from utils import (
 )
 
 TO_KNOT = 1.94384  # * m/s
+G = 9.81 #
 DEFAULT_REPORT = {"n": 1, "doppler_ratio": None, "sampling_ratio": None, "std": None}
 DOPPLER_EXCLUSION_LIST = ('movescount', 'waterspeed') # do not use doppler with these watches
 ROOT_DIR = os.path.join(os.path.dirname(__file__), "../../")
@@ -109,7 +110,7 @@ class TraceAnalysis:
         # self.df = self.df.loc["2019-03-29 14:10:00+00:00": "2019-03-29 14:47:00+00:00"]
         # original copy that will not be modified: for reference & debug:
         self.resample_df()
-        self.raw_df = self.df.copy()
+        #self.raw_df = self.df
         # filter out speed spikes on self.df:
         self.clean_df()
         # generate key time series:
@@ -313,15 +314,16 @@ class TraceAnalysis:
         """
 
         # record acceleration (debug):
-        self.raw_df["acceleration_doppler_speed"] = self.raw_df.speed.diff() / (
-            1.94384 * 9.81 * self.raw_df.elapsed_time.diff()
+        self.df["acceleration_doppler_speed"] = self.df.speed.diff() / (
+            TO_KNOT * G * self.sampling
         )
-        self.raw_df[
+        self.df[
             "acceleration_non_doppler_speed"
-        ] = self.raw_df.speed_no_doppler.diff() / (
-            1.94384 * 9.81 * self.raw_df.elapsed_time.diff()
+        ] = self.df.speed_no_doppler.diff() / (
+            TO_KNOT * G * self.sampling
         )
-
+        # columns to be filtered out:
+        nan_list = ['speed', 'speed_no_doppler', 'time_sampling', 'has_doppler', 'course']
         erratic_data = True
         iter = 1
         self.filtered_events = 0
@@ -333,9 +335,8 @@ class TraceAnalysis:
             self.filtered_events += err
             iter += 1
             erratic_data = err > 0
-        self.df.loc[df2[df2.filtering == 1].index] = np.nan
+        self.df.loc[df2[df2.filtering == 1].index, nan_list] = np.nan
 
-        self.raw_df["filtering"] = df2.filtering
         self.df["filtering"] = df2.filtering
         # self.df = self.df[self.df.speed.notna()]
 
@@ -386,7 +387,7 @@ class TraceAnalysis:
             column_acceleration = f"{column}_acceleration"
             # calculate g acceleration:
             df2[column_acceleration] = df2[column].diff() / (
-                TO_KNOT * 9.81 * df2.elapsed_time.diff()
+                TO_KNOT * G * self.sampling
             )
             acceleration_max = df2[column_acceleration].max()
             if acceleration_max <= self.max_acceleration:  # save execution time
@@ -440,7 +441,7 @@ class TraceAnalysis:
         thd = thd.fillna(0).astype(np.int64)
         # speed doppler
         tsd = self.df["speed"].resample(self.time_sampling).mean().interpolate()
-        # raw = don't fill nan (i.e. no interpolate:
+        # raw doppler speed = don't fill nan (i.e. no interpolate:
         raw_tsd = self.df["speed"].resample(self.time_sampling).mean()
         # speed no doppler
         ts = (
@@ -449,11 +450,12 @@ class TraceAnalysis:
             .mean()
             .interpolate()
         )
-        # distance: diff & cumulated calculated from speed and time_sampling:
-        td = tsd * self.sampling / TO_KNOT
-        tcd = td.cumsum()
-        # tcd = self.df["cum_dist"].resample(self.time_sampling).min().interpolate()
-        # td = tcd.diff()
+        # raw no doppler speed = don't fill nan (i.e. no interpolate:
+        raw_ts = (
+            self.df["speed_no_doppler"]
+            .resample(self.time_sampling)
+            .mean()
+        )
         # course (orientation °) cumulated values => take min of the bin
         tc = self.df["course"].resample(self.time_sampling).min().interpolate()
         # tc[tsd < 7] = np.nan
@@ -461,24 +463,26 @@ class TraceAnalysis:
             data={
                 "lon": tlon,
                 "lat": tlat,
-                "speed": tsd,
-                "raw_speed": raw_tsd,
-                "speed_no_doppler": ts,
-                "cum_dist": tcd,
-                "delta_dist": td,
                 "has_doppler": thd,
+                "filtering": np.nan,
+                "time_sampling": np.nan,
+                "cum_dist": np.nan,
+                "delta_dist": np.nan,
+                "raw_course": tc,
                 "course": tc,
+                "course_diff": np.nan,
+                "raw_speed": raw_tsd,
+                "raw_speed_no_doppler": raw_ts,
+                "speed_no_doppler": ts,
+                "speed": tsd,
             }
         )
         # generate time_sampling column based on raw_speed:
         df.loc[df.raw_speed.notna(), "time_sampling"] = 1
         df["filtering"] = 0
 
-        df["elapsed_time"] = pd.to_timedelta(df.index - df.index[0]).astype(
-            "timedelta64[s]"
-        )
-
         self.df = df
+        #self.raw_df = df
 
     def generate_series(self):
         """
@@ -487,29 +491,34 @@ class TraceAnalysis:
 
         # speed doppler
         self.tsd = self.df["speed"].interpolate()
-        self.raw_tsd = self.raw_df["raw_speed"]
+        self.df['speed'] = self.tsd
+        self.raw_tsd = self.df["raw_speed"]
         # speed no doppler
         self.ts = self.df["speed_no_doppler"].interpolate()
+        self.df["speed_no_doppler"] = self.ts
         # filtering? yes=1 :
         self.tf = self.df["filtering"]
         # time_sampling? yes=1 default=0 (np.nan=0)
         self.tsamp = self.df["time_sampling"]
         self.tsamp = self.tsamp.fillna(0).astype(np.int64)
+        self.df["time_sampling"] = self.tsamp
         # has_doppler? yes=1 default=0 (np.nan=0), sum = AND (min):
         self.thd = self.df["has_doppler"]
         self.thd = self.thd.fillna(0).astype(np.int64)
+        self.df["has_doppler"] = self.thd
         # interpolate np.nan after filtering
         # (we can because we resampled before filtering, therefore time_sampling is uniform)
-        self.td = self.df["delta_dist"].interpolate()
-        # regenerate cum_dist after filtering (the cums kept the cumulated spikes!)
+        # distance: diff & cumulated calculated from speed and time_sampling:
+        self.td = self.tsd * self.sampling / TO_KNOT
         self.tcd = self.td.cumsum()
+        self.df['delta_dist'] = self.td
+        self.df['cum_dist'] = self.tcd
         # course (orientation °) cumulated values => take min of the bin
         self.tc_diff = self.diff_clean_ts(self.df.course, 300)
         self.tc_diff[self.tsd < 5] = np.nan
         self.tc = self.tc_diff.cumsum()
-        self.raw_df["filtered_course"] = self.tc
-        self.raw_df["filtered_course_diff"] = self.tc_diff
-        self.raw_df["filtered_speed"] = self.tsd
+        self.df["course"] = self.tc
+        self.df["course_diff"] = self.tc_diff
         if self.tsd.max() > self.max_speed:
             raise TraceAnalysisException(
                 f"Trace maximum speed after cleaning is = {self.tsd.max()} knots!\n"
@@ -707,13 +716,13 @@ class TraceAnalysis:
         jibe_speed123[course_max<PARTIAL_COURSE/2] = np.nan
 
         # ====== debug starts =====================
-        self.raw_df["cj1"] = j1
-        self.raw_df["cj2"] = j2
-        self.raw_df["cj3"] = j3
-        self.raw_df["speed cj1+cj2+cj3"] = jibe_speed123.copy()
-        self.raw_df["speed cj1+cj2"] = jibe_speed12.copy()
-        self.raw_df["reduced_course_max"] = reduced_course_max
-        self.raw_df["ts"] = ts
+        self.df["cj1"] = j1
+        self.df["cj2"] = j2
+        self.df["cj3"] = j3
+        self.df["speed cj1+cj2+cj3"] = jibe_speed123.copy()
+        self.df["speed cj1+cj2"] = jibe_speed12.copy()
+        self.df["reduced_course_max"] = reduced_course_max
+        self.df["ts"] = ts
         # self.raw_df["speed 3"] = jibe_speed3
         # # ====== debug ends =====================
 
@@ -1169,7 +1178,7 @@ class TraceAnalysis:
             - ranking_results.csv history compilation/presentation file
         """
         # *********** self.raw_df: debug.csv ***********
-        self.raw_df.to_csv(self.debug_path)
+        self.df.to_csv(self.debug_path)
         # *********** self.df_result_debug: filename_result_debug.csv ***********
         result_debug = self.df_result_debug[self.df_result_debug.speed.notna()]
         result_debug.to_csv(self.result_debug_path)
