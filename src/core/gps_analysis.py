@@ -513,10 +513,12 @@ class TraceAnalysis:
         self.tcd = self.td.cumsum()
         self.df['delta_dist'] = self.td
         self.df['cum_dist'] = self.tcd
-        # course (orientation °) cumulated values => take min of the bin
-        self.tc_diff = self.diff_clean_ts(self.df.course, 300)
-        self.tc_diff[self.tsd < 5] = np.nan
-        self.tc = self.tc_diff.cumsum()
+        # course (orientation °)
+        self.df['course'][self.tsd < 5] = np.nan
+        self.tc = self.df.course
+        # find a middle between np.nan and interpolate filtered events:
+        # fillna = 0 still allows rolling range
+        self.tc_diff = self.modulo_diff_ts(self.tc).fillna(0)
         self.df["course"] = self.tc
         self.df["course_diff"] = self.tc_diff
         if self.tsd.max() > self.max_speed:
@@ -577,6 +579,24 @@ class TraceAnalysis:
             f"filtered {self.filtered_events} events with acceleration > {self.max_acceleration}g",
             f"now running version {self.version}",
         ])
+
+    def modulo_diff_ts(self, ts):
+        """
+        get diff modulo 360
+        :param ts: pd.Series() time serie to process
+        :param threshold: threshold of dif event to remove/replace with np.nan
+        :return: the filtered time serie in diff()
+        """
+        ts2 = ts.diff()
+        ts_diff = ts.diff()
+        # can't interpolate outermost points
+        ts2[0] = 0
+        ts2[-1] = 0
+        ts_diff[0] = 0
+        ts_diff[-1] = 0
+        ts_diff[ts2 > 180] = ts2 - 360
+        ts_diff[ts2 < -180] = ts2 + 360
+        return ts_diff
 
     def diff_clean_ts(self, ts, threshold):
         """
