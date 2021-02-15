@@ -45,9 +45,12 @@ from utils import (
 )
 
 TO_KNOT = 1.94384  # * m/s
-G = 9.81 #
+G = 9.81  #
 DEFAULT_REPORT = {"n": 1, "doppler_ratio": None, "sampling_ratio": None, "std": None}
-DOPPLER_EXCLUSION_LIST = ('movescount', 'waterspeed') # do not use doppler with these watches
+DOPPLER_EXCLUSION_LIST = (
+    "movescount",
+    "waterspeed",
+)  # do not use doppler with these watches
 ROOT_DIR = os.path.join(os.path.dirname(__file__), "../../")
 RESULTS_DIR = os.path.join(ROOT_DIR, "csv_results")
 CONFIG_DIR = os.path.join(ROOT_DIR, "config")
@@ -76,13 +79,14 @@ else:
     # and using fillna=interpolate
 # deprecated end
 
+
 class TraceAnalysis:
     # some key cls attributs:
     root_dir = ROOT_DIR
     results_dir = RESULTS_DIR
     config_dir = CONFIG_DIR
     results_swap_file = os.path.join(results_dir, "all_results.csv")
-    version = "February 4, 2021"
+    version = "February 15, 2021"
 
     def __init__(self, gpx_path, config_file=None, **params):
         """
@@ -93,26 +97,21 @@ class TraceAnalysis:
             spot str
             support str
         """
-        self.log_info = self.appender('info')
-        self.log_warning = self.appender('warning')
-        if not config_file:
-            config_file = os.path.join(self.config_dir, 'config.yaml')
-        self.process_config(config_file)
+        self.log_info = self.appender("info")
+        self.log_warning = self.appender("warning")
         self.gpx_path = gpx_path
         self.filename = Path(gpx_path).stem
+        self.author = params.get("author", self.filename.split("_")[0])
+        self.spot = params.get("spot", "")
+        self.support = params.get("support", "")
+        if not config_file:
+            config_file = os.path.join(self.config_dir, "config.yaml")
+        self.process_config(config_file)
         self.set_csv_paths()
-        self.df = self.load_df(gpx_path)
-        self.process_df()
-        self.author = params.get('author', self.filename.split("_")[0])
-        self.spot = params.get('spot', '')
-        self.support = params.get('support', '')
-        # debug, select a portion of the trac:
+
+        self.load_df(gpx_path)
+        # debug, select a portion of the track:
         # self.df = self.df.loc["2019-03-29 14:10:00+00:00": "2019-03-29 14:47:00+00:00"]
-        # original copy that will not be modified: for reference & debug:
-        self.resample_df()
-        #self.raw_df = self.df
-        # filter out speed spikes on self.df:
-        self.clean_df()
         # generate key time series:
         self.generate_series()
         self.log_trace_infos()
@@ -176,9 +175,11 @@ class TraceAnalysis:
             f"ranking groups vs gps functions: {self.ranking_groups}\n"
         )
 
-
-
     def load_df(self, gpx_path):
+        if self.load_df_from_parquet():
+            self.from_parquet = True
+            return
+        self.from_parquet = False
         self.file_size = Path(gpx_path).stat().st_size / 1e6
         if self.file_size > self.max_file_size:
             raise TraceAnalysisException(
@@ -189,8 +190,41 @@ class TraceAnalysis:
             raise TraceAnalysisException("the loaded gpx file is empty")
         self.creator = html_soup.gpx.get("creator", "unknown")
         tracks = self.format_html_to_gpx(html_soup)
-        df = self.to_pandas(tracks[0].segments[0])
-        return df
+        self.df = self.to_pandas(tracks[0].segments[0])
+        self.process_df()
+        self.resample_df()
+        # filter out speed spikes on self.df:
+        self.clean_df()
+        self.save_df_to_parquet()
+
+    @log_calls()
+    def save_df_to_parquet(self):
+        parquet_path = os.path.join(self.results_dir, f"parquet_{self.filename}")
+        self.df.to_parquet(parquet_path)
+
+    @log_calls()
+    def load_df_from_parquet(self):
+        print(self.results_dir)
+        filenames = [
+            Path(f).stem
+            for f in glob.iglob(
+                os.path.join(Path(self.results_dir).resolve(), "*"), recursive=False
+            )
+        ]  # if f.startswith('parquet_')
+        parquet_filename = [
+            f
+            for f in filenames
+            if (self.filename == f.strip("parquet_") and f.startswith("parquet_"))
+        ]
+        if not parquet_filename:
+            return False
+            logger.info('did not find parquet file to load')
+        else:
+            parquet_path = os.path.join(self.results_dir, parquet_filename[0])
+            self.log_info.send([f"loading from parquet file {parquet_path}"])
+            self.df = pd.read_parquet(parquet_path)
+            self.creator = self.df.loc[self.df.index[0], 'creator']
+            return True
 
     @log_calls()
     def load_gpx_file_to_html(self, gpx_path):
@@ -265,6 +299,7 @@ class TraceAnalysis:
         # **** data frame doppler checking *****
         return df
 
+    @log_calls()
     def process_df(self):
         """
         self.df DataFrame processing:
@@ -276,19 +311,16 @@ class TraceAnalysis:
         """
 
         # reindex on 'time' column for later resample
+        try:
+            self.df.time = self.df.time.dt.tz_localize('UTC')
+        except Exception:
+            pass
+        self.df.time = self.df.time.dt.tz_convert('UTC')
         self.df = self.df.set_index("time")
 
         # convert ms-1 to knots:
         self.df.speed = round(self.df.speed * TO_KNOT, 2)
         self.df.speed_no_doppler = round(self.df.speed_no_doppler * TO_KNOT, 2)
-
-        # add a new column with total elapsed time in seconds:
-        self.df["elapsed_time"] = pd.to_timedelta(
-            self.df.index - self.df.index[0]
-        ).astype("timedelta64[s]")
-        self.trace_sampling = self.df["elapsed_time"].diff().min()
-        # add a cumulated distance column (cannot resample on diff!!)
-        # self.df["cum_dist"] = self.df.delta_dist.cumsum()
 
         # convert bool to int: needed for rolling window functions
         self.df.loc[self.df.has_doppler == True, "has_doppler"] = 1
@@ -297,11 +329,13 @@ class TraceAnalysis:
         # sunto and apple watches have a False "emulated" doppler that should not be used:
         watch = [x for x in DOPPLER_EXCLUSION_LIST if x in self.creator.lower()]
         if watch and not self.force_doppler_speed:
-            self.log_warning.send([
-                f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",
-                f"deactivating doppler for {watch[0]} watches",
-                f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",
-            ])
+            self.log_warning.send(
+                [
+                    f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",
+                    f"deactivating doppler for {watch[0]} watches",
+                    f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",
+                ]
+            )
             self.df["speed"] = self.df.speed_no_doppler
             self.df["has_doppler"] = 0
 
@@ -317,13 +351,17 @@ class TraceAnalysis:
         self.df["acceleration_doppler_speed"] = self.df.speed.diff() / (
             TO_KNOT * G * self.sampling
         )
-        self.df[
-            "acceleration_non_doppler_speed"
-        ] = self.df.speed_no_doppler.diff() / (
+        self.df["acceleration_non_doppler_speed"] = self.df.speed_no_doppler.diff() / (
             TO_KNOT * G * self.sampling
         )
         # columns to be filtered out:
-        nan_list = ['speed', 'speed_no_doppler', 'time_sampling', 'has_doppler', 'course']
+        nan_list = [
+            "speed",
+            "speed_no_doppler",
+            "time_sampling",
+            "has_doppler",
+            "course",
+        ]
         erratic_data = True
         iter = 1
         self.filtered_events = 0
@@ -451,18 +489,20 @@ class TraceAnalysis:
             .interpolate()
         )
         # raw no doppler speed = don't fill nan (i.e. no interpolate:
-        raw_ts = (
-            self.df["speed_no_doppler"]
-            .resample(self.time_sampling)
-            .mean()
-        )
+        raw_ts = self.df["speed_no_doppler"].resample(self.time_sampling).mean()
         # course (orientation °) cumulated values => take min of the bin
         tc = self.df["course"].resample(self.time_sampling).min().interpolate()
-        # tc[tsd < 7] = np.nan
+
+        # add a new column with total elapsed time in seconds:
+        tet = pd.to_timedelta(
+            self.df.index - self.df.index[0]
+        ).astype("timedelta64[s]")
+
         df = pd.DataFrame(
             data={
                 "lon": tlon,
                 "lat": tlat,
+                "elapsed_time": tet,
                 "has_doppler": thd,
                 "filtering": np.nan,
                 "time_sampling": np.nan,
@@ -479,11 +519,13 @@ class TraceAnalysis:
         )
         # generate time_sampling column based on raw_speed:
         df.loc[df.raw_speed.notna(), "time_sampling"] = 1
+        df.loc[self.df.index[0], 'creator'] = self.creator
         df["filtering"] = 0
 
         self.df = df
-        #self.raw_df = df
+        # self.raw_df = df
 
+    @log_calls()
     def generate_series(self):
         """
         generate key time series with fillna or interpolate after filtering
@@ -491,7 +533,7 @@ class TraceAnalysis:
 
         # speed doppler
         self.tsd = self.df["speed"].interpolate()
-        self.df['speed'] = self.tsd
+        self.df["speed"] = self.tsd
         self.raw_tsd = self.df["raw_speed"]
         # speed no doppler
         self.ts = self.df["speed_no_doppler"].interpolate()
@@ -511,10 +553,10 @@ class TraceAnalysis:
         # distance: diff & cumulated calculated from speed and time_sampling:
         self.td = self.tsd * self.sampling / TO_KNOT
         self.tcd = self.td.cumsum()
-        self.df['delta_dist'] = self.td
-        self.df['cum_dist'] = self.tcd
+        self.df["delta_dist"] = self.td
+        self.df["cum_dist"] = self.tcd
         # course (orientation °)
-        self.df['course'][self.tsd < 5] = np.nan
+        self.df.loc[self.tsd < 5, "course"] = np.nan
         self.tc = self.df.course
         # find a middle between np.nan and interpolate filtered events:
         # fillna = 0 still allows rolling range
@@ -544,41 +586,58 @@ class TraceAnalysis:
                 / len(self.tsamp[self.tsd > 5])
             )
         if doppler_ratio < 70:
-            self.log_warning.send([
-                f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",
-                f"Doppler speed is not available on all time_sampling points",
-                f"Only {doppler_ratio}% of the points have doppler data",
-                f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",
-            ])
+            self.log_warning.send(
+                [
+                    f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",
+                    f"Doppler speed is not available on all time_sampling points",
+                    f"Only {doppler_ratio}% of the points have doppler data",
+                    f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",
+                ]
+            )
         # if doppler_ratio < 50:
         #     raise TraceAnalysisException(
         #         f"doppler speed is available on only {doppler_ratio}% of data"
         #     )
+        self.trace_sampling = self.df["elapsed_time"].diff().min()
         if self.trace_sampling != self.sampling:
-            self.log_warning.send([
-                f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",
-                f"you are analyzing a trace with a sampling = {self.sampling}S",
-                f"but the trace native sampling = {self.trace_sampling}S",
-                f"over sampling will slow trace analysis for no better precision",
-                f"while under sampling may degrade precision",
-                f"please consider modifying sampling in yaml config",
-                f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",
-            ])
-        self.log_info.send([
-            f"__init__ {self.__class__.__name__} with file {self.gpx_path}",
-            f"author name: {self.author}",  # trace author: read from gpx file name
-            f"file size is {self.file_size}Mb",
-            f"file loading to pandas DataFrame complete",
-            f"creator {self.creator}",  # GPS device type: read from gpx file xml infos field
-            f"trace min sampling = {self.trace_sampling}S",
-            f"and the trace is analyzed with a sampling = {self.sampling}S",
-            f"Trace total distance = {round(self.td.sum() / 1000, 1)} km",
-            f"overall doppler_ratio = {doppler_ratio}%",
-            f"overall time_sampling ratio = {sampling_ratio}%",
-            f"overall time_sampling ratio > 5knots = {sampling_ratio_5}%",
-            f"filtered {self.filtered_events} events with acceleration > {self.max_acceleration}g",
-            f"now running version {self.version}",
-        ])
+            self.log_warning.send(
+                [
+                    f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",
+                    f"you are analyzing a trace with a sampling = {self.sampling}S",
+                    f"but the trace native sampling = {self.trace_sampling}S",
+                    f"over sampling will slow trace analysis for no better precision",
+                    f"while under sampling may degrade precision",
+                    f"please consider modifying sampling in yaml config",
+                    f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",
+                ]
+            )
+        if self.from_parquet:
+            file_info = "loaded from parquet file"
+            creator = ""
+            filtered_events = ""
+        else:
+            file_info = f"file size is {self.file_size}Mb"
+            creator = f"creator {self.creator}"
+            filtered_events = (
+                f"filtered {self.filtered_events} events with acceleration > {self.max_acceleration}g"
+            )
+        self.log_info.send(
+            [
+                f"__init__ {self.__class__.__name__} with file {self.gpx_path}",
+                f"author name: {self.author}",  # trace author: read from gpx file name
+                file_info,
+                f"file loading to pandas DataFrame complete",
+                f"creator {self.creator}",  # GPS device type: read from gpx file xml infos field
+                f"trace min sampling = {self.trace_sampling}S",
+                f"and the trace is analyzed with a sampling = {self.sampling}S",
+                f"Trace total distance = {round(self.td.sum() / 1000, 1)} km",
+                f"overall doppler_ratio = {doppler_ratio}%",
+                f"overall time_sampling ratio = {sampling_ratio}%",
+                f"overall time_sampling ratio > 5knots = {sampling_ratio_5}%",
+                filtered_events,
+                f"now running version {self.version}",
+            ]
+        )
 
     def modulo_diff_ts(self, ts):
         """
@@ -677,7 +736,7 @@ class TraceAnalysis:
         tc[self.tsd < MIN_JIBE_SPEED] = np.nan
         # consider a speed_exclusion zone around min speed:
         ts[ts < MIN_JIBE_SPEED] = np.nan
-        #ts[self.tsd.rolling(speed_shift, center=True).min() < MIN_JIBE_SPEED] = np.nan
+        # ts[self.tsd.rolling(speed_shift, center=True).min() < MIN_JIBE_SPEED] = np.nan
         # arbitrarily remove start and end of session:
         tc.iloc[0:30] = np.nan
         tc.iloc[-30:-1] = np.nan
@@ -694,7 +753,7 @@ class TraceAnalysis:
             .rolling(rolling_extension)
             .max()
         )
-        cj1 = j1  > PARTIAL_COURSE
+        cj1 = j1 > PARTIAL_COURSE
         # =====================================================================
         # CONDITION 2 = cumulated course > FULL_COURSE in the full_course_window around jibe (center)
         # do not include partial rolling data
@@ -708,7 +767,7 @@ class TraceAnalysis:
         )
         cj2 = j2 > FULL_COURSE
         # =====================================================================
-        j3 = (abs(tc.rolling(rolling_extension, center=True).sum()))
+        j3 = abs(tc.rolling(rolling_extension, center=True).sum())
         # TODO ? condition on speed dip: search for inflexion points in speed
         # acceleration1 = round(ts.ewm(2).mean().shift(-1), 2)
         # acceleration2 = acceleration1.diff().diff().ewm(3).mean().shift(-2)
@@ -720,20 +779,20 @@ class TraceAnalysis:
         # jibe_speed3 = jibe_speed3.rolling(full_course_window, center=True, min_periods=1).min()
         # =====================================================================
         # APPLY CONDITION 1  & 2
-        self.jibe_range = cj1 & cj2 # save it to plot for debug
+        self.jibe_range = cj1 & cj2  # save it to plot for debug
         # search for min speed, including partial rolling data
         jibe_speed12 = ts.rolling(speed_window, min_periods=1).min().shift(-speed_shift)
-        #jibe_speed12 = ts.rolling(speed_window, center=True, min_periods=1).min()
+        # jibe_speed12 = ts.rolling(speed_window, center=True, min_periods=1).min()
         jibe_speed12[~(self.jibe_range)] = np.nan
         # =====================================================================
         # identify center of jibe = highest instantaneous course
 
         course_max = j3.copy()
         course_max[~self.jibe_range] = np.nan
-        reduced_course_max = reduce_value_bloc(course_max, roll_func='max')
+        reduced_course_max = reduce_value_bloc(course_max, roll_func="max")
         jibe_speed123 = jibe_speed12.copy()
-        jibe_speed123[course_max-reduced_course_max<-0.01] = np.nan
-        jibe_speed123[course_max<PARTIAL_COURSE/2] = np.nan
+        jibe_speed123[course_max - reduced_course_max < -0.01] = np.nan
+        jibe_speed123[course_max < PARTIAL_COURSE / 2] = np.nan
 
         # ====== debug starts =====================
         self.df["cj1"] = j1
@@ -1255,28 +1314,31 @@ class TraceAnalysis:
 
 
 def process_args(args):
+    gpx_filenames = []
     f = args.gpx_filename
     rd = args.recursive_read_directory
     d = args.read_directory
-    if d:
-        recursive = False
-    elif rd:
-        recursive = True
-        d = rd
-    gpx_filenames = []
 
     if f:
         gpx_filenames = f
-    if d:
+    elif d:
         gpx_filenames = [
             f
             for f in glob.iglob(
-                os.path.join(Path(d).resolve(), "**/*.gpx"), recursive=recursive
+                os.path.join(Path(d).resolve(), "*.gpx"), recursive=False
+            )
+        ]
+    elif rd:
+        gpx_filenames = [
+            f
+            for f in glob.iglob(
+                os.path.join(Path(rd).resolve(), "**/*.gpx"), recursive=True
             )
         ]
 
     logger.info(f"\nthe following gpx files will be processed:\n" f"{gpx_filenames}")
     return gpx_filenames
+
 
 def crunch_data():
     """
@@ -1292,7 +1354,9 @@ def crunch_data():
 
 parser = ArgumentParser()
 parser.add_argument("-f", "--gpx_filename", nargs="+", type=Path)
-parser.add_argument("-rd", "--recursive_read_directory", nargs="?", type=str, default="")
+parser.add_argument(
+    "-rd", "--recursive_read_directory", nargs="?", type=str, default=""
+)
 parser.add_argument("-d", "--read_directory", nargs="?", type=str, default="")
 parser.add_argument("-p", "--plot", action="count", default=0)
 parser.add_argument("-c", "--crunch_data", action="count", default=0)
@@ -1307,7 +1371,9 @@ parser.add_argument("-c", "--crunch_data", action="count", default=0)
 if __name__ == "__main__":
     args = parser.parse_args()
     # basicConfig(level={0: INFO, 1: DEBUG}.get(args.verbose, INFO))
-    config_filename = os.path.join(TraceAnalysis.config_dir,"config.yaml")  # config of gps functions to call
+    config_filename = os.path.join(
+        TraceAnalysis.config_dir, "config.yaml"
+    )  # config of gps functions to call
     gpx_filenames = process_args(args)
     error_dict = {}
     all_results = None

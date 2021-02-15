@@ -1,3 +1,5 @@
+# !! pip3 version > 19.3 is required to pip install fastparquet !!
+# => pip3 install --upgrade pip
 gpxpy
 pathlib
 pandas
@@ -7,3 +9,5 @@ bs4
 matplotlib
 scipy
 bokeh
+fastparquet
+python-snappy

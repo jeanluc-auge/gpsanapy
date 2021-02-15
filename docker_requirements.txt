@@ -5,3 +5,5 @@ numpy
 pyyaml
 bs4
 matplotlib
+fastparquet
+python-snappy
