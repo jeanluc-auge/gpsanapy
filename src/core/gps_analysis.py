@@ -81,12 +81,18 @@ else:
 
 
 class TraceAnalysis:
-    # some key cls attributs:
-    root_dir = ROOT_DIR
-    results_dir = RESULTS_DIR
-    config_dir = CONFIG_DIR
-    results_swap_file = os.path.join(results_dir, "all_results.csv")
-    version = "February 15, 2021"
+    # class attributs:
+    root_dir = ROOT_DIR # project root dir (requirements.txt ...)
+    results_dir = RESULTS_DIR # csv results, parquet and logs files
+    config_dir = CONFIG_DIR # yaml config files location
+    results_swap_file = os.path.join(results_dir, "all_results.csv") # all time history results file
+    analysis_version = 2 # track algo improvements
+    min_version = 2 # min requirement to accept loading from an archive parquet file
+    # attributs to save to parquet file:
+    #   attributs that cannot be modified
+    hard_trace_infos_attr = ['parquet_version', 'analysis_version', 'creator', 'trace_sampling']
+    #   user attributs that can be updated
+    free_trace_infos_attr = ['author', 'spot', 'support']
 
     def __init__(self, gpx_path, config_file=None, **params):
         """
@@ -101,6 +107,8 @@ class TraceAnalysis:
         self.log_warning = self.appender("warning")
         self.gpx_path = gpx_path
         self.filename = Path(gpx_path).stem
+        self.parquet_version = None
+        self.params = params
         self.author = params.get("author", self.filename.split("_")[0])
         self.spot = params.get("spot", "")
         self.support = params.get("support", "")
@@ -176,10 +184,20 @@ class TraceAnalysis:
         )
 
     def load_df(self, gpx_path):
-        if self.load_df_from_parquet():
-            self.from_parquet = True
-            return
         self.from_parquet = False
+        try:
+            if self.load_df_from_parquet():
+                self.from_parquet = True
+                return
+        except Exception as e:
+            self.log_info.send([
+                f'!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!',
+                f'failed to load parquet file',
+                f'an unexpected error {e} occured',
+                f'=> resume regular gpx file loading',
+                f'!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!',
+            ])
+
         self.file_size = Path(gpx_path).stat().st_size / 1e6
         if self.file_size > self.max_file_size:
             raise TraceAnalysisException(
@@ -199,32 +217,73 @@ class TraceAnalysis:
 
     @log_calls()
     def save_df_to_parquet(self):
+        """
+        save dataframe to parquet format, before results calculation
+        so it can be fastly reloaded and possibly avoid storing large gpx files
+        trace infos attributs are also saved in the data frame
+        (see class attributs list: cls.trace_infos_attr)
+        :return
+            save parquet to result_dir/parquet_<filename>
+        """
+        self.parquet_version = self.analysis_version
+        trace_infos_attr = self.free_trace_infos_attr + self.hard_trace_infos_attr
+        for attr in trace_infos_attr:
+            self.df.loc[self.df.index[0], attr] = getattr(self, attr)
         parquet_path = os.path.join(self.results_dir, f"parquet_{self.filename}")
         self.df.to_parquet(parquet_path)
 
     @log_calls()
     def load_df_from_parquet(self):
-        print(self.results_dir)
+        """
+        load dataframe from parquet file if it exists
+        save computation time from gpx & html file reading + filtering
+        :return: bool
+            True if the dataframe self.df could be loaded from parquet file
+        """
+        # check files in result_dir:
         filenames = [
             Path(f).stem
             for f in glob.iglob(
                 os.path.join(Path(self.results_dir).resolve(), "*"), recursive=False
             )
-        ]  # if f.startswith('parquet_')
+            if (Path(f).stem).startswith('parquet_')
+        ]
+        # search for parquet files matching the filename to analyse:
         parquet_filename = [
             f
             for f in filenames
-            if (self.filename == f.strip("parquet_") and f.startswith("parquet_"))
+            if self.filename == f.split("parquet_")[1]
         ]
-        if not parquet_filename:
+        if not (parquet_filename and self.parquet_loading) :
+            self.log_info.send([
+                'did not find parquet file to load or config rules prevented parquet loading',
+                '=> resume regular gpx file loading'
+            ])
             return False
-            logger.info('did not find parquet file to load')
-        else:
-            parquet_path = os.path.join(self.results_dir, parquet_filename[0])
-            self.log_info.send([f"loading from parquet file {parquet_path}"])
-            self.df = pd.read_parquet(parquet_path)
-            self.creator = self.df.loc[self.df.index[0], 'creator']
-            return True
+
+        # load parquet file:
+        parquet_path = os.path.join(self.results_dir, parquet_filename[0])
+        self.log_info.send([f"loading from parquet file {parquet_path}"])
+        self.df = pd.read_parquet(parquet_path)
+
+        # load trace attributs:
+        for attr in self.hard_trace_infos_attr:
+            setattr(self, attr, self.df.loc[self.df.index[0], attr])
+        self.df.drop(columns=self.hard_trace_infos_attr, inplace=True) # clean df for debug reading
+        # free user attributs that can be overriden by the class **params:
+        for attr in self.free_trace_infos_attr:
+            attr_value = self.params.get(attr, self.df.loc[self.df.index[0], attr])
+            setattr(self, attr, attr_value)
+        self.df.drop(columns=self.free_trace_infos_attr, inplace=True) # clean df for debug reading
+        # check if parquet file is acceptable:
+        # (this is about our algo version used to generate the df, it's not about parquet format)
+        if self.parquet_version < self.min_version:
+            self.log_info.send([
+                f'parquet file version {self.parquet_version} is below min version requirement of {self.min_version}',
+                f'=> abort file parquet loading and resume regular gpx file loading'
+            ])
+            return False
+        return True
 
     @log_calls()
     def load_gpx_file_to_html(self, gpx_path):
@@ -325,19 +384,71 @@ class TraceAnalysis:
         # convert bool to int: needed for rolling window functions
         self.df.loc[self.df.has_doppler == True, "has_doppler"] = 1
         self.df.loc[self.df.has_doppler == False, "has_doppler"] = 0
+        self.df['elapsed_time'] = pd.to_timedelta(
+            self.df.index - self.df.index[0]
+        ).astype("timedelta64[s]")
+        self.trace_sampling = self.df.elapsed_time.diff().min()
 
-        # sunto and apple watches have a False "emulated" doppler that should not be used:
-        watch = [x for x in DOPPLER_EXCLUSION_LIST if x in self.creator.lower()]
-        if watch and not self.force_doppler_speed:
-            self.log_warning.send(
-                [
-                    f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",
-                    f"deactivating doppler for {watch[0]} watches",
-                    f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",
-                ]
-            )
-            self.df["speed"] = self.df.speed_no_doppler
-            self.df["has_doppler"] = 0
+    @log_calls()
+    def resample_df(self):
+        """
+        resample dataframe before filtering
+        always resample on cumulated or absolute values (no diff !)
+            - resampling to self.time_sampling
+            - aggregation (mean/min/max) for under-time_sampling
+            - in case of over-time_sampling:
+                leave np.nan (raw_df)
+                fillna(0) (has doppler?)
+                interpolate
+
+        """
+        # don't fill nan on gps coordinates:
+        tlon = self.df["lon"].resample(self.time_sampling).mean().interpolate()
+        tlat = self.df["lat"].resample(self.time_sampling).mean().interpolate()
+        # add a new column with total elapsed time in seconds:
+        # has_doppler? yes=1 default=0 (np.nan=0), sum = AND (min):
+        thd = self.df["has_doppler"].resample(self.time_sampling).min()
+        thd = thd.fillna(0).astype(np.int64)
+        # speed doppler
+        tsd = self.df["speed"].resample(self.time_sampling).mean().interpolate()
+        # raw doppler speed = don't fill nan (i.e. no interpolate:
+        raw_tsd = self.df["speed"].resample(self.time_sampling).mean()
+        # speed no doppler
+        ts = (
+            self.df["speed_no_doppler"]
+            .resample(self.time_sampling)
+            .mean()
+            .interpolate()
+        )
+        # raw no doppler speed = don't fill nan (i.e. no interpolate:
+        raw_ts = self.df["speed_no_doppler"].resample(self.time_sampling).mean()
+        # course (orientation °) cumulated values => take min of the bin
+        tc = self.df["course"].resample(self.time_sampling).min().interpolate()
+
+        df = pd.DataFrame(
+            data={
+                "lon": tlon,
+                "lat": tlat,
+                "has_doppler": thd,
+                "filtering": np.nan,
+                "time_sampling": np.nan,
+                "cum_dist": np.nan,
+                "delta_dist": np.nan,
+                "raw_course": tc,
+                "course": tc,
+                "course_diff": np.nan,
+                "raw_speed": raw_tsd,
+                "raw_speed_no_doppler": raw_ts,
+                "speed_no_doppler": ts,
+                "speed": tsd,
+            }
+        )
+        # generate time_sampling column based on raw_speed:
+        df.loc[df.raw_speed.notna(), "time_sampling"] = 1
+
+        df["filtering"] = 0
+
+        self.df = df
 
     @log_calls()
     def clean_df(self):
@@ -457,79 +568,23 @@ class TraceAnalysis:
         return err
 
     @log_calls()
-    def resample_df(self):
-        """
-        resample dataframe before filtering
-        always resample on cumulated or absolute values (no diff !)
-            - resampling to self.time_sampling
-            - aggregation (mean/min/max) for under-time_sampling
-            - in case of over-time_sampling:
-                leave np.nan (raw_df)
-                fillna(0) (has doppler?)
-                interpolate
-
-        """
-
-        # don't fill nan on gps coordinates:
-        tlon = self.df["lon"].resample(self.time_sampling).mean().interpolate()
-        tlat = self.df["lat"].resample(self.time_sampling).mean().interpolate()
-        # add a new column with total elapsed time in seconds:
-        # has_doppler? yes=1 default=0 (np.nan=0), sum = AND (min):
-        thd = self.df["has_doppler"].resample(self.time_sampling).min()
-        thd = thd.fillna(0).astype(np.int64)
-        # speed doppler
-        tsd = self.df["speed"].resample(self.time_sampling).mean().interpolate()
-        # raw doppler speed = don't fill nan (i.e. no interpolate:
-        raw_tsd = self.df["speed"].resample(self.time_sampling).mean()
-        # speed no doppler
-        ts = (
-            self.df["speed_no_doppler"]
-            .resample(self.time_sampling)
-            .mean()
-            .interpolate()
-        )
-        # raw no doppler speed = don't fill nan (i.e. no interpolate:
-        raw_ts = self.df["speed_no_doppler"].resample(self.time_sampling).mean()
-        # course (orientation °) cumulated values => take min of the bin
-        tc = self.df["course"].resample(self.time_sampling).min().interpolate()
-
-        # add a new column with total elapsed time in seconds:
-        tet = pd.to_timedelta(
-            self.df.index - self.df.index[0]
-        ).astype("timedelta64[s]")
-
-        df = pd.DataFrame(
-            data={
-                "lon": tlon,
-                "lat": tlat,
-                "elapsed_time": tet,
-                "has_doppler": thd,
-                "filtering": np.nan,
-                "time_sampling": np.nan,
-                "cum_dist": np.nan,
-                "delta_dist": np.nan,
-                "raw_course": tc,
-                "course": tc,
-                "course_diff": np.nan,
-                "raw_speed": raw_tsd,
-                "raw_speed_no_doppler": raw_ts,
-                "speed_no_doppler": ts,
-                "speed": tsd,
-            }
-        )
-        # generate time_sampling column based on raw_speed:
-        df.loc[df.raw_speed.notna(), "time_sampling"] = 1
-        df.loc[self.df.index[0], 'creator'] = self.creator
-        df["filtering"] = 0
-
-        self.df = df
-        # self.raw_df = df
-
-    @log_calls()
     def generate_series(self):
         """
         generate key time series with fillna or interpolate after filtering
         """
+
+        # sunto and apple watches have a False "emulated" doppler that should not be used:
+        watch = [x for x in DOPPLER_EXCLUSION_LIST if x in self.creator.lower()]
+        if watch and not self.force_doppler_speed:
+            self.log_warning.send(
+                [
+                    f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",
+                    f"deactivating doppler for {watch[0]} watches",
+                    f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",
+                ]
+            )
+            self.df["speed"] = self.df.speed_no_doppler
+            self.df["has_doppler"] = 0
 
         # speed doppler
         self.tsd = self.df["speed"].interpolate()
@@ -598,7 +653,7 @@ class TraceAnalysis:
         #     raise TraceAnalysisException(
         #         f"doppler speed is available on only {doppler_ratio}% of data"
         #     )
-        self.trace_sampling = self.df["elapsed_time"].diff().min()
+
         if self.trace_sampling != self.sampling:
             self.log_warning.send(
                 [

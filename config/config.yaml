@@ -4,7 +4,7 @@ rules:
   # sampling should match the sampling of the gpx trace
   # check trace informations in the execution.log
   # plus a warning will be issued if they differ
-  max_acceleration: 0.22 # g
+  max_acceleration: 0.23 # g
   # filter gps error spikes (chose a high value if you want to disable filtering)
   # acceleration = x g or 9.8x m/s/s or 20x knots/s, recommend values in [0.22 - 0.5] range
   # higher sampling (< 1S) require higher threshold (up to 0.8 with 0.1S sampling)
@@ -15,6 +15,18 @@ rules:
   # for example doppler speed is automatically disabled for Movescount watch files
   # because the doppler field is not a true doppler value but just a 2/3 samples filter
   # use true if you want to (always) use the doppler speed field anyway
+  parquet_loading: true
+  # gpx files are interpreted and loaded into pandas DataFrame
+  #     with filtering and resampling (raw gps data is also stored in the DataFrame)
+  # but the gpx & html interpretation, sampling and filtering require a large computing time & power
+  # The proposed feature saves the resulting pandas DataFrame in a fastparquet format
+  #     (big data format with fast access & compression)
+  #     subsequent re-analysis of the same file are performed with the DataFrame from the saved parquet file
+  #     thereby saving large computing time (>80% saving)
+  #     this doesn't affect gps analysis functions that are still re-calculated every time (not saved to parquet)
+  #     and a sw versionning system automatically disables obsolete parquet files
+  #     (for examples if there are changes in the sampling or filtering algorithm)
+  #     however, the parquet loading can be disabled with this option (disable = false)
 functions:
   # gps analysis functions to run and rank
   # do not repeat twice the same function (it is a dictionary structure)
