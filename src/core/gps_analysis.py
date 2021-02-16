@@ -1496,6 +1496,10 @@ parser.add_argument(
 parser.add_argument("-d", "--read_directory", nargs="?", type=str, default="")
 parser.add_argument("-p", "--plot", action="count", default=0)
 parser.add_argument("-c", "--crunch_data", action="count", default=0)
+parser.add_argument("-data","--params_data", nargs="?", type=json.loads, default="")
+# !! mind the quotes with data json loads !! use:
+#       -data '{"author": "jla", ...}'
+
 # parser.add_argument(
 #     "-v",
 #     "--verbose",
@@ -1515,7 +1519,8 @@ if __name__ == "__main__":
     all_results = None
     for gpx_filename in gpx_filenames:
         try:
-            gpsana_client = TraceAnalysis(gpx_filename, config_filename)
+            params = args.params_data
+            gpsana_client = TraceAnalysis(gpx_filename, config_filename, **params)
             gpx_results = gpsana_client.call_gps_func_from_config()
             gpsana_client.load_merge_all_results(gpx_results)
             gpsana_client.rank_all_results()
