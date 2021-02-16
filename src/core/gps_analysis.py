@@ -714,6 +714,7 @@ class TraceAnalysis:
 
     def diff_clean_ts(self, ts, threshold):
         """
+        !! DEPRECATED, replaced by modulo_diff_ts(self) !!
         filter "turn around" events and return the diff of the time serie
         :param ts: pd.Series() time serie to process
         :param threshold: threshold of dif event to remove/replace with np.nan
@@ -732,7 +733,13 @@ class TraceAnalysis:
         """
         mean speed above v_min
         :param v_min: float min speed to consider
-        :return: float mean speed of the session above v_min
+        :return: results dict
+            description
+            result
+            n
+            doppler_ratio
+            sampling_ratio
+            std
         """
         result = round(self.tsd[self.tsd > v_min].mean(), 1)
         results = [{"result": result, "description": description, **DEFAULT_REPORT}]
@@ -741,12 +748,18 @@ class TraceAnalysis:
     @log_calls(log_args=True, log_result=True)
     def planning_ratio(self, description, v_min=15, distance=True):
         """
-        ratio of distance or time spent while v > v_min
+        % (ratio) of distance or time spent while v > v_min
         :param
             description: str
             v_min: float knots min speed to consider
             distance: bool True=ratio on distance, False=ratio on time
-        :return: the % of time spent over v_min
+        :return: results dict
+            description
+            result
+            n
+            doppler_ratio
+            sampling_ratio
+            std
         """
         if distance:
             result = int(100 * self.td[self.tsd > v_min].sum() / self.td.sum())
@@ -760,7 +773,13 @@ class TraceAnalysis:
         """
         total distance covered while v > v_min
         :param vmin: float knots min speed to consider
-        :return: the total distance spent over v_min
+        :return: results dict
+            description
+            result
+            n
+            doppler_ratio
+            sampling_ratio
+            std
         """
         result = round(int(self.td[self.tsd > v_min].agg(sum)) / 1000, 1)
         results = [{"result": result, "description": description, **DEFAULT_REPORT}]
@@ -771,7 +790,13 @@ class TraceAnalysis:
         """
         calculate the best jibe min speeds
         :param n: int number of records
-        :return: list of n * vmin jibe speeds
+        :return: results dict
+            description
+            result
+            n
+            doppler_ratio
+            sampling_ratio
+            std
         """
         PARTIAL_COURSE = 75
         FULL_COURSE = 135
@@ -917,7 +942,13 @@ class TraceAnalysis:
         calculate Vmax n x V[distance]
         :param dist: float distance to consider for speed mean
         :param n: int number of vmax to record
-        :return: vmax mean over distance dist
+        :return: results dict
+            description
+            result
+            n
+            doppler_ratio
+            sampling_ratio
+            std
         """
 
         # find a starting point from the max distance in a sample (vmax)
@@ -991,7 +1022,13 @@ class TraceAnalysis:
         calculate Vmax n x V[distance]
         :param dist: float distance to consider for speed mean
         :param n: int number of vmax to record
-        :return: vmax mean over distance dist
+        :return: results dict
+            description
+            result
+            n
+            doppler_ratio
+            sampling_ratio
+            std
         """
 
         def rolling_dist_count(delta_dist):
@@ -1077,7 +1114,13 @@ class TraceAnalysis:
         calculate Vmax: n * x seconds
         :param xs: int time interval in seconds
         :param n: number of records
-        :return: list of n * vs
+        :return: results dict
+            description
+            result
+            n
+            doppler_ratio
+            sampling_ratio
+            std
         """
         # to str:
         xs = f"{s}S"
@@ -1194,7 +1237,15 @@ class TraceAnalysis:
         load config.yaml file with instructions
         about gps analysis functions to call with args
         and record their result in self.result DataFrame
-        :return: pd.DataFrame() self_result
+        :return: pandas df
+            author
+            creator
+            date
+            description
+            result
+            doppler_ratio
+            sampling_ratio
+            std
         """
         results = []
         # iterate over the config and call the referenced functions:
