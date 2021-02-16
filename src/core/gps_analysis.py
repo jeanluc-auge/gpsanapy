@@ -668,11 +668,9 @@ class TraceAnalysis:
             )
         if self.from_parquet:
             file_info = "loaded from parquet file"
-            creator = ""
             filtered_events = ""
         else:
             file_info = f"file size is {self.file_size}Mb"
-            creator = f"creator {self.creator}"
             filtered_events = (
                 f"filtered {self.filtered_events} events with acceleration > {self.max_acceleration}g"
             )
@@ -680,6 +678,8 @@ class TraceAnalysis:
             [
                 f"__init__ {self.__class__.__name__} with file {self.gpx_path}",
                 f"author name: {self.author}",  # trace author: read from gpx file name
+                f"spot: {self.spot}",
+                f"support: {self.support}",
                 file_info,
                 f"file loading to pandas DataFrame complete",
                 f"creator {self.creator}",  # GPS device type: read from gpx file xml infos field
@@ -690,7 +690,8 @@ class TraceAnalysis:
                 f"overall time_sampling ratio = {sampling_ratio}%",
                 f"overall time_sampling ratio > 5knots = {sampling_ratio_5}%",
                 filtered_events,
-                f"now running version {self.version}",
+                f"now running:    analysis version {self.analysis_version} ",
+                f"                parquet version {self.parquet_version}",
             ]
         )
 
@@ -1260,43 +1261,72 @@ class TraceAnalysis:
                 )
 
         # update results with gpx file creator and author and convert to df:
+        date = str(self.df.index[0].date())
+        if self.spot:
+            hash = f"{self.author}-{date}-{self.spot}"
+        else:
+            hash = f"{self.author}-{date}"
         data = [
             dict(
+                hash=hash,
+                filename=self.filename,
                 creator=self.creator,
                 author=self.author,
-                date=str(self.df.index[0].date()),
+                support=self.support,
+                spot=self.spot,
+                date=date,
                 **result,
             )
             for result in results
         ]
         gpx_results = pd.DataFrame(data=data)
-        gpx_results = gpx_results.set_index("author")
+        gpx_results = gpx_results.set_index("filename")
         # ordered (wrto ranking) list of gps_func to call:
         return gpx_results
 
-    def merge_all_results(self, gpx_results):
+    def load_merge_all_results(self, gpx_results):
+        """
+        load all_results history swap file and merge with current analysis results
+        :param gpx_results:
+            pandas df indexed by filename of current analysis results
+        :return:
+            self.all results pandas df of results merged with history
+        """
         # merge DataFrames current gpx_results with all_results history
         all_results = load_results(self.results_swap_file, self.gps_func_description)
         if all_results is None:
             all_results = gpx_results
-        elif self.author in all_results.index:
-            all_results.loc[self.author, :] = gpx_results
+        elif self.filename in all_results.index:
+            all_results.loc[self.filename, :] = gpx_results
         else:  # merge
             all_results = pd.concat([all_results, gpx_results])
         logger.debug(
-            f"\nloaded all results history and merged with {self.author} results:\n"
+            f"\nloaded all results history and merged with {self.filename} results:\n"
             f"{all_results.head(30)}\n"
         )
-        return all_results
+        self.all_results = all_results
 
-    @log_calls(log_args=False, log_result=True)
-    def rank_all_results(self, gpx_results):
+    @log_calls(log_args=True, log_result=True)
+    def rank_all_results(self, **params):
+        """
+        merge gpx_results of the current filename with all_results history
+        and create the ranking_results file based on config yaml ranking groups.
+        The ranking may be reduced to certain category with **params
+        :param gpx_results: current filename analysis results
+        :param params: select ranking by category
+            for example: params = dict(spot='g13', support='kitefoil')
+        :return: pandas table ranking_results
+        """
+
         # merge DataFrames current gpx_results with all_results history:
-        self.all_results = self.merge_all_results(gpx_results)
+        reduced_results = self.all_results.copy()
+        for param, value in params.items():
+            if param in reduced_results.columns:
+                reduced_results = reduced_results[reduced_results[param]==value]
         # build ranking_results MultiIndex DataFrame:
-        all_results_table = self.all_results[self.all_results.n == 1].pivot_table(
+        all_results_table = reduced_results[reduced_results.n == 1].pivot_table(
             values=["sampling_ratio", "result"],
-            index=["author"],
+            index=["hash"],
             columns=["description"],
             aggfunc=np.mean,
             dropna=False,
@@ -1487,7 +1517,8 @@ if __name__ == "__main__":
         try:
             gpsana_client = TraceAnalysis(gpx_filename, config_filename)
             gpx_results = gpsana_client.call_gps_func_from_config()
-            gpsana_client.rank_all_results(gpx_results)
+            gpsana_client.load_merge_all_results(gpx_results)
+            gpsana_client.rank_all_results()
             gpsana_client.save_to_csv(gpx_results)
             gpsana_client.log_computation_time()
             if args.plot > 0:

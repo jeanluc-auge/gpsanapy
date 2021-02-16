@@ -269,7 +269,7 @@ def load_results(all_results_filename, gps_func_dict=None):
     # open filename if it exists:
     try:
         all_results = pd.read_csv(all_results_filename)
-        all_results = all_results.set_index("author")
+        all_results = all_results.set_index("filename")
     except Exception as e:
         logger.warning(
             f"\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
@@ -288,9 +288,7 @@ def load_results(all_results_filename, gps_func_dict=None):
         config_error = f"all_results.csv:\n {all_results_gps_func_list}"
     else:
         for description in gps_func_dict:
-            if all_results.groupby("description").max().loc[
-                description, "n"
-            ] != gps_func_dict[description].get("n", 1):
+            if all_results.groupby("description")['n'].max()[description] != gps_func_dict[description].get("n", 1):
                 config_error = f"{(all_results.groupby('description').max().loc[description, 'n'])}"
     if config_error:
         logger.error(
