@@ -1496,7 +1496,7 @@ parser.add_argument(
 parser.add_argument("-d", "--read_directory", nargs="?", type=str, default="")
 parser.add_argument("-p", "--plot", action="count", default=0)
 parser.add_argument("-c", "--crunch_data", action="count", default=0)
-parser.add_argument("-data","--params_data", nargs="?", type=json.loads, default="")
+parser.add_argument("-data","--params_data", nargs="?", type=json.loads, default={})
 # !! mind the quotes with data json loads !! use:
 #       -data '{"author": "jla", ...}'
 
