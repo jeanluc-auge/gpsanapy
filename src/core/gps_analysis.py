@@ -67,17 +67,10 @@ ch = StreamHandler()
 ch.setLevel(INFO)
 logger.addHandler(ch)
 
-# deprecated, do not modify:
-AGGRESSIVE_FILTERING = False
-if AGGRESSIVE_FILTERING:
-    MAX_ITER = 3
-    FILTER_WINDOW = 15
-    # and using fillna=ffill
-else:
-    MAX_ITER = 10
-    FILTER_WINDOW = 30
-    # and using fillna=interpolate
-# deprecated end
+# filtering:
+MAX_ITER = 10
+FILTER_WINDOW = 30
+# and using fillna=interpolate
 
 
 class TraceAnalysis:
@@ -480,7 +473,7 @@ class TraceAnalysis:
 
         # limit the # of iterations for speed + avoid infinite loop
         while erratic_data and iter < MAX_ITER:
-            err = self.filter_on_field(df2, iter, "speed", "speed_no_doppler")
+            err = self.filter_on_field(df2, "speed" , "speed_no_doppler")
             self.filtered_events += err
             iter += 1
             erratic_data = err > 0
@@ -489,7 +482,7 @@ class TraceAnalysis:
         self.df["filtering"] = df2.filtering
         # self.df = self.df[self.df.speed.notna()]
 
-    def filter_on_field(self, df2, iter, *columns):
+    def filter_on_field(self, df2, *columns):
         """
         filter a given column in self.df
         by checking its acceleration
@@ -498,36 +491,42 @@ class TraceAnalysis:
         param column: df column to process
         :return: Bool assessing if filtering occured
         """
+        # 2 filtering algorithms are implemented,
+        # small accelerations < aggressive_filtering_th are just filtered out
+        # while larger accelerations are analyzed for descending phase and back to normal conditions
+        if self.aggressive_filtering:
+            aggressive_filtering_th = 1.5 * self.max_acceleration
+            filtering_rolling_window = 4
+        else:
+            aggressive_filtering_th = 1.95 * self.max_acceleration
+            filtering_rolling_window = 2
 
-        def rolling_acceleration_filter(x):
+        def rolling_acceleration_filter(x, descend_th=-0.1, exit_th=0.005):
             """
             rolling filter function
             we search for the interval length between
             positive and negative acceleration spikes
-            :param x: float64 [60 acceleration samples] array from rolling window
+            :param
+            : x: float64 [60 acceleration samples] array from rolling window
+            : descend_th: float triggers descending phase. Exit can only occur after descending phase
+            : exit_th: float acceleration value for exit after descending phase
             :return: int # samples count of the interval to filter out
             """
             i = 0
             # searched irrealistic acceleration[0] > max_acceleration spikes
             # we differentiate very high from high acceleration spikes (2 * )
-            if x[0] > 2 * self.max_acceleration:
+            if x[0] > aggressive_filtering_th:
                 exiting = False
                 for i, a in enumerate(x):
                     # find spike interval length by searching negative spike end
-                    if a < -0.1:
+                    if a < descend_th:
+                        # descending phase: continue filtering while a < -0.1
                         exiting = True
-                    elif exiting:
-                        if a < self.max_acceleration:
+                    elif exiting: # descending phase ends: a>-0.1
+                        if a > self.max_acceleration:
+                            exiting = False # nocheinmal
+                        elif a > exit_th : # wait for reacceleration before exiting
                             break
-                        else:
-                            exiting = False
-            # faster return condition for low acceleration spikes:
-            # may be a fast leading edge, i.e. fast acceleration after planning
-            # cf kitefoils accelerations are possible in this range and are not spikes
-            elif x[0] > self.max_acceleration:
-                for i, a in enumerate(x):
-                    if a < self.max_acceleration:
-                        break
             return i
 
         err = 0
@@ -541,6 +540,17 @@ class TraceAnalysis:
             acceleration_max = df2[column_acceleration].max()
             if acceleration_max <= self.max_acceleration:  # save execution time
                 break
+            c1 = (
+                    df2[column_acceleration].rolling(filtering_rolling_window).max()
+                    <= aggressive_filtering_th
+            )
+            c2 = (
+                    df2[column_acceleration].rolling(filtering_rolling_window).max()
+                    > self.max_acceleration
+            )
+            c = c1 & c2
+            df2.loc[c, column] = np.nan
+            df2.loc[c, 'filtering'] = 1
             # now filter and apply our rolling acceleration filter:
             df2[column_filtering] = (
                 df2[column_acceleration]
@@ -553,18 +563,14 @@ class TraceAnalysis:
             err += len(indices)
             for i in indices:
                 this_range = df2.iloc[int(i) : int(i + filtering[i]) + 1].index
-                df2.loc[this_range, columns] = np.nan
+                df2.loc[this_range, column] = np.nan
                 df2.loc[this_range, "filtering"] = 1
-            for column in columns:
-                if AGGRESSIVE_FILTERING:
-                    df2.loc[:, column].ffill(inplace=True)
-                else:
-                    df2.loc[:, column].interpolate(inplace=True)
-            logger.info(
-                f"***********************************************\n"
-                f"applied rolling acceleration filter on {column}\n"
+            df2.loc[:, column].interpolate(inplace=True)
+            self.log_info.send([
+                f"***********************************************\n",
+                f"applied rolling acceleration filter on {column}\n",
                 f"and filtered {len(indices)} events with an acceleration max = {round(acceleration_max,3)}\n"
-            )
+            ])
         return err
 
     @log_calls()
@@ -590,6 +596,7 @@ class TraceAnalysis:
         self.tsd = self.df["speed"].interpolate()
         self.df["speed"] = self.tsd
         self.raw_tsd = self.df["raw_speed"]
+        self.raw_ts = self.df["raw_speed_no_doppler"]
         # speed no doppler
         self.ts = self.df["speed_no_doppler"].interpolate()
         self.df["speed_no_doppler"] = self.ts
@@ -677,6 +684,7 @@ class TraceAnalysis:
         self.log_info.send(
             [
                 f"__init__ {self.__class__.__name__} with file {self.gpx_path}",
+                f"params {self.params}",
                 f"author name: {self.author}",  # trace author: read from gpx file name
                 f"spot: {self.spot}",
                 f"support: {self.support}",

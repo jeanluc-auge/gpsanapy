@@ -156,9 +156,10 @@ def bokeh_speed(gpsana_client):
     p = figure(x_axis_type="datetime", x_axis_label="time")
     dfs = pd.DataFrame(index=gpsana_client.tsd.index)
     dfs["raw_speed"] = gpsana_client.raw_tsd
-    dfs[dfs.raw_speed>55] = 55
+    dfs.loc[dfs.raw_speed>55, "raw_speed"] = 55
     dfs["speed"] = gpsana_client.tsd
     dfs["speed_no_doppler"] = gpsana_client.ts
+    dfs.loc[dfs.speed_no_doppler > 55, "speed_no_doppler"] = 55
     dfs = dfs.reset_index()
     source = ColumnDataSource(dfs)
     p.line(x='time', y='raw_speed', source=source, color='blue', legend_label='unfiltered raw speed')

@@ -8,14 +8,20 @@ rules:
   # filter gps error spikes (chose a high value if you want to disable filtering)
   # acceleration = x g or 9.8x m/s/s or 20x knots/s, recommend values in [0.22 - 0.5] range
   # higher sampling (< 1S) require higher threshold (up to 0.8 with 0.1S sampling)
+  aggressive_filtering: false
+  # do not activate for the majority of traces
+  # but tighter filtering thresholds may help on very poor traces:
+  # - increase filtering rolling window
+  # - lower threshold for the activation of complex filtering (with return to normal conditions check)
+  # this may result in the filtering of 'normal' speed periods
   max_speed: 45 # knots
   # filter backup: do not process file with remaining speeds > max_speed after filtering
   max_file_size: 10 # Mb : do not process file with size > max_file_size
-  force_doppler_speed: false
+  force_doppler_speed: true
   # for example doppler speed is automatically disabled for Movescount watch files
   # because the doppler field is not a true doppler value but just a 2/3 samples filter
   # use true if you want to (always) use the doppler speed field anyway
-  parquet_loading: true
+  parquet_loading: false
   # gpx files are interpreted and loaded into pandas DataFrame
   #     with filtering and resampling (raw gps data is also stored in the DataFrame)
   # but the gpx & html interpretation, sampling and filtering require a large computing time & power
