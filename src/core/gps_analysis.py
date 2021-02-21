@@ -52,14 +52,19 @@ DOPPLER_EXCLUSION_LIST = (
     "waterspeed",
 )  # do not use doppler with these watches
 ROOT_DIR = os.path.join(os.path.dirname(__file__), "../../")
-RESULTS_DIR = os.path.join(ROOT_DIR, "csv_results")
 CONFIG_DIR = os.path.join(ROOT_DIR, "config")
-if not Path(RESULTS_DIR).is_dir():
-    os.makedirs(RESULTS_DIR)
+LOG_DIR = os.path.join(ROOT_DIR, "csv_results")
+# filtering:
+MAX_ITER = 10
+FILTER_WINDOW = 30
+# and using fillna=interpolate
 
 logger = getLogger()
 logger.setLevel(INFO)
-log_path = os.path.join(RESULTS_DIR, "execution.log")
+try:
+    log_path = os.path.join(LOG_DIR, "execution.log")
+except Exception:
+    log_path = os.path.join(ROOT_DIR, "execution.log")
 fh = FileHandler(log_path)
 fh.setLevel(INFO)
 logger.addHandler(fh)
@@ -67,20 +72,185 @@ ch = StreamHandler()
 ch.setLevel(INFO)
 logger.addHandler(ch)
 
-# filtering:
-MAX_ITER = 10
-FILTER_WINDOW = 30
-# and using fillna=interpolate
+
+class TraceConfig:
+    config_dir = CONFIG_DIR
+    def __init__(self, config_file=None):
+        if not config_file:
+            self.config_file = os.path.join(self.config_dir, "config.yaml")
+        else:
+            self.config_file = config_file
+        self.process_config()
+        self.all_results_path = os.path.join(
+            self.directory_paths.results_dir, "all_results.csv"
+        )
+    
+    def process_config(self):
+        """
+        extract info from yaml config files
+        Parameters:
+            self.config
+        Return:
+            rules:
+                max_speed, max_acceleration, max_file_size, time_sampling, sampling
+            self.config.gps_func_description
+                { fn_description: 'args': {**fn_kwargs} }
+            self.ranking_groups
+                {ranking_group_name: [fn1_description, ...] }
+        :return:
+        """
+        config = load_config(self.config_file)
+        self.rules = config.rules
+        self.functions = config.functions
+        self.directory_paths = config.directory_paths
+        # check directory exist or create them:
+        for dir_path in self.directory_paths.values():
+            if not Path(dir_path).is_dir():
+                os.makedirs(dir_path)
+
+        self.gps_func_description = {
+            iteration["description"]: iteration["args"]
+            for iterations in config["functions"].values()
+            for iteration in iterations
+        }
+
+        ranking_groups = {}
+        for gps_func, iterations in self.functions.items():
+            for iteration in iterations:
+                if iteration["ranking_group"] in ranking_groups:
+                    ranking_groups[iteration["ranking_group"]].append(
+                        iteration["description"]
+                    )
+                else:
+                    ranking_groups[iteration["ranking_group"]] = [
+                        iteration["description"]
+                    ]
+        self.ranking_groups = ranking_groups
+
+        logger.info(
+            f"\nlist of gps functions {self.gps_func_description}\n"
+            f"ranking groups vs gps functions: {self.ranking_groups}\n"
+        )
+
+
+class TraceResults:
+    def __init__(self, config=None):
+        """
+
+        :param config: TraceConfig infos from config.yaml
+        """
+        if config:
+            self.config = config
+        else:
+            self.config = TraceConfig()
+        self.mic = self.multi_index_from_config()
+
+    def reduced_results(self, by_support='all', by_spot='all', by_author='all', check_config=False):
+        params = {}
+        if by_support != 'all' and by_support:
+            params['support'] = by_support
+        if by_spot != 'all' and by_spot:
+            params['spot'] = by_spot
+        if by_author != 'all' and by_author:
+            params['author'] = by_author
+        all_results = load_results(self.config, check_config)
+        reduced_results = all_results.copy()
+        for param, value in params.items():
+            if param in all_results.columns:
+                reduced_results = reduced_results[reduced_results[param] == value]
+        return reduced_results
+
+    def multi_index_from_config(self):
+        # init multiIndex DataFrame for the ranking_results:
+        code0 = []
+        code1 = []
+        code2 = []
+        level0 = []
+        level1 = list(self.config.gps_func_description)
+        level2 = ["result", "sampling_ratio", "ranking"]
+        i = 0
+        for k, v in self.config.ranking_groups.items():
+            code0 += len(v) * [i, i, i]
+            level0.append(k)
+            i += 1
+        for i, _ in enumerate(level1):
+            code1 += [i, i, i]
+            code2 += [0, 1, 2]
+        mic = pd.MultiIndex(
+            levels=[level0, level1, level2], codes=[code0, code1, code2]
+        )
+        logger.debug(f"ranking results multi index architecture:" f"{mic}")
+        return mic
+
+    #TODO EXCEPTION DECORATOR RETURNS None
+    def rank_all_results(self, by_support='all', by_spot='all', by_author='all', check_config=False):
+        """
+        merge gpx_results of the current filename with all_results history
+        and create the ranking_results file based on config yaml ranking groups.
+        The ranking may be reduced to certain category with **params
+        :param gpx_results: current filename analysis results
+        :param params: select ranking by category
+            for example: params = dict(spot='g13', support='kitefoil')
+        :return: pandas table ranking_results
+        """
+
+        # merge DataFrames current gpx_results with all_results history:
+        reduced_results = self.reduced_results(
+            by_support=by_support,
+            by_spot=by_spot,
+            by_author=by_author,
+            check_config=check_config
+        )
+        if reduced_results.empty:
+            return None
+        # build ranking_results MultiIndex DataFrame:
+        all_results_table = reduced_results[reduced_results.n == 1].pivot_table(
+            values=["sampling_ratio", "result"],
+            index=["hash"],
+            columns=["description"],
+            aggfunc=np.mean,
+            dropna=False,
+        )
+        # date_table = self.all_results.groupby('author').date.min()
+        ranking_results = pd.DataFrame(
+            index=all_results_table.index, columns=self.mic
+        )
+        # rank and fill ranking_results DataFrame:
+        ranking = all_results_table.result.rank(
+            method="min", ascending=False, na_option="bottom"
+        )
+        for group, group_func_list in self.config.ranking_groups.items():
+            for description in group_func_list:
+                ranking_results.loc[:, (group, description, "ranking")] = ranking[
+                    description
+                ]
+                ranking_results.loc[
+                    :, (group, description, "result")
+                ] = all_results_table["result"][description]
+                ranking_results.loc[
+                    :, (group, description, "sampling_ratio")
+                ] = all_results_table["sampling_ratio"][description]
+        ranking_results.loc[:, "points"] = 0
+        for k, v in self.config.ranking_groups.items():
+            ranking_results.loc[:, "points"] += ranking_results.xs(
+                (k, "ranking"), level=(0, 2), axis=1
+            ).mean(axis=1)
+        ranking_results.loc[:, "points"] = ranking_results.loc[:, "points"] / len(
+            self.config.ranking_groups
+        )
+        ranking_results = ranking_results.sort_values(by=["points"])
+
+        return ranking_results
 
 
 class TraceAnalysis:
     # class attributs:
     root_dir = ROOT_DIR # project root dir (requirements.txt ...)
-    results_dir = RESULTS_DIR # csv results, parquet and logs files
+
     config_dir = CONFIG_DIR # yaml config files location
-    results_swap_file = os.path.join(results_dir, "all_results.csv") # all time history results file
-    analysis_version = 2 # track algo improvements
-    min_version = 2 # min requirement to accept loading from an archive parquet file
+
+    analysis_version = 2.1 # track algo improvements
+    min_version = 2.1 # min requirement to accept loading from an archive parquet file
     # attributs to save to parquet file:
     #   attributs that cannot be modified
     hard_trace_infos_attr = ['parquet_version', 'analysis_version', 'creator', 'trace_sampling']
@@ -95,22 +265,27 @@ class TraceAnalysis:
             author str
             spot str
             support str
+            parquet_loading bool : default = config.yaml, overrides config.yaml param
         """
         self.log_info = self.appender("info")
         self.log_warning = self.appender("warning")
         self.gpx_path = gpx_path
         self.filename = Path(gpx_path).stem
-        self.parquet_version = None
+        self.config = TraceConfig(config_file) # retrive TraceConfig instance client
+        self.trace_results = TraceResults(self.config) #retrieve TraceResults instance client
+        for rule, value in self.config.rules.items():
+            setattr(self, rule, value)
+        self.sampling = float(self.time_sampling.strip("S"))
+        self.parquet_version = None # version given by the loaded parquet file (if loaded)
         self.params = params
         self.author = params.get("author", self.filename.split("_")[0])
         self.spot = params.get("spot", "")
         self.support = params.get("support", "")
-        if not config_file:
-            config_file = os.path.join(self.config_dir, "config.yaml")
-        self.process_config(config_file)
-        self.set_csv_paths()
+        # **params overrides config.yaml:
+        self.parquet_loading = self.params.get('parquet_loading', self.parquet_loading)
 
         self.load_df(gpx_path)
+        self.set_csv_paths()
         # debug, select a portion of the track:
         # self.df = self.df.loc["2019-03-29 14:10:00+00:00": "2019-03-29 14:47:00+00:00"]
         # generate key time series:
@@ -132,49 +307,6 @@ class TraceAnalysis:
             to_logger = "\n".join(log)
             getattr(logger, level)(to_logger)
             to_list += log
-
-    @log_calls()
-    def process_config(self, config_file):
-        """
-        extract info from yaml config files
-        Parameters:
-            self.config
-        Return:
-            rules:
-                max_speed, max_acceleration, max_file_size, time_sampling, sampling
-            self.gps_func_description
-                { fn_description: 'args': {**fn_kwargs} }
-            self.ranking_groups
-                {ranking_group_name: [fn1_description, ...] }
-        :return:
-        """
-        self.config = load_config(config_file)
-        for rule, value in self.config["rules"].items():
-            setattr(self, rule, value)
-        self.sampling = float(self.time_sampling.strip("S"))
-        self.gps_func_description = {
-            iteration["description"]: iteration["args"]
-            for iterations in self.config["functions"].values()
-            for iteration in iterations
-        }
-
-        ranking_groups = {}
-        for gps_func, iterations in self.config["functions"].items():
-            for iteration in iterations:
-                if iteration["ranking_group"] in ranking_groups:
-                    ranking_groups[iteration["ranking_group"]].append(
-                        iteration["description"]
-                    )
-                else:
-                    ranking_groups[iteration["ranking_group"]] = [
-                        iteration["description"]
-                    ]
-        self.ranking_groups = ranking_groups
-
-        logger.info(
-            f"\nlist of gps functions {self.gps_func_description}\n"
-            f"ranking groups vs gps functions: {self.ranking_groups}\n"
-        )
 
     def load_df(self, gpx_path):
         self.from_parquet = False
@@ -222,7 +354,7 @@ class TraceAnalysis:
         trace_infos_attr = self.free_trace_infos_attr + self.hard_trace_infos_attr
         for attr in trace_infos_attr:
             self.df.loc[self.df.index[0], attr] = getattr(self, attr)
-        parquet_path = os.path.join(self.results_dir, f"parquet_{self.filename}")
+        parquet_path = os.path.join(self.config.directory_paths.parquet_dir, f"parquet_{self.filename}")
         self.df.to_parquet(parquet_path)
 
     @log_calls()
@@ -237,7 +369,7 @@ class TraceAnalysis:
         filenames = [
             Path(f).stem
             for f in glob.iglob(
-                os.path.join(Path(self.results_dir).resolve(), "*"), recursive=False
+                os.path.join(Path(self.config.directory_paths.parquet_dir).resolve(), "*"), recursive=False
             )
             if (Path(f).stem).startswith('parquet_')
         ]
@@ -255,7 +387,7 @@ class TraceAnalysis:
             return False
 
         # load parquet file:
-        parquet_path = os.path.join(self.results_dir, parquet_filename[0])
+        parquet_path = os.path.join(self.config.directory_paths.parquet_dir, parquet_filename[0])
         self.log_info.send([f"loading from parquet file {parquet_path}"])
         self.df = pd.read_parquet(parquet_path)
 
@@ -380,7 +512,11 @@ class TraceAnalysis:
         self.df['elapsed_time'] = pd.to_timedelta(
             self.df.index - self.df.index[0]
         ).astype("timedelta64[s]")
-        self.trace_sampling = self.df.elapsed_time.diff().min()
+        sampling = self.df.elapsed_time.diff().mean()
+        if sampling < 1: # round to closest int
+            self.trace_sampling = np.rint(sampling)
+        else: # round down
+            self.trace_sampling = np.floor(sampling)
 
     @log_calls()
     def resample_df(self):
@@ -1217,28 +1353,6 @@ class TraceAnalysis:
         )
         return confidence_report
 
-    def multi_index_from_config(self):
-        # init multiIndex DataFrame for the ranking_results:
-        code0 = []
-        code1 = []
-        code2 = []
-        level0 = []
-        level1 = list(self.gps_func_description)
-        level2 = ["result", "sampling_ratio", "ranking"]
-        i = 0
-        for k, v in self.ranking_groups.items():
-            code0 += len(v) * [i, i, i]
-            level0.append(k)
-            i += 1
-        for i, _ in enumerate(level1):
-            code1 += [i, i, i]
-            code2 += [0, 1, 2]
-        mic = pd.MultiIndex(
-            levels=[level0, level1, level2], codes=[code0, code1, code2]
-        )
-        logger.debug(f"ranking results multi index architecture:" f"{mic}")
-        return mic
-
     @log_calls(log_args=False, log_result=True)
     def call_gps_func_from_config(self):
         """
@@ -1259,7 +1373,7 @@ class TraceAnalysis:
         results = []
         # iterate over the config and call the referenced functions:
 
-        for gps_func, iterations in self.config["functions"].items():
+        for gps_func, iterations in self.config.functions.items():
             # the same gps_func key cannot be repeated in the yaml description,
             # so we use an iterations list,
             # in order to call several times the same function with different args if needed:
@@ -1289,7 +1403,7 @@ class TraceAnalysis:
         ]
         gpx_results = pd.DataFrame(data=data)
         gpx_results = gpx_results.set_index("filename")
-        # ordered (wrto ranking) list of gps_func to call:
+        self.gpx_results = gpx_results
         return gpx_results
 
     def load_merge_all_results(self, gpx_results):
@@ -1301,7 +1415,7 @@ class TraceAnalysis:
             self.all results pandas df of results merged with history
         """
         # merge DataFrames current gpx_results with all_results history
-        all_results = load_results(self.results_swap_file, self.gps_func_description)
+        all_results = load_results(self.config, check_config=True)
         if all_results is None:
             all_results = gpx_results
         elif self.filename in all_results.index:
@@ -1313,64 +1427,10 @@ class TraceAnalysis:
             f"{all_results.head(30)}\n"
         )
         self.all_results = all_results
-
-    @log_calls(log_args=True, log_result=True)
-    def rank_all_results(self, **params):
-        """
-        merge gpx_results of the current filename with all_results history
-        and create the ranking_results file based on config yaml ranking groups.
-        The ranking may be reduced to certain category with **params
-        :param gpx_results: current filename analysis results
-        :param params: select ranking by category
-            for example: params = dict(spot='g13', support='kitefoil')
-        :return: pandas table ranking_results
-        """
-
-        # merge DataFrames current gpx_results with all_results history:
-        reduced_results = self.all_results.copy()
-        for param, value in params.items():
-            if param in reduced_results.columns:
-                reduced_results = reduced_results[reduced_results[param]==value]
-        # build ranking_results MultiIndex DataFrame:
-        all_results_table = reduced_results[reduced_results.n == 1].pivot_table(
-            values=["sampling_ratio", "result"],
-            index=["hash"],
-            columns=["description"],
-            aggfunc=np.mean,
-            dropna=False,
-        )
-        # date_table = self.all_results.groupby('author').date.min()
-        ranking_results = pd.DataFrame(
-            index=all_results_table.index, columns=self.multi_index_from_config()
-        )
-        # rank and fill ranking_results DataFrame:
-        ranking = all_results_table.result.rank(
-            method="min", ascending=False, na_option="bottom"
-        )
-        for group, group_func_list in self.ranking_groups.items():
-            for description in group_func_list:
-                ranking_results.loc[:, (group, description, "ranking")] = ranking[
-                    description
-                ]
-                ranking_results.loc[
-                    :, (group, description, "result")
-                ] = all_results_table["result"][description]
-                ranking_results.loc[
-                    :, (group, description, "sampling_ratio")
-                ] = all_results_table["sampling_ratio"][description]
-        ranking_results.loc[:, "points"] = 0
-        for k, v in self.ranking_groups.items():
-            ranking_results.loc[:, "points"] += ranking_results.xs(
-                (k, "ranking"), level=(0, 2), axis=1
-            ).mean(axis=1)
-        ranking_results.loc[:, "points"] = ranking_results.loc[:, "points"] / len(
-            self.ranking_groups
-        )
-        ranking_results = ranking_results.sort_values(by=["points"])
-        self.ranking_results = ranking_results
-        return ranking_results
+        return all_results
 
     def set_csv_paths(self):
+        results_dir = self.config.directory_paths.results_dir
         # debug file with the full DataFrame (erased at each run):
         debug_filename = "debug.csv"
         # debug file reduced to the main results timeframe (new for different authors):
@@ -1378,19 +1438,23 @@ class TraceAnalysis:
         # result file of the current run (new for different authors):
         result_filename = f"{self.filename}_result.csv"
         # all time history results by user names (updated after each run):
-        # = TraceAnalysis.results_swap_file
+        all_results_filename = "all_results.csv"
         # all time history results table with ranking (re-created at each run):
-        ranking_results_filename = "ranking_results.csv"
+        if self.support:
+            ranking_results_filename = f"ranking_results_{self.support}.csv"
+        else:
+            ranking_results_filename = f"ranking_results.csv"
 
-        self.debug_path = os.path.join(self.results_dir, debug_filename)
-        self.result_debug_path = os.path.join(self.results_dir, result_debug_filename)
-        self.results_path = os.path.join(self.results_dir, result_filename)
+        self.debug_path = os.path.join(results_dir, debug_filename)
+        self.result_debug_path = os.path.join(results_dir, result_debug_filename)
+        self.results_path = os.path.join(results_dir, result_filename)
+        self.all_results_path = self.config.all_results_path
         self.ranking_results_path = os.path.join(
-            self.results_dir, ranking_results_filename
+            results_dir, ranking_results_filename
         )
 
     @log_calls()
-    def save_to_csv(self, gpx_results):
+    def save_to_csv(self):
         """
         save to csv file the simulation results and infos (debug)
         :return: 5 csv files
@@ -1406,12 +1470,12 @@ class TraceAnalysis:
         result_debug = self.df_result_debug[self.df_result_debug.speed.notna()]
         result_debug.to_csv(self.result_debug_path)
         # *********** gpx_results: filename_result.csv ***********
-        gpx_results.to_csv(self.results_path, index=False)
+        self.gpx_results.to_csv(self.results_path, index=False)
         # ****** self.all_results _history swap file_: all_results.csv *******
         self.all_results = self.all_results[
             self.all_results.creator.notna()
         ].reset_index()
-        self.all_results.to_csv(self.results_swap_file, index=False)
+        self.all_results.to_csv(self.all_results_path, index=False)
         # **** self.ranking_results history output file ranking_results.csv
         self.ranking_results.to_csv(self.ranking_results_path)
 
@@ -1490,10 +1554,9 @@ def crunch_data():
     :return: hostory plots analysis
     """
     from utils import process_config_plot
-
+    trace_results = TraceResults()
     config_plot_file = os.path.join(TraceAnalysis.config_dir, "config_plot.yaml")
-    all_results = load_results(TraceAnalysis.results_swap_file)
-    process_config_plot(all_results, config_plot_file)
+    process_config_plot(trace_results.all_results, config_plot_file)
 
 
 parser = ArgumentParser()
@@ -1531,8 +1594,8 @@ if __name__ == "__main__":
             gpsana_client = TraceAnalysis(gpx_filename, config_filename, **params)
             gpx_results = gpsana_client.call_gps_func_from_config()
             gpsana_client.load_merge_all_results(gpx_results)
-            gpsana_client.rank_all_results()
-            gpsana_client.save_to_csv(gpx_results)
+            gpsana_client.ranking_results = gpsana_client.trace_results.rank_all_results()
+            gpsana_client.save_to_csv()
             gpsana_client.log_computation_time()
             if args.plot > 0:
                 gpsana_client.plot_speed()

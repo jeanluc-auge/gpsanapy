@@ -1,3 +1,4 @@
+# config file: must be placed in config dir wrto project root dir
 rules:
   # gps analysis settings
   time_sampling: 1S # x seconds, recommend = 1S
@@ -21,7 +22,7 @@ rules:
   # for example doppler speed is automatically disabled for Movescount watch files
   # because the doppler field is not a true doppler value but just a 2/3 samples filter
   # use true if you want to (always) use the doppler speed field anyway
-  parquet_loading: false
+  parquet_loading: true
   # gpx files are interpreted and loaded into pandas DataFrame
   #     with filtering and resampling (raw gps data is also stored in the DataFrame)
   # but the gpx & html interpretation, sampling and filtering require a large computing time & power
@@ -33,6 +34,10 @@ rules:
   #     and a sw versionning system automatically disables obsolete parquet files
   #     (for examples if there are changes in the sampling or filtering algorithm)
   #     however, the parquet loading can be disabled with this option (disable = false)
+directory_paths:
+  # files location path relative to the project root dir (requirements.txt & README.md dir)
+  parquet_dir: parquet_files
+  results_dir: csv_results
 functions:
   # gps analysis functions to run and rank
   # do not repeat twice the same function (it is a dictionary structure)

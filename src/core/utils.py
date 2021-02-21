@@ -9,6 +9,7 @@ import pandas as pd
 import numpy as np
 from time import time
 from pandas.plotting import parallel_coordinates, andrews_curves
+from munch import munchify
 import matplotlib.pyplot as plt
 
 
@@ -160,7 +161,7 @@ def load_config(config_filename=None):
     except Exception as e:
         logger.error(f"Failed to load workflow from file {config_filename}: {e}")
         return
-    return config
+    return munchify(config)
 
 
 def build_crunch_df(df, result_types):
@@ -249,7 +250,8 @@ def process_config_plot(all_results, config_plot_file):
         df2 = pd.DataFrame(data = data)
         df2.plot.kde(ax=axx[i])
 
-def load_results(all_results_filename, gps_func_dict=None):
+
+def load_results(config, check_config=False):
     """
     open csv all_results_filename (typically all_results.csv: see gps_analysis.set_csv_paths)
     with history of other previous sessions or other riders
@@ -265,23 +267,25 @@ def load_results(all_results_filename, gps_func_dict=None):
     :param all_results_filename: str name of the history file
     :return: pd.DataFrame all_results from csv all_results_filename
     """
-    old_all_results_filename = "all_results_old.csv"
+    all_results_path = config.all_results_path
+    old_all_results_path = f"{all_results_path}_old"
     # open filename if it exists:
     try:
-        all_results = pd.read_csv(all_results_filename)
+        all_results = pd.read_csv(all_results_path)
         all_results = all_results.set_index("filename")
     except Exception as e:
         logger.warning(
             f"\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
             f"{str(e)}\n"
-            f"{all_results_filename} is missing\n"
+            f"{all_results_path} is missing\n"
             f"=> a new file will be created"
             f"\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
         )
         return None
-    if not gps_func_dict:
+    if not check_config:
         return all_results
     # check the loaded results are compatible with the current yaml config:
+    gps_func_dict = config.gps_func_description
     config_error = ""
     all_results_gps_func_list = list(all_results.groupby("description").mean().index)
     if set(all_results_gps_func_list) ^ set(list(gps_func_dict)):
@@ -301,6 +305,6 @@ def load_results(all_results_filename, gps_func_dict=None):
             f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
         )
         all_results = all_results.reset_index()
-        all_results.to_csv(old_all_results_filename)
+        all_results.to_csv(old_all_results_path)
         all_results = None
     return all_results

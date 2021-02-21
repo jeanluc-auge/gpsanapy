@@ -11,3 +11,4 @@ scipy
 bokeh
 fastparquet
 python-snappy
+munch

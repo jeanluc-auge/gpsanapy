@@ -9,7 +9,7 @@ import numpy as np
 from scipy.stats import gaussian_kde
 
 from utils import load_config
-from gps_analysis import TraceAnalysis
+from gps_analysis import TraceAnalysis, TraceResults, TraceConfig
 
 
 def gkde(data, gridsize):
@@ -91,12 +91,11 @@ def process_config_plot(all_results, config_plot_file):
         df2.plot.kde(ax=axx[i])
 
 
-def bokeh_speed_distribution(all_results, config_file):
+def all_results_speed_density(all_results):
     if all_results is None:
         return
-
-    TraceAnalysis.process_config(config_file)
-    result_types = TraceAnalysis.ranking_groups['vmax']
+    config = TraceConfig()
+    result_types = config.ranking_groups['vmax']
     # do not plot 0 results:
     all_results.astype({'result':'float64'}).dtypes
 
@@ -114,10 +113,12 @@ def bokeh_speed_distribution(all_results, config_file):
 
     return p
 
-def bokeh_plot(all_results, config_plot_file):
+def bokeh_plot(all_results):
+    """deprecated"""
     all_results.astype({"result": "float64"}).dtypes
 
     all_results.loc[all_results.result < 10, "result"] = np.nan
+    config_plot_file = None
     config_plot = load_config(config_plot_file)
     result_types = config_plot.get("simple_plot", [])
     all_results2 = all_results.set_index(pd.to_datetime(all_results.date))

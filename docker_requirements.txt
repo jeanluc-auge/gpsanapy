@@ -8,3 +8,4 @@ matplotlib
 pyarrow
 fastparquet
 python-snappy
+munch
