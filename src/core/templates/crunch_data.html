@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+
+{% block header %}
+  <h1>{% block title %}CRUNCH ALL FILES DATA{% endblock %}</h1>
+{% endblock %}
+
+{% block content %}
+  <form method=post enctype=multipart/form-data>
+    <label for="support">by support</label>
+    <select name="support">
+      {% for choice in support_choice %}
+      <option value="{{ choice }}">{{ choice }}</option>
+      {% endfor %}
+    </select>
+    <label for="author">by author</label>
+    <select name="author">
+      {% for choice in author_choice %}
+      <option value="{{ choice }}">{{ choice }}</option>
+      {% endfor %}
+    </select>
+    <label for="spot">by spot</label>
+    <select name="spot">
+      {% for choice in spot_choice %}
+      <option value="{{ choice }}">{{ choice }}</option>
+      {% endfor %}
+    </select>
+    <input type=submit value=CRUNCH>
+  </form>
+{% endblock %}

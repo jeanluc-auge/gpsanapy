@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+
+{% block header %}
+  <h1>{% block title %}CRUNCH data by support {{by_support}}, by spot {{ by_spot }}, by author {{ by_author }} {% endblock %}</h1>
+{% endblock %}
+
+{% block content %}
+      <head>
+        <meta charset="UTF-8">
+        <meta http-equiv="content-type" content="text/html; charset=utf-8">
+        <title>DATA CRUNCH</title>
+        {{ js_resources|indent(4)|safe }}
+        {{ css_resources|indent(4)|safe }}
+        {{ plot_script|indent(4)|safe }}
+      </head>
+      <body>
+        <h1 style="text-align: center; margin-bottom: 40px;">crunch data</h1>
+        <div style="display: flex; justify-content: center;">
+        {{ plot_div|indent(4)|safe }}
+      </body>
+    </article>
+{% endblock %}
+

@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+
+{% block header %}
+  <h1>{% block title %}UPLOADED FILES{% endblock %}</h1>
+  {% if g.user %}
+    <a class="action" href="{{ url_for('upload_file') }}">New</a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+  {% for file in gpxfiles %}
+    <article class="post">
+      <header>
+        <div>
+          <h1>{{ file.filename }}</h1>
+          <div class="about">by author: {{ file.user.username }}</div>
+        </div>
+        {% if g.user.id == file.user_id or g.user.username == 'admin' %}
+          <a class="action" href="{{ url_for('delete_file', id=file.id) }}">Delete</a>
+          <a class="action" href="{{ url_for('analyse', id=file.id) }}">Analyse</a>
+        {% endif %}
+      </header>
+      <p class="body">spot: {{ file.spot }}</p>
+      <p class="body">support: {{ file.support }}</p>
+    </article>
+    {% if not loop.last %}
+      <hr>
+    {% endif %}
+  {% endfor %}
+{% endblock %}

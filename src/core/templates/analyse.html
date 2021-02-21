@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+
+{% block header %}
+  <h1>{% block title %}ANALYSE author {{file.user.username}} file {{ file.filename }} {% endblock %}</h1>
+{% endblock %}
+
+{% block content %}
+    <article class="post">
+      <header>
+        <div>
+          <h1>{{ file.support }} @ {{ file.spot }}</h1>
+        </div>
+      </header>
+      <p class="body">results: </p>
+      <table>
+      {% for k, v in response.items() %}
+         <tr>
+              <th> {{ k }} </th>
+              <td> {{ v }} </td>
+         </tr>
+      {% endfor %}
+      </table>
+      <p class="body">warnings: </p>
+      <table>
+      {% for el in warnings %}
+         <tr>
+              <th> {{ el }} </th>
+         </tr>
+      {% endfor %}
+      </table>
+      <p>infos: </p>
+      {% for el in infos %}
+        <p> {{ el }} </p>
+      {% endfor %}
+      <table>
+      {% for label, resources in bokeh_template.items() %}
+      <tr><td>
+      <head>
+        <meta charset="UTF-8">
+        <meta http-equiv="content-type" content="text/html; charset=utf-8">
+        <title>Embed Demo</title>
+        {{ resources['js_resources']|indent(4)|safe }}
+        {{ resources['css_resources']|indent(4)|safe }}
+        {{ resources['script']|indent(4)|safe }}
+      </head>
+      <body>
+
+            <h1 style="text-align: center; margin-bottom: 40px;">{{label}}</h1>
+            <div style="display: flex; justify-content: center;">
+            {{ resources['div']|indent(4)|safe }}
+      </body>
+      </td></tr>
+      {% endfor %}
+      </table>
+    </article>
+{% endblock %}
+

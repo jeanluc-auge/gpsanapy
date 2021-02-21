@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+
+{% block header %}
+  <h1>{% block title %}NAVIGATE{% endblock %}</h1>
+{% endblock %}
+
+{% block content %}
+    <article class="post">
+      <header>
+          <a class="action" href="{{ url_for('files') }}">MANAGE FILES</a>
+          <a class="action" href="{{ url_for('analyse_files') }}">ANALYZE FILES</a>
+          <a class="action" href="{{ url_for('crunch_data') }}">CRUNCH DATA</a>
+          <a class="action" href="{{ url_for('ranking') }}">RANKING RESULTS</a>
+      </header>
+
+    </article>
+{% endblock %}

@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+
+{% block header %}
+  <h1>{% block title %}ranking results {{support}} {% endblock %}</h1>
+{% endblock %}
+
+{% block content %}
+    <article class="post">
+      <header>
+        <div>
+     {% for table in tables %}
+            {{titles[loop.index]}}
+            {{ table|safe }}
+     {% endfor %}
+        </div>
+      </header>
+
+    </article>
+{% endblock %}
+
