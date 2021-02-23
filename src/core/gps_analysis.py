@@ -50,6 +50,7 @@ DEFAULT_REPORT = {"n": 1, "doppler_ratio": None, "sampling_ratio": None, "std": 
 DOPPLER_EXCLUSION_LIST = (
     "movescount",
     "waterspeed",
+    "suunto"
 )  # do not use doppler with these watches
 ROOT_DIR = os.path.join(os.path.dirname(__file__), "../../")
 CONFIG_DIR = os.path.join(ROOT_DIR, "config")
@@ -139,6 +140,7 @@ class TraceResults:
 
         :param config: TraceConfig infos from config.yaml
         """
+        # config factory:
         if config:
             self.config = config
         else:
@@ -246,9 +248,7 @@ class TraceResults:
 class TraceAnalysis:
     # class attributs:
     root_dir = ROOT_DIR # project root dir (requirements.txt ...)
-
     config_dir = CONFIG_DIR # yaml config files location
-
     analysis_version = 2.1 # track algo improvements
     min_version = 2.1 # min requirement to accept loading from an archive parquet file
     # attributs to save to parquet file:
@@ -270,7 +270,8 @@ class TraceAnalysis:
         self.log_info = self.appender("info")
         self.log_warning = self.appender("warning")
         self.gpx_path = gpx_path
-        self.filename = Path(gpx_path).stem
+        self.filename, self.file_extension = os.path.splitext(gpx_path)
+        self.filename = Path(self.filename).stem
         self.config = TraceConfig(config_file) # retrive TraceConfig instance client
         self.trace_results = TraceResults(self.config) #retrieve TraceResults instance client
         for rule, value in self.config.rules.items():
@@ -328,17 +329,73 @@ class TraceAnalysis:
             raise TraceAnalysisException(
                 f"file {gpx_path} size = {self.file_size}Mb > {self.max_file_size}Mb"
             )
+
         html_soup = self.load_gpx_file_to_html(gpx_path)
-        if not html_soup.gpx:
-            raise TraceAnalysisException("the loaded gpx file is empty")
-        self.creator = html_soup.gpx.get("creator", "unknown")
-        tracks = self.format_html_to_gpx(html_soup)
-        self.df = self.to_pandas(tracks[0].segments[0])
+        try:
+            if not self.load_df_from_sml(html_soup):
+                self.creator = html_soup.gpx.get("creator", "unknown")
+                tracks = self.format_html_to_gpx(html_soup)
+                self.df = self.to_pandas(tracks[0].segments[0])
+        except Exception as e:
+            raise TraceAnalysisException(f"failed to load file {gpx_path} with error {traceback.format_exc()}")
         self.process_df()
         self.resample_df()
         # filter out speed spikes on self.df:
         self.clean_df()
         self.save_df_to_parquet()
+
+    @log_calls()
+    def load_df_from_sml(self, html_soup):
+        if not self.file_extension == '.sml':
+            return False
+
+        self.creator = 'suunto sml'
+
+        data_speed = {'speed': [], 'time': []}
+        data_coor = {'lon': [], 'lat': [], 'time': []}
+        for el in html_soup.findAll('sample'):
+            if el.speed and el.utc:
+                data_speed['speed'].append(float(el.speed.string))
+                data_speed['time'].append(str(el.utc.string))
+            elif el.longitude and el.utc:
+                data_coor['lon'].append(float(el.longitude.string))
+                data_coor['lat'].append(float(el.latitude.string))
+                data_coor['time'].append(str(el.utc.string))
+        df_speed = pd.DataFrame(data=data_speed)
+        df_speed['time'] = pd.to_datetime(df_speed.time)
+        df_speed.set_index('time', inplace=True)
+        df_speed = df_speed.resample(self.time_sampling).mean()
+        df_speed['speed_no_doppler'] = df_speed.speed
+        df_speed['has_doppler'] = 0
+        df_speed.loc[df_speed.speed.notna(), 'has_doppler'] = 1
+
+        df_coor = pd.DataFrame(data=data_coor)
+        df_coor['time'] = pd.to_datetime(df_coor.time)
+        df_coor.set_index('time', inplace=True)
+        df_coor = df_coor.resample(self.time_sampling).mean()#.interpolate()
+        df_coor['lat-1'] = df_coor['lat'].shift(1)
+        df_coor['lon-1'] = df_coor['lon'].shift(1)
+        pd_course = lambda x: gpxpy.geo.get_course(
+            x['lat'], x['lon'], x['lat-1'], x['lon-1']
+        )
+        pd_distance = lambda x: gpxpy.geo.distance(
+            x['lat'], x['lon'], None, x['lat-1'], x['lon-1'], None
+        )
+        df_coor['course'] = df_coor.apply(pd_course, axis=1)
+        df_coor['speed_no_doppler'] = df_coor.apply(pd_distance, axis=1) / self.sampling
+
+        # concat the 2 dataframes:
+        self.df = pd.concat([df_speed, df_coor], join='outer', axis=1)
+        self.df.reset_index(inplace=True)
+        # try:
+        #     self.df.index = self.df.index.dt.tz_localize('UTC')
+        # except Exception:
+        #     pass
+        # self.df.index.dt.tz_convert('UTC')
+        self.log_info.send([
+            'successful load from sml file {self.filename}',
+        ])
+        return True
 
     @log_calls()
     def save_df_to_parquet(self):
@@ -372,6 +429,7 @@ class TraceAnalysis:
                 os.path.join(Path(self.config.directory_paths.parquet_dir).resolve(), "*"), recursive=False
             )
             if (Path(f).stem).startswith('parquet_')
+            #if os.path.splitext(f)[1].startswith('parquet_')
         ]
         # search for parquet files matching the filename to analyse:
         parquet_filename = [
@@ -542,6 +600,7 @@ class TraceAnalysis:
         tsd = self.df["speed"].resample(self.time_sampling).mean().interpolate()
         # raw doppler speed = don't fill nan (i.e. no interpolate:
         raw_tsd = self.df["speed"].resample(self.time_sampling).mean()
+
         # speed no doppler
         ts = (
             self.df["speed_no_doppler"]
@@ -553,7 +612,8 @@ class TraceAnalysis:
         raw_ts = self.df["speed_no_doppler"].resample(self.time_sampling).mean()
         # course (orientation °) cumulated values => take min of the bin
         tc = self.df["course"].resample(self.time_sampling).min().interpolate()
-
+        print('tlon', len(tlon), 'tlat', len(tlat), 'thd', len(thd), 'tsd', len(tsd),
+              'raw_tsd', len(raw_tsd), 'ts', len(ts), 'raw_ts', len(raw_ts), 'tc', len(tc))
         df = pd.DataFrame(
             data={
                 "lon": tlon,
@@ -567,9 +627,9 @@ class TraceAnalysis:
                 "course": tc,
                 "course_diff": np.nan,
                 "raw_speed": raw_tsd,
-                "raw_speed_no_doppler": raw_ts,
-                "speed_no_doppler": ts,
-                "speed": tsd,
+                #"raw_speed_no_doppler": raw_ts,
+                #"speed_no_doppler": ts,
+                #"speed": tsd,
             }
         )
         # generate time_sampling column based on raw_speed:
