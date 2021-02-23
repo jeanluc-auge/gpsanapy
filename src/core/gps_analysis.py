@@ -16,8 +16,9 @@ import os
 import glob
 import datetime
 import traceback
+from math import pi
 from pathlib import Path
-import logging
+from argparse import ArgumentParser
 from logging import (
     getLogger,
     basicConfig,
@@ -27,9 +28,8 @@ from logging import (
     FileHandler,
     StreamHandler,
 )
+
 import gpxpy
-from pathlib import Path
-from argparse import ArgumentParser
 import pandas as pd
 import numpy as np
 from bs4 import BeautifulSoup, element
@@ -358,21 +358,21 @@ class TraceAnalysis:
                 data_speed['speed'].append(float(el.speed.string))
                 data_speed['time'].append(str(el.utc.string))
             elif el.longitude and el.utc:
-                data_coor['lon'].append(float(el.longitude.string))
-                data_coor['lat'].append(float(el.latitude.string))
+                data_coor['lon'].append(float(el.longitude.string)*180/pi)
+                data_coor['lat'].append(float(el.latitude.string)*180/pi)
                 data_coor['time'].append(str(el.utc.string))
         df_speed = pd.DataFrame(data=data_speed)
         df_speed['time'] = pd.to_datetime(df_speed.time)
         df_speed.set_index('time', inplace=True)
         df_speed = df_speed.resample(self.time_sampling).mean()
-        df_speed['speed_no_doppler'] = df_speed.speed
         df_speed['has_doppler'] = 0
         df_speed.loc[df_speed.speed.notna(), 'has_doppler'] = 1
 
+        # need to resample and inteprolate to obtain speed from distance between 2 points:
         df_coor = pd.DataFrame(data=data_coor)
         df_coor['time'] = pd.to_datetime(df_coor.time)
         df_coor.set_index('time', inplace=True)
-        df_coor = df_coor.resample(self.time_sampling).mean()#.interpolate()
+        df_coor = df_coor.resample(self.time_sampling).mean().interpolate()
         df_coor['lat-1'] = df_coor['lat'].shift(1)
         df_coor['lon-1'] = df_coor['lon'].shift(1)
         pd_course = lambda x: gpxpy.geo.get_course(
@@ -387,6 +387,7 @@ class TraceAnalysis:
         # concat the 2 dataframes:
         self.df = pd.concat([df_speed, df_coor], join='outer', axis=1)
         self.df.reset_index(inplace=True)
+        self.df.to_csv('test.csv')
         # try:
         #     self.df.index = self.df.index.dt.tz_localize('UTC')
         # except Exception:
@@ -610,10 +611,10 @@ class TraceAnalysis:
         )
         # raw no doppler speed = don't fill nan (i.e. no interpolate:
         raw_ts = self.df["speed_no_doppler"].resample(self.time_sampling).mean()
+        print(ts.shape)
         # course (orientation °) cumulated values => take min of the bin
         tc = self.df["course"].resample(self.time_sampling).min().interpolate()
-        print('tlon', len(tlon), 'tlat', len(tlat), 'thd', len(thd), 'tsd', len(tsd),
-              'raw_tsd', len(raw_tsd), 'ts', len(ts), 'raw_ts', len(raw_ts), 'tc', len(tc))
+
         df = pd.DataFrame(
             data={
                 "lon": tlon,
@@ -627,9 +628,9 @@ class TraceAnalysis:
                 "course": tc,
                 "course_diff": np.nan,
                 "raw_speed": raw_tsd,
-                #"raw_speed_no_doppler": raw_ts,
-                #"speed_no_doppler": ts,
-                #"speed": tsd,
+                "raw_speed_no_doppler": raw_ts,
+                "speed_no_doppler": ts,
+                "speed": tsd,
             }
         )
         # generate time_sampling column based on raw_speed:
