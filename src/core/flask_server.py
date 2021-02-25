@@ -28,7 +28,7 @@ from bokeh.embed import components
 from bokeh.resources import INLINE
 
 UPLOAD_FOLDER = '/home/jla/gps/gpx_file_upload'
-ALLOWED_EXTENSIONS = {'gpx',}
+ALLOWED_EXTENSIONS = {'gpx', 'sml'}
 SUPPORT_CHOICE = ['windsurf', 'windfoil', 'kitesurf', 'kitefoil', 'kayak']
 SPOT_CHOICE = ['g13', 'nantouar', 'trestel', 'keriec', 'bnig', 'other']
 # check or create that file upload and database dir exist:
@@ -37,7 +37,7 @@ for d in dir_path:
     if not Path(d).is_dir():
         os.makedirs(d)
 # ******* define Flask api *******
-app = Flask(__name__, instance_relative_config=True)
+app = Flask(__name__, instance_relative_config=True, static_url_path='/static', static_folder='static')
 
 # *** sql ****
 # engine = create_engine('sqlite:///:memory:', echo=True)
@@ -106,9 +106,9 @@ with app.app_context():
 # for name in db.session.query(User.name).filter_by(name='ed'):
 #     print(222222222,name)
 # our_users = db.session.query(User).filter(User.name.in_(['ed', 'fakeuser'])).all()
-_ = db.session.query(User).filter(User.username=='ed').first()
-_ = [u.username for u in db.session.query(User).all()]
-print(22222222222222222222222,_)
+# _ = db.session.query(User).filter(User.username=='ed').first()
+# _ = [u.username for u in db.session.query(User).all()]
+
 #
 # print(2222222222,our_users)
 # # query:
@@ -241,7 +241,6 @@ def analyse(id):
     response = gpx_results_to_json(gpx_results)
     warnings = gpsana_client.log_warning_list
     infos = gpsana_client.log_info_list
-
     # bokeh
     bokeh_template = {}
     # plot speeds
@@ -251,9 +250,8 @@ def analyse(id):
     # plot rolling speed
     s = 30
     p = bokeh_speed_density(gpsana_client, s)
-    label = f'plot {s}s rolling speed data'
     # grab the static resources
-    bokeh_template[label] = gen_bokeh_resources(p)
+    bokeh_template[f'plot {s}s rolling speed data'] = gen_bokeh_resources(p)
     # render template
 
     html = render_template(

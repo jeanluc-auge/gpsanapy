@@ -1,17 +1,97 @@
-{% extends 'base.html' %}
+<!DOCTYPE HTML>
 
-{% block header %}
-  <h1>{% block title %}NAVIGATE{% endblock %}</h1>
-{% endblock %}
+<html>
+<head>
+  <title>GPS Challenge WB22</title>
 
-{% block content %}
+  <meta name="description" content="Le GPS Challenge Windsurfbreizh22" />
+  <meta name="keywords" content="challenge, GPS, windsurfbreizh22" />
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+  <link rel="stylesheet" type="text/css" href="static/css/style.css" />
+  <!-- modernizr enables HTML5 elements and feature detects -->
+  <script type="text/javascript" src="static/js/modernizr-1.5.min.js"></script>
+  <!-- Start WOWSlider.com HEAD section -->
+<link rel="stylesheet" type="text/css" href="static/engine1/style.css" />
+<script type="text/javascript" src="static/engine1/jquery.js"></script>
+<!-- End WOWSlider.com HEAD section -->
+
+</head>
+
+<body>
+  <div id="main">
+    <header>
+      <div id="logo">
+        <div id="logo_text">
+			<img border="0" src="static/images/texteGPS.png" width="800" height="48"><!-- class="logo_colour", allows you to change the colour of the text --><p>
+			<img border="0" src="static/images/wb22.png" width="350" height="70"></div>
+      </div>
+      <nav>
+        <div id="menu_container">
+          <ul class="sf-menu" id="nav">
+            <li><a href="{{ url_for('index') }}">Le challenge</a></li>
+			<li><a href="#">Espaces utilisateur</a>
+			<ul>
+				<li><a href="{{ url_for('register') }}">créer un compte</a></li>
+				<li><a href="{{ url_for('login') }}">Connectez-vous</a></li>
+				<li><a href="{{ url_for('upload_file') }}">envoyer votre fichier</a>
+				<li><a href="{{ url_for('files') }}">fichiers</a>
+
+			</ul></li>
+			<li><a href="#">Le classement</a>
+			<ul>
+				<li><a href="{{ url_for('ranking') }}">Rank</a></li>
+				<li><a href="{{ url_for('crunch_data') }}">Crunch data</a></li>
+				
+			</ul></li>
+
+			<li><a href="{{ url_for('index') }}">Pipo</a></li>
+		<li><a href="{{ url_for('index') }}">Support-contact</a></li>
+            
+          </ul>
+        </div>
+      </nav>
+    </header>
+    <div id="site_content">
+
+      <div class="content" style="width: 868px; height: 382px">
+        <h1>Règlement</h1>
+          
+
     <article class="post">
-      <header>
-          <a class="action" href="{{ url_for('files') }}">MANAGE FILES</a>
-          <a class="action" href="{{ url_for('analyse_files') }}">ANALYZE FILES</a>
-          <a class="action" href="{{ url_for('crunch_data') }}">CRUNCH DATA</a>
-          <a class="action" href="{{ url_for('ranking') }}">RANKING RESULTS</a>
-      </header>
+		<p>
+		On vous propose un tout nouveau Challenge GPS 2021 avec une interface
+		automatisée qui vous permet, une fois le fichier uploadé, de connaître
+		instantanément votre classement !<p>
 
     </article>
-{% endblock %}
+
+
+      <header>
+        {% block content %}
+        {% if g.user %}
+        <span>{{ g.user['username'] }}</span>
+        <a class="action" href="{{ url_for('logout') }}">Log Out</a>
+        {% else %}
+        <a class="action" href="{{ url_for('register') }}">Register</a>
+        <a class="action" href="{{ url_for('login') }}">Log In</a>
+        {% endif %}
+        {% endblock %}
+      </header>
+    </div>
+    </div>
+    <footer>
+      <p>Copyright © Windsurfbreizh22</p>
+    </footer>
+  </div>
+  <p>&nbsp;</p>
+  <!-- javascript at the bottom for fast page loading -->
+  <script type="text/javascript" src="static/js/jquery.js"></script>
+  <script type="text/javascript" src="static/js/jquery.easing-sooper.js"></script>
+  <script type="text/javascript" src="static/js/jquery.sooperfish.js"></script>
+  <script type="text/javascript">
+    $(document).ready(function() {
+      $('ul.sf-menu').sooperfish();
+    });
+  </script>
+</body>
+</html>

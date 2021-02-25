@@ -177,6 +177,7 @@ def bokeh_speed_density(gpsana_client, s):
     dfs["speed"] = gpsana_client.tsd
     dfs["speed_xs"] = gpsana_client.tsd.rolling(xs).mean()
     dfs = dfs.reset_index()
+    dfs.dropna(inplace=True)
 
     x_grid_xs, pdf_xs = gkde(dfs.speed_xs, 200)
     x_grid, pdf = gkde(dfs.speed, 200)
