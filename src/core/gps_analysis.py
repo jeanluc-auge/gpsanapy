@@ -602,10 +602,11 @@ class TraceAnalysis:
                 "lon": point.longitude,
                 "lat": point.latitude,
                 "time": point.time,  # datetime.datetime.strptime((str(point.time)).split("+")[0], '%Y-%m-%d %H:%M:%S'),
-                "speed": point.speed, # if point.speed else raw_data.get_speed(i),
+                "speed": point.speed,
+                "doppler_no_doppler": point.speed if point.speed is not None else raw_data.get_speed(i),
                 "speed_no_doppler": raw_data.get_speed(i),
                 "course": point.course_between(raw_data.points[i - 1] if i > 0 else 0),
-                "has_doppler": bool(point.speed),
+                "has_doppler": True if point.speed is not None else False
                 # "delta_dist": (
                 #     point.distance_3d(raw_data.points[i - 1]) if i > 0 else 0
                 # ),
@@ -613,7 +614,19 @@ class TraceAnalysis:
             for i, point in enumerate(raw_data.points)
         ]
         df = pd.DataFrame(split_data)
+
         # **** data frame doppler checking *****
+        # check that there are enough doppler points to interpolate:
+        doppler_ratio = 100 - int(df.speed.isnull().sum()/len(df.speed))
+        if doppler_ratio < 90:
+            # not enough doppler speed data:
+            # do not interpolate but revert to positional speed when doppler speed is missing:
+            logger.info(
+                f"insuficient doppler data to be used as raw, ratio is {doppler_ratio}% of doppler\n"
+                f"therefore a mix of doppler and positional data will be used to caclulate speed"
+            )
+            df['speed'] = df["doppler_no_doppler"]
+
         return df
 
     @log_calls()
