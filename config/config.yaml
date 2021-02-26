@@ -48,48 +48,54 @@ functions:
         s: 1
         n: 5
       description: vmax_1s
-      ranking_group: vmax
+      #ranking_group: vmax
     -
       args:
         s: 10
         n: 5
       description: vmax_10s
       ranking_group: vmax
+    -
+      args:
+        s: 3600
+        n: 1
+      description: v_1h
+      ranking_group: endurance
   speed_dist:
     -
       args:
         dist: 500
         n: 5
       description: vmax_500m
-      ranking_group: vmax
+      #ranking_group: vmax
     -
       args:
         dist: 1000
         n: 5
       description: vmax_1000m
-      ranking_group: vmax
+      #ranking_group: vmax
   planning_ratio:
     -
       args:
         v_min: 12
         distance: True
       description: planning_ratio>12
-      ranking_group: rendement
+      #ranking_group: rendement
   v_moy:
     -
       args:
         v_min: 12
       description: Vmoy>12
-      ranking_group: rendement
+      #ranking_group: rendement
   speed_jibe:
     -
       args:
         n: 5
       description: vmax_jibe
-      ranking_group: jibe
+      ranking_group: technique
   planning_distance:
     -
       args:
         v_min: 12
       description: planning_distance>12
-      ranking_group: endurance
+      #ranking_group: endurance

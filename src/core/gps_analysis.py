@@ -50,7 +50,7 @@ DEFAULT_REPORT = {"n": 1, "doppler_ratio": None, "sampling_ratio": None, "std": 
 DOPPLER_EXCLUSION_LIST = (
     "movescount",
     "waterspeed",
-    "suunto"
+    "suunto",
 )  # do not use doppler with these watches
 ROOT_DIR = os.path.join(os.path.dirname(__file__), "../../")
 CONFIG_DIR = os.path.join(ROOT_DIR, "config")
@@ -76,29 +76,29 @@ logger.addHandler(ch)
 
 class TraceConfig:
     config_dir = CONFIG_DIR
+
     def __init__(self, config_file=None):
         if not config_file:
             self.config_file = os.path.join(self.config_dir, "config.yaml")
         else:
             self.config_file = config_file
-        self.process_config()
-        self.all_results_path = os.path.join(
-            self.directory_paths.results_dir, "all_results.csv"
+        self.get_config()
+        logger.info(
+            f"\nlist of gps functions {self.gps_func_description}\n"
+            f"ranking groups vs gps functions: {json.dumps(self.ranking_groups, indent=2)}\n"
+            f"ranking functions: {self.ranking_functions}"
         )
-    
-    def process_config(self):
+
+    def get_config(self):
         """
         extract info from yaml config files
         Parameters:
-            self.config
-        Return:
-            rules:
-                max_speed, max_acceleration, max_file_size, time_sampling, sampling
-            self.config.gps_func_description
-                { fn_description: 'args': {**fn_kwargs} }
-            self.ranking_groups
-                {ranking_group_name: [fn1_description, ...] }
+            self.config_file
         :return:
+            self.rules dict of rules attributs
+            self.functions dict of gps function & ranking
+            self.directory_paths: dict paths + creation if needed
+            self.all_results_path: os.path all results history
         """
         config = load_config(self.config_file)
         self.rules = config.rules
@@ -108,30 +108,57 @@ class TraceConfig:
         for dir_path in self.directory_paths.values():
             if not Path(dir_path).is_dir():
                 os.makedirs(dir_path)
+        self.all_results_path = os.path.join(
+            self.directory_paths.results_dir, "all_results.csv"
+        )
 
-        self.gps_func_description = {
+    @property
+    def gps_func_description(self):
+        """
+        extract info from yaml config files
+        Parameters:
+            self.functions
+        :return:
+            self.config.gps_func_description
+                { fn_description: 'args': {**fn_kwargs} }
+        """
+        return {
             iteration["description"]: iteration["args"]
-            for iterations in config["functions"].values()
+            for iterations in self.functions.values()
             for iteration in iterations
         }
 
+    @property
+    def ranking_groups(self):
+        """
+        extract info from yaml config files
+        Parameters:
+            self.functions
+        :return:
+            self.ranking_groups
+                {ranking_group_name: [fn1_description, ...] }
+        """
         ranking_groups = {}
         for gps_func, iterations in self.functions.items():
             for iteration in iterations:
-                if iteration["ranking_group"] in ranking_groups:
+                if iteration.get("ranking_group", "") in ranking_groups:
                     ranking_groups[iteration["ranking_group"]].append(
                         iteration["description"]
                     )
-                else:
+                elif iteration.get("ranking_group", ""):
                     ranking_groups[iteration["ranking_group"]] = [
                         iteration["description"]
                     ]
-        self.ranking_groups = ranking_groups
+        return ranking_groups
 
-        logger.info(
-            f"\nlist of gps functions {self.gps_func_description}\n"
-            f"ranking groups vs gps functions: {self.ranking_groups}\n"
-        )
+    @property
+    def ranking_functions(self):
+        return {
+            iteration.description: iteration.args
+            for iterations in self.functions.values()
+            for iteration in iterations
+            if iteration.get("ranking_group", "")
+        }
 
 
 class TraceResults:
@@ -147,15 +174,23 @@ class TraceResults:
             self.config = TraceConfig()
         self.mic = self.multi_index_from_config()
 
-    def reduced_results(self, by_support='all', by_spot='all', by_author='all', check_config=False):
+    def reduced_results(
+        self,
+        by_support="all",
+        by_spot="all",
+        by_author="all",
+        check_config=False,
+        all_results=None,
+    ):
         params = {}
-        if by_support != 'all' and by_support:
-            params['support'] = by_support
-        if by_spot != 'all' and by_spot:
-            params['spot'] = by_spot
-        if by_author != 'all' and by_author:
-            params['author'] = by_author
-        all_results = load_results(self.config, check_config)
+        if by_support != "all" and by_support:
+            params["support"] = by_support
+        if by_spot != "all" and by_spot:
+            params["spot"] = by_spot
+        if by_author != "all" and by_author:
+            params["author"] = by_author
+        if all_results is None:
+            all_results = load_results(self.config, check_config)
         reduced_results = all_results.copy()
         for param, value in params.items():
             if param in all_results.columns:
@@ -168,7 +203,7 @@ class TraceResults:
         code1 = []
         code2 = []
         level0 = []
-        level1 = list(self.config.gps_func_description)
+        level1 = list(self.config.ranking_functions)
         level2 = ["result", "sampling_ratio", "ranking"]
         i = 0
         for k, v in self.config.ranking_groups.items():
@@ -178,14 +213,28 @@ class TraceResults:
         for i, _ in enumerate(level1):
             code1 += [i, i, i]
             code2 += [0, 1, 2]
+        print(code0)
+        print(code1)
+        print(code2)
+        print(level0)
+        print(level1)
+        print(level2)
         mic = pd.MultiIndex(
             levels=[level0, level1, level2], codes=[code0, code1, code2]
         )
         logger.debug(f"ranking results multi index architecture:" f"{mic}")
         return mic
 
-    #TODO EXCEPTION DECORATOR RETURNS None
-    def rank_all_results(self, by_support='all', by_spot='all', by_author='all', check_config=False):
+    # TODO EXCEPTION DECORATOR RETURNS None
+    def rank_all_results(
+        self,
+        by_support="all",
+        by_spot="all",
+        by_author="all",
+        check_config=False,
+        all_results=None,
+        save=False,
+    ):
         """
         merge gpx_results of the current filename with all_results history
         and create the ranking_results file based on config yaml ranking groups.
@@ -201,7 +250,8 @@ class TraceResults:
             by_support=by_support,
             by_spot=by_spot,
             by_author=by_author,
-            check_config=check_config
+            check_config=check_config,
+            all_results=all_results,
         )
         if reduced_results.empty:
             return None
@@ -214,9 +264,7 @@ class TraceResults:
             dropna=False,
         )
         # date_table = self.all_results.groupby('author').date.min()
-        ranking_results = pd.DataFrame(
-            index=all_results_table.index, columns=self.mic
-        )
+        ranking_results = pd.DataFrame(index=all_results_table.index, columns=self.mic)
         # rank and fill ranking_results DataFrame:
         ranking = all_results_table.result.rank(
             method="min", ascending=False, na_option="bottom"
@@ -241,21 +289,28 @@ class TraceResults:
             self.config.ranking_groups
         )
         ranking_results = ranking_results.sort_values(by=["points"])
-
+        if save:
+            ranking_results_path = os.path.join(self.config.all_results_path, 'ranking_results.csv')
+            ranking_results.to_csv(ranking_results_path)
         return ranking_results
 
 
 class TraceAnalysis:
     # class attributs:
-    root_dir = ROOT_DIR # project root dir (requirements.txt ...)
-    config_dir = CONFIG_DIR # yaml config files location
-    analysis_version = 2.1 # track algo improvements
-    min_version = 2.1 # min requirement to accept loading from an archive parquet file
+    root_dir = ROOT_DIR  # project root dir (requirements.txt ...)
+    config_dir = CONFIG_DIR  # yaml config files location
+    analysis_version = 2.1  # track algo improvements
+    min_version = 2.1  # min requirement to accept loading from an archive parquet file
     # attributs to save to parquet file:
     #   attributs that cannot be modified
-    hard_trace_infos_attr = ['parquet_version', 'analysis_version', 'creator', 'trace_sampling']
+    hard_trace_infos_attr = [
+        "parquet_version",
+        "analysis_version",
+        "creator",
+        "trace_sampling",
+    ]
     #   user attributs that can be updated
-    free_trace_infos_attr = ['author', 'spot', 'support']
+    free_trace_infos_attr = ["author", "spot", "support"]
 
     def __init__(self, gpx_path, config_file=None, **params):
         """
@@ -272,18 +327,22 @@ class TraceAnalysis:
         self.gpx_path = gpx_path
         self.filename, self.file_extension = os.path.splitext(gpx_path)
         self.filename = Path(self.filename).stem
-        self.config = TraceConfig(config_file) # retrive TraceConfig instance client
-        self.trace_results = TraceResults(self.config) #retrieve TraceResults instance client
+        self.config = TraceConfig(config_file)  # retrive TraceConfig instance client
+        self.trace_results = TraceResults(
+            self.config
+        )  # retrieve TraceResults instance client
         for rule, value in self.config.rules.items():
             setattr(self, rule, value)
         self.sampling = float(self.time_sampling.strip("S"))
-        self.parquet_version = None # version given by the loaded parquet file (if loaded)
+        self.parquet_version = (
+            None
+        )  # version given by the loaded parquet file (if loaded)
         self.params = params
         self.author = params.get("author", self.filename.split("_")[0])
         self.spot = params.get("spot", "")
         self.support = params.get("support", "")
         # **params overrides config.yaml:
-        self.parquet_loading = self.params.get('parquet_loading', self.parquet_loading)
+        self.parquet_loading = self.params.get("parquet_loading", self.parquet_loading)
 
         self.load_df(gpx_path)
         self.set_csv_paths()
@@ -316,13 +375,15 @@ class TraceAnalysis:
                 self.from_parquet = True
                 return
         except Exception as e:
-            self.log_info.send([
-                f'!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!',
-                f'failed to load parquet file',
-                f'an unexpected error {e} occured',
-                f'=> resume regular gpx file loading',
-                f'!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!',
-            ])
+            self.log_info.send(
+                [
+                    f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",
+                    f"failed to load parquet file",
+                    f"an unexpected error {e} occured",
+                    f"=> resume regular gpx file loading",
+                    f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",
+                ]
+            )
 
         self.file_size = Path(gpx_path).stat().st_size / 1e6
         if self.file_size > self.max_file_size:
@@ -337,7 +398,9 @@ class TraceAnalysis:
                 tracks = self.format_html_to_gpx(html_soup)
                 self.df = self.to_pandas(tracks[0].segments[0])
         except Exception as e:
-            raise TraceAnalysisException(f"failed to load file {gpx_path} with error {traceback.format_exc()}")
+            raise TraceAnalysisException(
+                f"failed to load file {gpx_path} with error {traceback.format_exc()}"
+            )
         self.process_df()
         self.resample_df()
         # filter out speed spikes on self.df:
@@ -346,56 +409,54 @@ class TraceAnalysis:
 
     @log_calls()
     def load_df_from_sml(self, html_soup):
-        if not self.file_extension == '.sml':
+        if not self.file_extension == ".sml":
             return False
 
-        self.creator = 'suunto sml'
+        self.creator = "suunto sml"
 
-        data_speed = {'speed': [], 'time': []}
-        data_coor = {'lon': [], 'lat': [], 'time': []}
-        for el in html_soup.findAll('sample'):
+        data_speed = {"speed": [], "time": []}
+        data_coor = {"lon": [], "lat": [], "time": []}
+        for el in html_soup.findAll("sample"):
             if el.speed and el.utc:
-                data_speed['speed'].append(float(el.speed.string))
-                data_speed['time'].append(str(el.utc.string))
+                data_speed["speed"].append(float(el.speed.string))
+                data_speed["time"].append(str(el.utc.string))
             elif el.longitude and el.utc:
-                data_coor['lon'].append(float(el.longitude.string)*180/pi)
-                data_coor['lat'].append(float(el.latitude.string)*180/pi)
-                data_coor['time'].append(str(el.utc.string))
+                data_coor["lon"].append(float(el.longitude.string) * 180 / pi)
+                data_coor["lat"].append(float(el.latitude.string) * 180 / pi)
+                data_coor["time"].append(str(el.utc.string))
         df_speed = pd.DataFrame(data=data_speed)
-        df_speed['time'] = pd.to_datetime(df_speed.time)
-        df_speed.set_index('time', inplace=True)
+        df_speed["time"] = pd.to_datetime(df_speed.time)
+        df_speed.set_index("time", inplace=True)
         df_speed = df_speed.resample(self.time_sampling).mean()
-        df_speed['has_doppler'] = 0
-        df_speed.loc[df_speed.speed.notna(), 'has_doppler'] = 1
+        df_speed["has_doppler"] = 0
+        df_speed.loc[df_speed.speed.notna(), "has_doppler"] = 1
 
         # need to resample and inteprolate to obtain speed from distance between 2 points:
         df_coor = pd.DataFrame(data=data_coor)
-        df_coor['time'] = pd.to_datetime(df_coor.time)
-        df_coor.set_index('time', inplace=True)
+        df_coor["time"] = pd.to_datetime(df_coor.time)
+        df_coor.set_index("time", inplace=True)
         df_coor = df_coor.resample(self.time_sampling).mean().interpolate()
-        df_coor['lat-1'] = df_coor['lat'].shift(1)
-        df_coor['lon-1'] = df_coor['lon'].shift(1)
+        df_coor["lat-1"] = df_coor["lat"].shift(1)
+        df_coor["lon-1"] = df_coor["lon"].shift(1)
         pd_course = lambda x: gpxpy.geo.get_course(
-            x['lat'], x['lon'], x['lat-1'], x['lon-1']
+            x["lat"], x["lon"], x["lat-1"], x["lon-1"]
         )
         pd_distance = lambda x: gpxpy.geo.distance(
-            x['lat'], x['lon'], None, x['lat-1'], x['lon-1'], None
+            x["lat"], x["lon"], None, x["lat-1"], x["lon-1"], None
         )
-        df_coor['course'] = df_coor.apply(pd_course, axis=1)
-        df_coor['speed_no_doppler'] = df_coor.apply(pd_distance, axis=1) / self.sampling
+        df_coor["course"] = df_coor.apply(pd_course, axis=1)
+        df_coor["speed_no_doppler"] = df_coor.apply(pd_distance, axis=1) / self.sampling
 
         # concat the 2 dataframes:
-        self.df = pd.concat([df_speed, df_coor], join='outer', axis=1)
+        self.df = pd.concat([df_speed, df_coor], join="outer", axis=1)
         self.df.reset_index(inplace=True)
-        self.df.to_csv('test.csv')
+        self.df.to_csv("test.csv")
         # try:
         #     self.df.index = self.df.index.dt.tz_localize('UTC')
         # except Exception:
         #     pass
         # self.df.index.dt.tz_convert('UTC')
-        self.log_info.send([
-            'successful load from sml file {self.filename}',
-        ])
+        self.log_info.send(["successful load from sml file {self.filename}"])
         return True
 
     @log_calls()
@@ -412,7 +473,9 @@ class TraceAnalysis:
         trace_infos_attr = self.free_trace_infos_attr + self.hard_trace_infos_attr
         for attr in trace_infos_attr:
             self.df.loc[self.df.index[0], attr] = getattr(self, attr)
-        parquet_path = os.path.join(self.config.directory_paths.parquet_dir, f"parquet_{self.filename}")
+        parquet_path = os.path.join(
+            self.config.directory_paths.parquet_dir, f"parquet_{self.filename}"
+        )
         self.df.to_parquet(parquet_path)
 
     @log_calls()
@@ -427,45 +490,56 @@ class TraceAnalysis:
         filenames = [
             Path(f).stem
             for f in glob.iglob(
-                os.path.join(Path(self.config.directory_paths.parquet_dir).resolve(), "*"), recursive=False
+                os.path.join(
+                    Path(self.config.directory_paths.parquet_dir).resolve(), "*"
+                ),
+                recursive=False,
             )
-            if (Path(f).stem).startswith('parquet_')
-            #if os.path.splitext(f)[1].startswith('parquet_')
+            if (Path(f).stem).startswith("parquet_")
+            # if os.path.splitext(f)[1].startswith('parquet_')
         ]
         # search for parquet files matching the filename to analyse:
         parquet_filename = [
-            f
-            for f in filenames
-            if self.filename == f.split("parquet_")[1]
+            f for f in filenames if self.filename == f.split("parquet_")[1]
         ]
-        if not (parquet_filename and self.parquet_loading) :
-            self.log_info.send([
-                'did not find parquet file to load or config rules prevented parquet loading',
-                '=> resume regular gpx file loading'
-            ])
+        if not (parquet_filename and self.parquet_loading):
+            self.log_info.send(
+                [
+                    "did not find parquet file to load or config rules prevented parquet loading",
+                    "=> resume regular gpx file loading",
+                ]
+            )
             return False
 
         # load parquet file:
-        parquet_path = os.path.join(self.config.directory_paths.parquet_dir, parquet_filename[0])
+        parquet_path = os.path.join(
+            self.config.directory_paths.parquet_dir, parquet_filename[0]
+        )
         self.log_info.send([f"loading from parquet file {parquet_path}"])
         self.df = pd.read_parquet(parquet_path)
 
         # load trace attributs:
         for attr in self.hard_trace_infos_attr:
             setattr(self, attr, self.df.loc[self.df.index[0], attr])
-        self.df.drop(columns=self.hard_trace_infos_attr, inplace=True) # clean df for debug reading
+        self.df.drop(
+            columns=self.hard_trace_infos_attr, inplace=True
+        )  # clean df for debug reading
         # free user attributs that can be overriden by the class **params:
         for attr in self.free_trace_infos_attr:
             attr_value = self.params.get(attr, self.df.loc[self.df.index[0], attr])
             setattr(self, attr, attr_value)
-        self.df.drop(columns=self.free_trace_infos_attr, inplace=True) # clean df for debug reading
+        self.df.drop(
+            columns=self.free_trace_infos_attr, inplace=True
+        )  # clean df for debug reading
         # check if parquet file is acceptable:
         # (this is about our algo version used to generate the df, it's not about parquet format)
         if self.parquet_version < self.min_version:
-            self.log_info.send([
-                f'parquet file version {self.parquet_version} is below min version requirement of {self.min_version}',
-                f'=> abort file parquet loading and resume regular gpx file loading'
-            ])
+            self.log_info.send(
+                [
+                    f"parquet file version {self.parquet_version} is below min version requirement of {self.min_version}",
+                    f"=> abort file parquet loading and resume regular gpx file loading",
+                ]
+            )
             return False
         return True
 
@@ -555,10 +629,10 @@ class TraceAnalysis:
 
         # reindex on 'time' column for later resample
         try:
-            self.df.time = self.df.time.dt.tz_localize('UTC')
+            self.df.time = self.df.time.dt.tz_localize("UTC")
         except Exception:
             pass
-        self.df.time = self.df.time.dt.tz_convert('UTC')
+        self.df.time = self.df.time.dt.tz_convert("UTC")
         self.df = self.df.set_index("time")
 
         # convert ms-1 to knots:
@@ -568,13 +642,13 @@ class TraceAnalysis:
         # convert bool to int: needed for rolling window functions
         self.df.loc[self.df.has_doppler == True, "has_doppler"] = 1
         self.df.loc[self.df.has_doppler == False, "has_doppler"] = 0
-        self.df['elapsed_time'] = pd.to_timedelta(
+        self.df["elapsed_time"] = pd.to_timedelta(
             self.df.index - self.df.index[0]
         ).astype("timedelta64[s]")
         sampling = self.df.elapsed_time.diff().mean()
-        if sampling < 1: # round to closest int
+        if sampling < 1:  # round to closest int
             self.trace_sampling = np.rint(sampling)
-        else: # round down
+        else:  # round down
             self.trace_sampling = np.floor(sampling)
 
     @log_calls()
@@ -670,7 +744,7 @@ class TraceAnalysis:
 
         # limit the # of iterations for speed + avoid infinite loop
         while erratic_data and iter < MAX_ITER:
-            err = self.filter_on_field(df2, "speed" , "speed_no_doppler")
+            err = self.filter_on_field(df2, "speed", "speed_no_doppler")
             self.filtered_events += err
             iter += 1
             erratic_data = err > 0
@@ -719,10 +793,10 @@ class TraceAnalysis:
                     if a < descend_th:
                         # descending phase: continue filtering while a < -0.1
                         exiting = True
-                    elif exiting: # descending phase ends: a>-0.1
+                    elif exiting:  # descending phase ends: a>-0.1
                         if a > self.max_acceleration:
-                            exiting = False # nocheinmal
-                        elif a > exit_th : # wait for reacceleration before exiting
+                            exiting = False  # nocheinmal
+                        elif a > exit_th:  # wait for reacceleration before exiting
                             break
             return i
 
@@ -738,16 +812,16 @@ class TraceAnalysis:
             if acceleration_max <= self.max_acceleration:  # save execution time
                 break
             c1 = (
-                    df2[column_acceleration].rolling(filtering_rolling_window).max()
-                    <= aggressive_filtering_th
+                df2[column_acceleration].rolling(filtering_rolling_window).max()
+                <= aggressive_filtering_th
             )
             c2 = (
-                    df2[column_acceleration].rolling(filtering_rolling_window).max()
-                    > self.max_acceleration
+                df2[column_acceleration].rolling(filtering_rolling_window).max()
+                > self.max_acceleration
             )
             c = c1 & c2
             df2.loc[c, column] = np.nan
-            df2.loc[c, 'filtering'] = 1
+            df2.loc[c, "filtering"] = 1
             # now filter and apply our rolling acceleration filter:
             df2[column_filtering] = (
                 df2[column_acceleration]
@@ -763,11 +837,13 @@ class TraceAnalysis:
                 df2.loc[this_range, column] = np.nan
                 df2.loc[this_range, "filtering"] = 1
             df2.loc[:, column].interpolate(inplace=True)
-            self.log_info.send([
-                f"***********************************************\n",
-                f"applied rolling acceleration filter on {column}\n",
-                f"and filtered {len(indices)} events with an acceleration max = {round(acceleration_max,3)}\n"
-            ])
+            self.log_info.send(
+                [
+                    f"***********************************************\n",
+                    f"applied rolling acceleration filter on {column}\n",
+                    f"and filtered {len(indices)} events with an acceleration max = {round(acceleration_max,3)}\n",
+                ]
+            )
         return err
 
     @log_calls()
@@ -875,9 +951,7 @@ class TraceAnalysis:
             filtered_events = ""
         else:
             file_info = f"file size is {self.file_size}Mb"
-            filtered_events = (
-                f"filtered {self.filtered_events} events with acceleration > {self.max_acceleration}g"
-            )
+            filtered_events = f"filtered {self.filtered_events} events with acceleration > {self.max_acceleration}g"
         self.log_info.send(
             [
                 f"__init__ {self.__class__.__name__} with file {self.gpx_path}",
@@ -1510,9 +1584,7 @@ class TraceAnalysis:
         self.result_debug_path = os.path.join(results_dir, result_debug_filename)
         self.results_path = os.path.join(results_dir, result_filename)
         self.all_results_path = self.config.all_results_path
-        self.ranking_results_path = os.path.join(
-            results_dir, ranking_results_filename
-        )
+        self.ranking_results_path = os.path.join(results_dir, ranking_results_filename)
 
     @log_calls()
     def save_to_csv(self):
@@ -1615,6 +1687,7 @@ def crunch_data():
     :return: hostory plots analysis
     """
     from utils import process_config_plot
+
     trace_results = TraceResults()
     config_plot_file = os.path.join(TraceAnalysis.config_dir, "config_plot.yaml")
     process_config_plot(trace_results.all_results, config_plot_file)
@@ -1628,7 +1701,7 @@ parser.add_argument(
 parser.add_argument("-d", "--read_directory", nargs="?", type=str, default="")
 parser.add_argument("-p", "--plot", action="count", default=0)
 parser.add_argument("-c", "--crunch_data", action="count", default=0)
-parser.add_argument("-data","--params_data", nargs="?", type=json.loads, default={})
+parser.add_argument("-data", "--params_data", nargs="?", type=json.loads, default={})
 # !! mind the quotes with data json loads !! use:
 #       -data '{"author": "jla", ...}'
 
@@ -1654,8 +1727,10 @@ if __name__ == "__main__":
             params = args.params_data
             gpsana_client = TraceAnalysis(gpx_filename, config_filename, **params)
             gpx_results = gpsana_client.call_gps_func_from_config()
-            gpsana_client.load_merge_all_results(gpx_results)
-            gpsana_client.ranking_results = gpsana_client.trace_results.rank_all_results()
+            all_results = gpsana_client.load_merge_all_results(gpx_results)
+            gpsana_client.ranking_results = gpsana_client.trace_results.rank_all_results(
+                all_results=all_results
+            )
             gpsana_client.save_to_csv()
             gpsana_client.log_computation_time()
             if args.plot > 0:
