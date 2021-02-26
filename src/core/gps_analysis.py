@@ -602,7 +602,7 @@ class TraceAnalysis:
                 "lon": point.longitude,
                 "lat": point.latitude,
                 "time": point.time,  # datetime.datetime.strptime((str(point.time)).split("+")[0], '%Y-%m-%d %H:%M:%S'),
-                "speed": (point.speed if point.speed else raw_data.get_speed(i)),
+                "speed": point.speed, # if point.speed else raw_data.get_speed(i),
                 "speed_no_doppler": raw_data.get_speed(i),
                 "course": point.course_between(raw_data.points[i - 1] if i > 0 else 0),
                 "has_doppler": bool(point.speed),
@@ -646,8 +646,8 @@ class TraceAnalysis:
             self.df.index - self.df.index[0]
         ).astype("timedelta64[s]")
         sampling = self.df.elapsed_time.diff().mean()
-        if sampling < 1:  # round to closest int
-            self.trace_sampling = np.rint(sampling)
+        if sampling < 1:  # round to closest int (np.rint)
+            self.trace_sampling = np.rint(sampling*10)/10
         else:  # round down
             self.trace_sampling = np.floor(sampling)
 
@@ -810,7 +810,9 @@ class TraceAnalysis:
             )
             acceleration_max = df2[column_acceleration].max()
             if acceleration_max <= self.max_acceleration:  # save execution time
-                break
+                continue
+            # c condition on max_acceleration < acceleration < aggressive_filtering_th
+            # condition checked with a rolling max on 2 to 4 samples
             c1 = (
                 df2[column_acceleration].rolling(filtering_rolling_window).max()
                 <= aggressive_filtering_th
@@ -822,7 +824,8 @@ class TraceAnalysis:
             c = c1 & c2
             df2.loc[c, column] = np.nan
             df2.loc[c, "filtering"] = 1
-            # now filter and apply our rolling acceleration filter:
+            # now filter and apply our rolling acceleration filter
+            # on accelerations > aggressive_filtering_th :
             df2[column_filtering] = (
                 df2[column_acceleration]
                 .rolling(FILTER_WINDOW)
@@ -1614,7 +1617,7 @@ class TraceAnalysis:
 
     def log_computation_time(self):
         fn_execution_time = {
-            fn: f"executed in {round(100 * time / self.fn_execution_time['total_time'],1)}% of total time"
+            fn: f"executed in {round(time, 2)} s and {round(100 * time / self.fn_execution_time['total_time'],1)}% of total time"
             for fn, time in self.fn_execution_time.items()
             if fn != "total_time"
         }
