@@ -12,14 +12,10 @@
         </div>
       </header>
       <p class="body">results: </p>
-      <table>
       {% for k, v in response.items() %}
-         <tr>
-              <th> {{ k }} </th>
-              <td> {{ v }} </td>
-         </tr>
+        <p>{{k}}:  {{v}}</p>
       {% endfor %}
-      </table>
+
       <p class="body">warnings: </p>
       <table>
       {% for el in warnings %}

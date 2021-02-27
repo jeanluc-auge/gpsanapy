@@ -209,13 +209,16 @@ def upload_file():
             db.session.add(new_file)
             db.session.commit()
             # pre-analyse file (convert gpx to df and save to parquet for future analysis):
-            TraceAnalysis(
+            gpsanaclient = TraceAnalysis(
                 file_path,
                 support=new_file.support,
                 spot=new_file.spot,
                 author=new_file.user.username,
                 parquet_loading=False
             )
+            status, error = gpsanaclient.run()
+            if not status:
+                flash('\n'.join(error))
             return redirect(url_for('files'))
 
     return render_template('upload_file.html', support_choice=SUPPORT_CHOICE, spot_choice=SPOT_CHOICE)
@@ -232,9 +235,16 @@ def delete_file(id):
 @login_required
 def reload_files():
     gpxfiles = db.session.query(GpxFiles).order_by(GpxFiles.id).all()
+    error_dict = {}
     for file in gpxfiles:
         file_path = os.path.join(UPLOAD_FOLDER, file.filename)
-        gpsana_client = TraceAnalysis(file_path, author=file.user.username, spot=file.spot, support=file.support)
+
+        gpsanaclient = TraceAnalysis(file_path, author=file.user.username, spot=file.spot, support=file.support)
+        status, error = gpsanaclient.run()
+        if not status:
+            error_dict[gpsanaclient.filename] = error
+    if error_dict:
+        flash(error_dict)
     return redirect(url_for('files'))
 
 @app.route('/<int:id>/analyse')
@@ -243,6 +253,18 @@ def analyse(id):
     file = get_file(id, check_author=False)
     file_path = os.path.join(UPLOAD_FOLDER, file.filename)
     gpsana_client = TraceAnalysis(file_path, author=file.user.username, spot=file.spot, support=file.support)
+    status, error = gpsana_client.run()
+
+    if not status:
+        return render_template(
+            'analyse.html',
+            response={},
+            warnings=error,
+            infos={},
+            file=file,
+            bokeh_template={},
+        ).encode(encoding='UTF-8')
+
     response = gpx_results_to_json(gpsana_client.gpx_results)
     warnings = gpsana_client.log_warning_list
     infos = gpsana_client.log_info_list
@@ -257,9 +279,9 @@ def analyse(id):
     p = bokeh_speed_density(gpsana_client, s)
     # grab the static resources
     bokeh_template[f'plot {s}s rolling speed data'] = gen_bokeh_resources(p)
-    # render template
+# render template
 
-    html = render_template(
+    return render_template(
         'analyse.html',
         response=response,
         warnings=warnings,
@@ -267,7 +289,6 @@ def analyse(id):
         file=file,
         bokeh_template=bokeh_template,
     ).encode(encoding='UTF-8')
-    return html
 
 @app.route('/register', methods=('GET', 'POST'))
 def register():
