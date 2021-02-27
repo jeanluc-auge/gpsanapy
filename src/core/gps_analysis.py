@@ -344,18 +344,36 @@ class TraceAnalysis:
         # **params overrides config.yaml:
         self.parquet_loading = self.params.get("parquet_loading", self.parquet_loading)
 
-        self.load_df(gpx_path)
-        self.set_csv_paths()
-        # debug, select a portion of the track:
-        # self.df = self.df.loc["2019-03-29 14:10:00+00:00": "2019-03-29 14:47:00+00:00"]
-        # generate key time series:
-        self.generate_series()
-        self.log_trace_infos()
-        self.df_result_debug = pd.DataFrame(index=self.tsd.index)
-        gpx_results = self.call_gps_func_from_config()
-        all_results = self.load_merge_all_results(gpx_results)
-        self.ranking_results = self.trace_results.rank_all_results(all_results=all_results)
-        self.save_to_csv()
+    def run(self):
+        """
+        load file and run the analysis
+        :return:
+        """
+        try:
+            self.load_df(self.gpx_path)
+            self.set_csv_paths()
+            # debug, select a portion of the track:
+            # self.df = self.df.loc["2019-03-29 14:10:00+00:00": "2019-03-29 14:47:00+00:00"]
+            # generate key time series:
+            self.generate_series()
+            self.log_trace_infos()
+            self.df_result_debug = pd.DataFrame(index=self.tsd.index)
+            gpx_results = self.call_gps_func_from_config()
+            all_results = self.load_merge_all_results(gpx_results)
+            self.ranking_results = self.trace_results.rank_all_results(all_results=all_results)
+            self.save_to_csv()
+            return True, f"successfully loaded file {self.filename}"
+        except TraceAnalysisException as te:
+            logger.error(te)
+            return False, [f"TraceAnalysis exception on file {self.filename}\n", f": {te}\n"]
+        except Exception as e:
+            logger.error(e)
+            return False, [
+                f"\nan unexpected **{type(e).__name__}** error occured:\n",
+                f"{str(e)}\n",
+                f" on file {self.filename}\n",
+                f"with traceback:\n {traceback.format_exc()}",
+            ]
 
     @coroutine
     def appender(self, level):
@@ -1743,28 +1761,14 @@ if __name__ == "__main__":
     error_dict = {}
     all_results = None
     for gpx_filename in gpx_filenames:
-        try:
-            params = args.params_data
-            gpsana_client = TraceAnalysis(gpx_filename, config_filename, **params)
-            # gpx_results = gpsana_client.call_gps_func_from_config()
-            # all_results = gpsana_client.load_merge_all_results(gpx_results)
-            # gpsana_client.ranking_results = gpsana_client.trace_results.rank_all_results(
-            #     all_results=all_results
-            # )
-            # gpsana_client.save_to_csv()
-            gpsana_client.log_computation_time()
-            if args.plot > 0:
-                gpsana_client.plot_speed()
-        except TraceAnalysisException as te:
-            error_dict[gpx_filename] = str(te)
-            logger.error(te)
-        except Exception as e:
-            error_dict[gpx_filename] = (
-                f"\nan unexpected **{type(e).__name__}** error occured:\n"
-                f"{str(e)}\n"
-                f"with traceback:\n {traceback.format_exc()}"
-            )
-            logger.error(e)
+        params = args.params_data
+        gpsana_client = TraceAnalysis(gpx_filename, config_filename, **params)
+        status, error = gpsana_client.run()
+        if not status:
+            error_dict[gpx_filename] = error
+        gpsana_client.log_computation_time()
+        if args.plot > 0:
+            gpsana_client.plot_speed()
 
     if args.crunch_data > 0:
         crunch_data()
