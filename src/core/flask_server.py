@@ -145,7 +145,7 @@ def get_file(id, check_author=True):
     if file is None:
         abort(404, f"file id {id} doesn't exist.")
 
-    if check_author and file.user_id != g.user.id:
+    if check_author and (file.user_id != g.user.id or file.user.username!='admin'):
         abort(403)
 
     return file
@@ -228,17 +228,22 @@ def delete_file(id):
     db.session.commit()
     return redirect(url_for('files'))
 
+@app.route('/reload_files', methods=('GET', 'POST'))
+@login_required
+def reload_files():
+    gpxfiles = db.session.query(GpxFiles).order_by(GpxFiles.id).all()
+    for file in gpxfiles:
+        file_path = os.path.join(UPLOAD_FOLDER, file.filename)
+        gpsana_client = TraceAnalysis(file_path, author=file.user.username, spot=file.spot, support=file.support)
+    return redirect(url_for('files'))
+
 @app.route('/<int:id>/analyse')
 def analyse(id):
     # analyse file
     file = get_file(id, check_author=False)
     file_path = os.path.join(UPLOAD_FOLDER, file.filename)
-    gpsana_client = TraceAnalysis(file_path)
-    gpx_results = gpsana_client.call_gps_func_from_config()
-    gpsana_client.load_merge_all_results(gpx_results)
-    gpsana_client.ranking_results = trace_results.rank_all_results()
-    gpsana_client.save_to_csv()
-    response = gpx_results_to_json(gpx_results)
+    gpsana_client = TraceAnalysis(file_path, author=file.user.username, spot=file.spot, support=file.support)
+    response = gpx_results_to_json(gpsana_client.gpx_results)
     warnings = gpsana_client.log_warning_list
     infos = gpsana_client.log_info_list
     # bokeh

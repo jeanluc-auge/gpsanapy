@@ -5,6 +5,9 @@
   {% if g.user %}
     <a class="action" href="{{ url_for('upload_file') }}">New</a>
   {% endif %}
+  {% if g.user.username == 'admin' %}
+    <a class="action" href="{{ url_for('reload_files') }}">reload all files</a>
+  {% endif %}
 {% endblock %}
 
 {% block content %}
