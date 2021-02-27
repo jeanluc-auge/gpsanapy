@@ -299,8 +299,8 @@ class TraceAnalysis:
     # class attributs:
     root_dir = ROOT_DIR  # project root dir (requirements.txt ...)
     config_dir = CONFIG_DIR  # yaml config files location
-    analysis_version = 2.1  # track algo improvements
-    min_version = 2.1  # min requirement to accept loading from an archive parquet file
+    analysis_version = 2.2  # track algo improvements
+    min_version = 2.2  # min requirement to accept loading from an archive parquet file
     # attributs to save to parquet file:
     #   attributs that cannot be modified
     hard_trace_infos_attr = [
@@ -352,6 +352,10 @@ class TraceAnalysis:
         self.generate_series()
         self.log_trace_infos()
         self.df_result_debug = pd.DataFrame(index=self.tsd.index)
+        gpx_results = self.call_gps_func_from_config()
+        all_results = self.load_merge_all_results(gpx_results)
+        self.ranking_results = self.trace_results.rank_all_results(all_results=all_results)
+        self.save_to_csv()
 
     @coroutine
     def appender(self, level):
@@ -617,8 +621,8 @@ class TraceAnalysis:
 
         # **** data frame doppler checking *****
         # check that there are enough doppler points to interpolate:
-        doppler_ratio = 100 - int(df.speed.isnull().sum()/len(df.speed))
-        if doppler_ratio < 90:
+        doppler_ratio = 100 - int(100*df.speed.isnull().sum()/len(df.speed))
+        if doppler_ratio < 70:
             # not enough doppler speed data:
             # do not interpolate but revert to positional speed when doppler speed is missing:
             logger.info(
@@ -1742,12 +1746,12 @@ if __name__ == "__main__":
         try:
             params = args.params_data
             gpsana_client = TraceAnalysis(gpx_filename, config_filename, **params)
-            gpx_results = gpsana_client.call_gps_func_from_config()
-            all_results = gpsana_client.load_merge_all_results(gpx_results)
-            gpsana_client.ranking_results = gpsana_client.trace_results.rank_all_results(
-                all_results=all_results
-            )
-            gpsana_client.save_to_csv()
+            # gpx_results = gpsana_client.call_gps_func_from_config()
+            # all_results = gpsana_client.load_merge_all_results(gpx_results)
+            # gpsana_client.ranking_results = gpsana_client.trace_results.rank_all_results(
+            #     all_results=all_results
+            # )
+            # gpsana_client.save_to_csv()
             gpsana_client.log_computation_time()
             if args.plot > 0:
                 gpsana_client.plot_speed()
