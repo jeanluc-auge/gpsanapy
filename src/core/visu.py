@@ -28,6 +28,14 @@ def gkde(data, gridsize):
 def build_crunch_df(df, result_types):
     if not result_types:
         return
+    # df2 = df[df.description.isin(result_types)].pivot_table(
+    #     values=["result"],
+    #     index=["n"],
+    #     columns=["description"],
+    #     aggfunc=np.mean,
+    #     dropna=True,
+    # )
+    # df2.result[result_type]
     df2 = pd.DataFrame(
         data={
             result_type: df[df.description == result_type].result
@@ -38,7 +46,104 @@ def build_crunch_df(df, result_types):
     return df2
 
 
+def all_results_speed_density(all_results):
+    """crunch data with all ranking results"""
+    if all_results is None:
+        return
+    config = TraceConfig()
+    result_types = [r for k,v in config.ranking_groups.items() for r in v]
+    # do not plot 0 results:
+    all_results.astype({'result':'float64'}).dtypes
+
+    # density plot:
+    all_results2 = all_results.reset_index(drop=True)
+    df = build_crunch_df(all_results2, result_types)
+    p = figure(x_axis_label="speed (kn)")
+    try:
+        for result_type, color in zip(result_types, Inferno[len(result_types)]):
+            data = df[result_type].dropna()
+            x, pdf = gkde(data, 100)
+            p.line(x, pdf, color=color, line_width=3, legend_label=f'gkde density of {result_type}')
+    except Exception as e:
+        print(e)
+
+    return p
+
+
+def bokeh_speed(gpsana_client):
+    p = figure(x_axis_type="datetime", x_axis_label="time")
+    dfs = pd.DataFrame(index=gpsana_client.tsd.index)
+    dfs["raw_speed"] = gpsana_client.raw_tsd
+    dfs.loc[dfs.raw_speed>55, "raw_speed"] = 55
+    dfs["speed"] = gpsana_client.tsd
+    dfs["speed_no_doppler"] = gpsana_client.ts
+    dfs.loc[dfs.speed_no_doppler > 55, "speed_no_doppler"] = 55
+    dfs = dfs.reset_index()
+    source = ColumnDataSource(dfs)
+    p.line(x='time', y='raw_speed', source=source, color='blue', legend_label='unfiltered raw speed')
+    p.line(x='time', y='speed', source=source, color='red', legend_label = 'doppler speed')
+    p.line(x='time', y='speed_no_doppler', source=source, color='orange', legend_label='positional speed')
+    return p
+
+
+def bokeh_speed_density(gpsana_client, s):
+
+    xs = f"{int(10)}S"
+    p = figure(x_axis_label="speed (kn)")
+    dfs = pd.DataFrame(index=gpsana_client.tsd.index)
+    dfs["speed"] = gpsana_client.tsd
+    dfs["speed_xs"] = gpsana_client.tsd.rolling(xs).mean()
+    dfs = dfs.reset_index()
+    dfs.dropna(inplace=True)
+
+    x_grid_xs, pdf_xs = gkde(dfs.speed_xs, 200)
+    x_grid, pdf = gkde(dfs.speed, 200)
+
+    p.line(x_grid, pdf, color='blue', legend_label=f'gkde density of filtered max doppler speeds')
+    p.line(x_grid_xs, pdf_xs, color='red', legend_label=f'gkde density of v{xs} speeds')
+
+    return p
+
+
+def compare_all_results_density(all_results, gpsana_client, result_types):
+    if all_results is None:
+        return
+    # do not plot 0 results:
+    all_results.astype({'result':'float64'}).dtypes
+
+    # density plot:
+    all_results2 = all_results.reset_index(drop=True)
+    df = build_crunch_df(all_results2, result_types)
+    results = build_crunch_df(gpsana_client.gpx_results, result_types)
+    p = figure(x_axis_label='speed (kn)')
+
+    #result = gpsana_client.gpx_results[gpsana_client.gpx_results.description.isin(result_types)].result
+    #result_list = list(pd.Series.to_numpy(result))
+    colors = Inferno[len(result_types)+1]
+    for result_type, color in zip(result_types, colors):
+        data = df[result_type].dropna()
+        data = data[data>0]
+        result = results[result_type].dropna()
+        result = result[result>0]
+        if len(data)>1 and len(results)>0:
+            x, pdf = gkde(data, 100)
+            h = pdf.max()
+            p.line(x, pdf, color=color, line_width=3, legend_label=f'gkde density of {result_type}')
+            for r in pd.Series.to_numpy(result):
+                p.line([r, r], [0, h], color=color, line_width=2)
+    # for r, c in zip(result_list, colors[1:]):
+    #     p.line([r, r], [0, h], color=c, line_width=2)
+
+    return p
+
+
+
+
+
+
+
 def process_config_plot(all_results, config_plot_file):
+    """deprecated"""
     if all_results is None:
         return
 
@@ -90,29 +195,6 @@ def process_config_plot(all_results, config_plot_file):
         df2 = pd.DataFrame(data = data)
         df2.plot.kde(ax=axx[i])
 
-
-def all_results_speed_density(all_results):
-    if all_results is None:
-        return
-    config = TraceConfig()
-    result_types = config.ranking_groups['vmax']
-    # do not plot 0 results:
-    all_results.astype({'result':'float64'}).dtypes
-
-    # density plot:
-    all_results2 = all_results.reset_index(drop=True)
-    df = build_crunch_df(all_results2, result_types)
-    p = figure(x_axis_label="speed (kn)")
-    try:
-        for result_type, color in zip(result_types, Inferno[5]):
-            data = df[result_type].dropna()
-            x, pdf = gkde(data, 100)
-            p.line(x, pdf, color=color, line_width=3, legend_label=f'gkde density of {result_type}')
-    except Exception as e:
-        print(e)
-
-    return p
-
 def bokeh_plot(all_results):
     """deprecated"""
     all_results.astype({"result": "float64"}).dtypes
@@ -151,37 +233,3 @@ def bokeh_plot(all_results):
 
     return p
     # show(p)
-
-
-def bokeh_speed(gpsana_client):
-    p = figure(x_axis_type="datetime", x_axis_label="time")
-    dfs = pd.DataFrame(index=gpsana_client.tsd.index)
-    dfs["raw_speed"] = gpsana_client.raw_tsd
-    dfs.loc[dfs.raw_speed>55, "raw_speed"] = 55
-    dfs["speed"] = gpsana_client.tsd
-    dfs["speed_no_doppler"] = gpsana_client.ts
-    dfs.loc[dfs.speed_no_doppler > 55, "speed_no_doppler"] = 55
-    dfs = dfs.reset_index()
-    source = ColumnDataSource(dfs)
-    p.line(x='time', y='raw_speed', source=source, color='blue', legend_label='unfiltered raw speed')
-    p.line(x='time', y='speed', source=source, color='red', legend_label = 'doppler speed')
-    p.line(x='time', y='speed_no_doppler', source=source, color='orange', legend_label='positional speed')
-    return p
-
-
-def bokeh_speed_density(gpsana_client, s):
-
-    xs = f"{int(s)}S"
-    p = figure(x_axis_label="speed (kn)")
-    dfs = pd.DataFrame(index=gpsana_client.tsd.index)
-    dfs["speed"] = gpsana_client.tsd
-    dfs["speed_xs"] = gpsana_client.tsd.rolling(xs).mean()
-    dfs = dfs.reset_index()
-    dfs.dropna(inplace=True)
-
-    x_grid_xs, pdf_xs = gkde(dfs.speed_xs, 200)
-    x_grid, pdf = gkde(dfs.speed, 200)
-
-    p.line(x_grid, pdf, color='blue', legend_label=f'gkde density of filtered max doppler speeds')
-    p.line(x_grid_xs, pdf_xs, color='red', legend_label=f'gkde density of v{xs} speeds')
-    return p

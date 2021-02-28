@@ -22,7 +22,7 @@ from sqlalchemy.orm import sessionmaker
 from gps_analysis import TraceAnalysis, TraceConfig, TraceResults, crunch_data
 from utils import gpx_results_to_json, load_results
 # from db import init_app, init_db
-from visu import bokeh_plot, bokeh_speed, bokeh_speed_density, all_results_speed_density
+from visu import bokeh_plot, bokeh_speed, bokeh_speed_density, all_results_speed_density, compare_all_results_density
 from bokeh.models.callbacks import CustomJS
 from bokeh.embed import components
 from bokeh.resources import INLINE
@@ -254,7 +254,6 @@ def analyse(id):
     file_path = os.path.join(UPLOAD_FOLDER, file.filename)
     gpsana_client = TraceAnalysis(file_path, author=file.user.username, spot=file.spot, support=file.support)
     status, error = gpsana_client.run()
-
     if not status:
         return render_template(
             'analyse.html',
@@ -265,6 +264,10 @@ def analyse(id):
             bokeh_template={},
         ).encode(encoding='UTF-8')
 
+    reduced_results = trace_results.reduced_results(
+            #by_support=file.support,
+            by_author=file.user.username,
+        )
     response = gpx_results_to_json(gpsana_client.gpx_results)
     warnings = gpsana_client.log_warning_list
     infos = gpsana_client.log_info_list
@@ -273,12 +276,16 @@ def analyse(id):
     # plot speeds
     p = bokeh_speed(gpsana_client)
     # grab the static resources
-    bokeh_template['plot speed data'] = deepcopy(gen_bokeh_resources(p))
+    bokeh_template['plot speed data'] = gen_bokeh_resources(p)
     # plot rolling speed
-    s = 30
+    s = 10
     p = bokeh_speed_density(gpsana_client, s)
     # grab the static resources
-    bokeh_template[f'plot {s}s rolling speed data'] = gen_bokeh_resources(p)
+    bokeh_template[f'session speed distribution'] = gen_bokeh_resources(p)
+
+    p = compare_all_results_density(reduced_results, gpsana_client, ['vmax_10s', 'vmax_jibe'])
+    bokeh_template[f'compare session results (vertical lines) with {file.user.username} all time results distributions'] = gen_bokeh_resources(p)
+
 # render template
 
     return render_template(
@@ -397,14 +404,12 @@ def crunch_data():
 
 @app.route('/<string:by_support>/<string:by_spot>/<string:by_author>/crunch')
 def crunch(by_support, by_spot, by_author):
-    print(by_author, by_spot, by_support)
     reduced_results = trace_results.reduced_results(
             by_support=by_support,
             by_spot=by_spot,
             by_author=by_author,
             check_config=True
         )
-    print(reduced_results.head())
 
     p = all_results_speed_density(reduced_results)
     # grab the static resources
