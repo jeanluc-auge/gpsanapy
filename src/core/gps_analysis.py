@@ -540,6 +540,18 @@ class TraceAnalysis:
         self.log_info.send([f"loading from parquet file {parquet_path}"])
         self.df = pd.read_parquet(parquet_path)
 
+        # check if parquet file is acceptable:
+        # (this is about our algo version used to generate the df, it's not about parquet format)
+        parquet_version = self.df.loc[self.df.index[0], 'parquet_version']
+        if parquet_version < self.min_version:
+            self.log_info.send(
+                [
+                    f"parquet file version {self.parquet_version} is below min version requirement of {self.min_version}",
+                    f"=> abort file parquet loading and resume regular gpx file loading",
+                ]
+            )
+            return False
+
         # load trace attributs:
         for attr in self.hard_trace_infos_attr:
             setattr(self, attr, self.df.loc[self.df.index[0], attr])
@@ -550,19 +562,12 @@ class TraceAnalysis:
         for attr in self.free_trace_infos_attr:
             attr_value = self.params.get(attr, self.df.loc[self.df.index[0], attr])
             setattr(self, attr, attr_value)
+
+        # clean df for debug reading:
         self.df.drop(
             columns=self.free_trace_infos_attr, inplace=True
-        )  # clean df for debug reading
-        # check if parquet file is acceptable:
-        # (this is about our algo version used to generate the df, it's not about parquet format)
-        if self.parquet_version < self.min_version:
-            self.log_info.send(
-                [
-                    f"parquet file version {self.parquet_version} is below min version requirement of {self.min_version}",
-                    f"=> abort file parquet loading and resume regular gpx file loading",
-                ]
-            )
-            return False
+        )
+
         return True
 
     @log_calls()
