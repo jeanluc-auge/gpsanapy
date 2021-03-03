@@ -19,7 +19,7 @@ from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy import Column, Integer, String, Sequence
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from gps_analysis import TraceAnalysis, TraceConfig, TraceResults, crunch_data
+from gps_analysis import TraceAnalysis, Trace, crunch_data
 from utils import gpx_results_to_json, load_results
 # from db import init_app, init_db
 from visu import bokeh_plot, bokeh_speed, bokeh_speed_density, all_results_speed_density, compare_all_results_density
@@ -48,8 +48,15 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
-config = TraceConfig()
-trace_results =  TraceResults()
+trace =  Trace()
+#Locquirec 3.6451W 48.6541N
+#Pleubian 3.1396W 48.8424N
+#Lancieux 2.1491W 48.6094N
+#Loudeac 2.7520W 48.1763N
+#22 3.645W-2.15W 49N-48.1N
+REGIONS = {
+    'wb22': {'lon': (2.15, 3.645), 'lat': (48.1, 49)},
+}
 
 class User(db.Model): #(Base)
      #__tablename__ = 'users'
@@ -263,7 +270,7 @@ def analyse(id):
             bokeh_template={},
         ).encode(encoding='UTF-8')
 
-    reduced_results = trace_results.reduced_results(
+    reduced_results = trace.reduced_results(
             #by_support=file.support,
             by_author=file.user.username,
         )
@@ -373,7 +380,7 @@ def ranking():
 
 @app.route('/<string:support>/rank')
 def rank(support):
-    df = trace_results.rank_all_results(by_support=support)
+    df = trace.rank_all_results(by_support=support)
     if df is None:
         flash(f"there is not enough data in {support} to rank")
         return redirect(url_for('ranking'))
@@ -403,7 +410,7 @@ def crunch_data():
 
 @app.route('/<string:by_support>/<string:by_spot>/<string:by_author>/crunch')
 def crunch(by_support, by_spot, by_author):
-    reduced_results = trace_results.reduced_results(
+    reduced_results = trace.reduced_results(
             by_support=by_support,
             by_spot=by_spot,
             by_author=by_author,

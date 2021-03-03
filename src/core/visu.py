@@ -9,7 +9,7 @@ import numpy as np
 from scipy.stats import gaussian_kde
 
 from utils import load_config
-from gps_analysis import TraceAnalysis, TraceResults, TraceConfig
+from gps_analysis import TraceAnalysis, Trace
 
 
 def gkde(data, gridsize):
@@ -50,8 +50,8 @@ def all_results_speed_density(all_results):
     """crunch data with all ranking results"""
     if all_results is None:
         return
-    config = TraceConfig()
-    result_types = [r for k,v in config.ranking_groups.items() for r in v]
+    trace = Trace()
+    result_types = [r for k,v in trace.ranking_groups.items() for r in v]
     # do not plot 0 results:
     all_results.astype({'result':'float64'}).dtypes
 

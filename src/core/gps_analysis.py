@@ -77,7 +77,7 @@ ch.setLevel(INFO)
 logger.addHandler(ch)
 
 
-class TraceConfig:
+class Trace:
     config_dir = CONFIG_DIR
 
     def __init__(self, config_file=None):
@@ -91,6 +91,7 @@ class TraceConfig:
             f"ranking groups vs gps functions: {json.dumps(self.ranking_groups, indent=2)}\n"
             f"ranking functions: {self.ranking_functions}"
         )
+        self.mic = self.multi_index_from_config()
 
     def get_config(self):
         """
@@ -122,7 +123,7 @@ class TraceConfig:
         Parameters:
             self.functions
         :return:
-            self.config.gps_func_description
+            self.gps_func_description
                 { fn_description: 'args': {**fn_kwargs} }
         """
         return {
@@ -163,20 +164,6 @@ class TraceConfig:
             if iteration.get("ranking_group", "")
         }
 
-
-class TraceResults:
-    def __init__(self, config=None):
-        """
-
-        :param config: TraceConfig infos from config.yaml
-        """
-        # config factory:
-        if config:
-            self.config = config
-        else:
-            self.config = TraceConfig()
-        self.mic = self.multi_index_from_config()
-
     def reduced_results(
         self,
         by_support="all",
@@ -193,7 +180,7 @@ class TraceResults:
         if by_author != "all" and by_author:
             params["author"] = by_author
         if all_results is None:
-            all_results = load_results(self.config, check_config)
+            all_results = load_results(self, check_config)
         reduced_results = all_results.copy()
         for param, value in params.items():
             if param in all_results.columns:
@@ -206,10 +193,10 @@ class TraceResults:
         code1 = []
         code2 = []
         level0 = []
-        level1 = list(self.config.ranking_functions)
+        level1 = list(self.ranking_functions)
         level2 = ["result", "sampling_ratio", "ranking"]
         i = 0
-        for k, v in self.config.ranking_groups.items():
+        for k, v in self.ranking_groups.items():
             code0 += len(v) * [i, i, i]
             level0.append(k)
             i += 1
@@ -231,12 +218,12 @@ class TraceResults:
     # TODO EXCEPTION DECORATOR
     def delete_result(self, filename, file_path):
         parquet_path = os.path.join(
-            self.config.directory_paths.parquet_dir, f"parquet_{filename}"
+            self.directory_paths.parquet_dir, f"parquet_{filename}"
         )
         all_results = self.reduced_results()
         all_results.drop(index=filename, inplace=True)
         all_results.reset_index(inplace=True)
-        all_results.to_csv(self.config.all_results_path, index=False)
+        all_results.to_csv(self.all_results_path, index=False)
         os.remove(file_path)
         os.remove(parquet_path)
 
@@ -284,7 +271,7 @@ class TraceResults:
         ranking = all_results_table.result.rank(
             method="min", ascending=False, na_option="bottom"
         )
-        for group, group_func_list in self.config.ranking_groups.items():
+        for group, group_func_list in self.ranking_groups.items():
             for description in group_func_list:
                 ranking_results.loc[:, (group, description, "ranking")] = ranking[
                     description
@@ -296,19 +283,18 @@ class TraceResults:
                     :, (group, description, "sampling_ratio")
                 ] = all_results_table["sampling_ratio"][description]
         ranking_results.loc[:, "points"] = 0
-        for k, v in self.config.ranking_groups.items():
+        for k, v in self.ranking_groups.items():
             ranking_results.loc[:, "points"] += ranking_results.xs(
                 (k, "ranking"), level=(0, 2), axis=1
             ).mean(axis=1)
         ranking_results.loc[:, "points"] = ranking_results.loc[:, "points"] / len(
-            self.config.ranking_groups
+            self.ranking_groups
         )
         ranking_results = ranking_results.sort_values(by=["points"])
         if save:
-            ranking_results_path = os.path.join(self.config.all_results_path, 'ranking_results.csv')
+            ranking_results_path = os.path.join(self.all_results_path, 'ranking_results.csv')
             ranking_results.to_csv(ranking_results_path)
         return ranking_results
-
 
 class TraceAnalysis:
     # class attributs:
@@ -342,11 +328,8 @@ class TraceAnalysis:
         self.gpx_path = gpx_path
         self.filename, self.file_extension = os.path.splitext(gpx_path)
         self.filename = Path(self.filename).stem
-        self.config = TraceConfig(config_file)  # retrive TraceConfig instance client
-        self.trace_results = TraceResults(
-            self.config
-        )  # retrieve TraceResults instance client
-        for rule, value in self.config.rules.items():
+        self.trace = Trace(config_file)  # retrive TraceConfig instance client
+        for rule, value in self.trace.rules.items():
             setattr(self, rule, value)
         self.sampling = float(self.time_sampling.strip("S"))
         self.parquet_version = (
@@ -375,7 +358,7 @@ class TraceAnalysis:
             self.df_result_debug = pd.DataFrame(index=self.tsd.index)
             gpx_results = self.call_gps_func_from_config()
             all_results = self.load_merge_all_results(gpx_results)
-            self.ranking_results = self.trace_results.rank_all_results(all_results=all_results)
+            self.ranking_results = self.trace.rank_all_results(all_results=all_results)
             self.save_to_csv()
             return True, f"successfully loaded file {self.filename}"
         except TraceAnalysisException as te:
@@ -511,7 +494,7 @@ class TraceAnalysis:
         for attr in trace_infos_attr:
             self.df.loc[self.df.index[0], attr] = getattr(self, attr)
         parquet_path = os.path.join(
-            self.config.directory_paths.parquet_dir, f"parquet_{self.filename}"
+            self.trace.directory_paths.parquet_dir, f"parquet_{self.filename}"
         )
         self.df.to_parquet(parquet_path)
 
@@ -528,7 +511,7 @@ class TraceAnalysis:
             Path(f).stem
             for f in glob.iglob(
                 os.path.join(
-                    Path(self.config.directory_paths.parquet_dir).resolve(), "*"
+                    Path(self.trace.directory_paths.parquet_dir).resolve(), "*"
                 ),
                 recursive=False,
             )
@@ -550,7 +533,7 @@ class TraceAnalysis:
 
         # load parquet file:
         parquet_path = os.path.join(
-            self.config.directory_paths.parquet_dir, parquet_filename[0]
+            self.trace.directory_paths.parquet_dir, parquet_filename[0]
         )
         self.log_info.send([f"loading from parquet file {parquet_path}"])
         self.df = pd.read_parquet(parquet_path)
@@ -1570,7 +1553,7 @@ class TraceAnalysis:
         results = []
         # iterate over the config and call the referenced functions:
 
-        for gps_func, iterations in self.config.functions.items():
+        for gps_func, iterations in self.trace.functions.items():
             # the same gps_func key cannot be repeated in the yaml description,
             # so we use an iterations list,
             # in order to call several times the same function with different args if needed:
@@ -1612,7 +1595,7 @@ class TraceAnalysis:
             self.all results pandas df of results merged with history
         """
         # merge DataFrames current gpx_results with all_results history
-        all_results = load_results(self.config, check_config=True)
+        all_results = load_results(self.trace, check_config=True)
         if all_results is None:
             all_results = gpx_results
         elif self.filename in all_results.index:
@@ -1627,7 +1610,7 @@ class TraceAnalysis:
         return all_results
 
     def set_csv_paths(self):
-        results_dir = self.config.directory_paths.results_dir
+        results_dir = self.trace.directory_paths.results_dir
         # debug file with the full DataFrame (erased at each run):
         debug_filename = "debug.csv"
         # debug file reduced to the main results timeframe (new for different authors):
@@ -1645,7 +1628,7 @@ class TraceAnalysis:
         self.debug_path = os.path.join(results_dir, debug_filename)
         self.result_debug_path = os.path.join(results_dir, result_debug_filename)
         self.results_path = os.path.join(results_dir, result_filename)
-        self.all_results_path = self.config.all_results_path
+        self.all_results_path = self.trace.all_results_path
         self.ranking_results_path = os.path.join(results_dir, ranking_results_filename)
 
     @log_calls()
@@ -1742,9 +1725,9 @@ def crunch_data():
     """
     from utils import process_config_plot
 
-    trace_results = TraceResults()
+    trace = Trace()
     config_plot_file = os.path.join(TraceAnalysis.config_dir, "config_plot.yaml")
-    process_config_plot(trace_results.all_results, config_plot_file)
+    process_config_plot(trace.reduced_results(), config_plot_file)
 
 
 parser = ArgumentParser()
