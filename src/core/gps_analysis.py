@@ -30,6 +30,7 @@ from logging import (
 )
 
 import gpxpy
+import numba
 import pandas as pd
 import numpy as np
 from bs4 import BeautifulSoup, element
@@ -224,6 +225,18 @@ class TraceResults:
         )
         logger.debug(f"ranking results multi index architecture:" f"{mic}")
         return mic
+
+    # TODO EXCEPTION DECORATOR
+    def delete_result(self, filename, file_path):
+        parquet_path = os.path.join(
+            self.config.directory_paths.parquet_dir, f"parquet_{filename}"
+        )
+        all_results = self.reduced_results()
+        all_results.drop(index=filename, inplace=True)
+        all_results.reset_index(inplace=True)
+        all_results.to_csv(self.config.all_results_path, index=False)
+        os.remove(file_path)
+        os.remove(parquet_path)
 
     # TODO EXCEPTION DECORATOR RETURNS None
     def rank_all_results(
@@ -811,8 +824,12 @@ class TraceAnalysis:
         else:
             aggressive_filtering_th = 1.95 * self.max_acceleration
             filtering_rolling_window = 2
+        max_acceleration = self.max_acceleration # needed for numba engine: cannot refer to class attribut
+        descend_th = -0.1
+        exit_th = 0.005
 
-        def rolling_acceleration_filter(x, descend_th=-0.1, exit_th=0.005):
+        @numba.jit(nopython=True)
+        def rolling_acceleration_filter(x):
             """
             rolling filter function
             we search for the interval length between
@@ -834,7 +851,7 @@ class TraceAnalysis:
                         # descending phase: continue filtering while a < -0.1
                         exiting = True
                     elif exiting:  # descending phase ends: a>-0.1
-                        if a > self.max_acceleration:
+                        if a > max_acceleration:
                             exiting = False  # nocheinmal
                         elif a > exit_th:  # wait for reacceleration before exiting
                             break
@@ -869,7 +886,7 @@ class TraceAnalysis:
             df2[column_filtering] = (
                 df2[column_acceleration]
                 .rolling(FILTER_WINDOW)
-                .apply(rolling_acceleration_filter)
+                .apply(rolling_acceleration_filter, engine='numba', raw=True)
                 .shift(-FILTER_WINDOW + 1)
             )
             filtering = pd.Series.to_numpy(df2[column_filtering].copy())

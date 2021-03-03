@@ -4,11 +4,12 @@ gpxpy
 pathlib
 pandas
 numpy
+numba # accelerate filtering algorithm (clean_df)
 pyyaml
 bs4
-matplotlib
-scipy
-bokeh
+matplotlib # for plots
+scipy # for plots
+bokeh # for plots
 fastparquet
-python-snappy
+python-snappy # for fastparquet
 munch
