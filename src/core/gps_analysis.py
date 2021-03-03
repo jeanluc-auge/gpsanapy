@@ -48,6 +48,8 @@ from utils import (
 TO_KNOT = 1.94384  # * m/s
 G = 9.81  #
 DEFAULT_REPORT = {"n": 1, "doppler_ratio": None, "sampling_ratio": None, "std": None}
+FILE_EXTENSIONS = ['*.sml', '*.gpx']
+RECURSIVE_FILE_EXTENSIONS = ['**/*.sml', '**/*.gpx']
 DOPPLER_EXCLUSION_LIST = (
     "movescount",
     "waterspeed",
@@ -1715,30 +1717,22 @@ class TraceAnalysis:
 
 
 def process_args(args):
-    gpx_filenames = []
+    filenames = []
     f = args.gpx_filename
     rd = args.recursive_read_directory
     d = args.read_directory
 
     if f:
-        gpx_filenames = f
+        filenames = f
     elif d:
-        gpx_filenames = [
-            f
-            for f in glob.iglob(
-                os.path.join(Path(d).resolve(), "*.gpx"), recursive=False
-            )
-        ]
+        for ext in FILE_EXTENSIONS:
+            filenames.extend(glob.glob(os.path.join(Path(d).resolve(), ext), recursive=False))
     elif rd:
-        gpx_filenames = [
-            f
-            for f in glob.iglob(
-                os.path.join(Path(rd).resolve(), "**/*.gpx"), recursive=True
-            )
-        ]
+        for ext in RECURSIVE_FILE_EXTENSIONS:
+            filenames.extend(glob.glob(os.path.join(Path(rd).resolve(), ext), recursive=True))
 
-    logger.info(f"\nthe following gpx files will be processed:\n" f"{gpx_filenames}")
-    return gpx_filenames
+    logger.info(f"\nthe following files will be processed:\n" f"{filenames}")
+    return filenames
 
 
 def crunch_data():
@@ -1779,15 +1773,15 @@ if __name__ == "__main__":
     config_filename = os.path.join(
         TraceAnalysis.config_dir, "config.yaml"
     )  # config of gps functions to call
-    gpx_filenames = process_args(args)
+    filenames = process_args(args)
     error_dict = {}
     all_results = None
-    for gpx_filename in gpx_filenames:
+    for filename in filenames:
         params = args.params_data
-        gpsana_client = TraceAnalysis(gpx_filename, config_filename, **params)
+        gpsana_client = TraceAnalysis(filename, config_filename, **params)
         status, error = gpsana_client.run()
         if not status:
-            error_dict[gpx_filename] = error
+            error_dict[filename] = error
         gpsana_client.log_computation_time()
         if args.plot > 0:
             gpsana_client.plot_speed()
