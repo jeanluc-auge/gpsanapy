@@ -144,8 +144,7 @@ def get_file(id, check_author=True):
     file = db.session.query(GpxFiles).filter(GpxFiles.id==id).first()
     if file is None:
         abort(404, f"file id {id} doesn't exist.")
-
-    if check_author and (file.user_id != g.user.id or file.user.username!='admin'):
+    if check_author and file.user_id != g.user.id and g.user.username!='admin':
         abort(403)
 
     return file

@@ -20,8 +20,8 @@
         </div>
         {% if g.user.id == file.user_id or g.user.username == 'admin' %}
           <a class="action" href="{{ url_for('delete_file', id=file.id) }}">Delete</a>
-          <a class="action" href="{{ url_for('analyse', id=file.id) }}">Analyse</a>
         {% endif %}
+          <a class="action" href="{{ url_for('analyse', id=file.id) }}">Analyse</a>
       </header>
       <p class="body">spot: {{ file.spot }}</p>
       <p class="body">support: {{ file.support }}</p>
