@@ -11,7 +11,7 @@ from time import time
 from pandas.plotting import parallel_coordinates, andrews_curves
 from munch import munchify
 import matplotlib.pyplot as plt
-
+from pathlib import Path
 
 logger = logging.getLogger()
 
@@ -308,3 +308,9 @@ def load_results(config, check_config=False):
         all_results.to_csv(old_all_results_path)
         all_results = None
     return all_results
+
+def split_path(file_path):
+    """return filename and extension from path"""
+    filename, file_extension = os.path.splitext(file_path)
+    filename = Path(filename).stem
+    return filename, file_extension

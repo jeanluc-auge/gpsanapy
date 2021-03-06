@@ -43,6 +43,7 @@ from utils import (
     load_results,
     reduce_value_bloc,
     coroutine,
+    split_path,
 )
 
 TO_KNOT = 1.94384  # * m/s
@@ -187,6 +188,23 @@ class Trace:
                 reduced_results = reduced_results[reduced_results[param] == value]
         return reduced_results
 
+    def save_result(self, all_results):
+        all_results = all_results[
+            all_results.creator.notna()
+        ].reset_index()
+        all_results.to_csv(self.all_results_path, index=False)
+
+    # TODO EXCEPTION DECORATOR
+    def delete_result(self, filename, file_path):
+        parquet_path = os.path.join(
+            self.directory_paths.parquet_dir, f"parquet_{filename}"
+        )
+        all_results = self.reduced_results()
+        all_results.drop(index=filename, inplace=True)
+        self.save_result((all_results))
+        os.remove(file_path)
+        os.remove(parquet_path)
+
     def multi_index_from_config(self):
         # init multiIndex DataFrame for the ranking_results:
         code0 = []
@@ -214,18 +232,6 @@ class Trace:
         )
         logger.debug(f"ranking results multi index architecture:" f"{mic}")
         return mic
-
-    # TODO EXCEPTION DECORATOR
-    def delete_result(self, filename, file_path):
-        parquet_path = os.path.join(
-            self.directory_paths.parquet_dir, f"parquet_{filename}"
-        )
-        all_results = self.reduced_results()
-        all_results.drop(index=filename, inplace=True)
-        all_results.reset_index(inplace=True)
-        all_results.to_csv(self.all_results_path, index=False)
-        os.remove(file_path)
-        os.remove(parquet_path)
 
     # TODO EXCEPTION DECORATOR RETURNS None
     def rank_all_results(
@@ -313,9 +319,9 @@ class TraceAnalysis:
     #   user attributs that can be updated
     free_trace_infos_attr = ["author", "spot", "support"]
 
-    def __init__(self, gpx_path, config_file=None, **params):
+    def __init__(self, file_path, config_file=None, **params):
         """
-        :param gpx_path:
+        :param file_path:
         :param config_file:
         :param params:
             author str
@@ -325,10 +331,9 @@ class TraceAnalysis:
         """
         self.log_info = self.appender("info")
         self.log_warning = self.appender("warning")
-        self.gpx_path = gpx_path
-        self.filename, self.file_extension = os.path.splitext(gpx_path)
-        self.filename = Path(self.filename).stem
-        self.trace = Trace(config_file)  # retrive TraceConfig instance client
+        self.file_path = file_path
+        self.filename, self.file_extension = split_path(file_path)
+        self.trace = Trace(config_file)  # retrieve TraceConfig instance client
         for rule, value in self.trace.rules.items():
             setattr(self, rule, value)
         self.sampling = float(self.time_sampling.strip("S"))
@@ -348,7 +353,7 @@ class TraceAnalysis:
         :return:
         """
         try:
-            self.load_df(self.gpx_path)
+            self.load_df(self.file_path)
             self.set_csv_paths()
             # debug, select a portion of the track:
             # self.df = self.df.loc["2019-03-29 14:10:00+00:00": "2019-03-29 14:47:00+00:00"]
@@ -388,7 +393,7 @@ class TraceAnalysis:
             getattr(logger, level)(to_logger)
             to_list += log
 
-    def load_df(self, gpx_path):
+    def load_df(self, file_path):
         self.from_parquet = False
         try:
             if self.load_df_from_parquet():
@@ -405,13 +410,13 @@ class TraceAnalysis:
                 ]
             )
 
-        self.file_size = Path(gpx_path).stat().st_size / 1e6
+        self.file_size = Path(file_path).stat().st_size / 1e6
         if self.file_size > self.max_file_size:
             raise TraceAnalysisException(
-                f"file {gpx_path} size = {self.file_size}Mb > {self.max_file_size}Mb"
+                f"file {file_path} size = {self.file_size}Mb > {self.max_file_size}Mb"
             )
 
-        html_soup = self.load_gpx_file_to_html(gpx_path)
+        html_soup = self.load_gpx_file_to_html(file_path)
         try:
             if not self.load_df_from_sml(html_soup):
                 self.creator = html_soup.gpx.get("creator", "unknown")
@@ -419,7 +424,7 @@ class TraceAnalysis:
                 self.df = self.to_pandas(tracks[0].segments[0])
         except Exception as e:
             raise TraceAnalysisException(
-                f"failed to load file {gpx_path} with error {traceback.format_exc()}"
+                f"failed to load file {file_path} with error {traceback.format_exc()}"
             )
         self.process_df()
         self.resample_df()
@@ -569,19 +574,19 @@ class TraceAnalysis:
         return True
 
     @log_calls()
-    def load_gpx_file_to_html(self, gpx_path):
+    def load_gpx_file_to_html(self, file_path):
         """
         load gpx file to html processing file format
-        :param gpx_path:
+        :param file_path:
         :return:
         """
         try:
-            with open(gpx_path, "r") as gpx_file:
+            with open(file_path, "r") as gpx_file:
                 html_soup = BeautifulSoup(gpx_file, "html.parser")
         except Exception as e:
             logger.exception(e)
             raise TraceAnalysisException(
-                f"could not open and parse to html the gpx file {gpx_path} with bs4.BeautifulSoup"
+                f"could not open and parse to html the gpx file {file_path} with bs4.BeautifulSoup"
             )
         return html_soup
 
@@ -999,7 +1004,7 @@ class TraceAnalysis:
             filtered_events = f"filtered {self.filtered_events} events with acceleration > {self.max_acceleration}g"
         self.log_info.send(
             [
-                f"__init__ {self.__class__.__name__} with file {self.gpx_path}",
+                f"__init__ {self.__class__.__name__} with file {self.file_path}",
                 f"params {self.params}",
                 f"author name: {self.author}",  # trace author: read from gpx file name
                 f"spot: {self.spot}",
@@ -1617,9 +1622,6 @@ class TraceAnalysis:
         result_debug_filename = f"{self.filename}_result_debug.csv"
         # result file of the current run (new for different authors):
         result_filename = f"{self.filename}_result.csv"
-        # all time history results by user names (updated after each run):
-        all_results_filename = "all_results.csv"
-        # all time history results table with ranking (re-created at each run):
         if self.support:
             ranking_results_filename = f"ranking_results_{self.support}.csv"
         else:
@@ -1628,7 +1630,6 @@ class TraceAnalysis:
         self.debug_path = os.path.join(results_dir, debug_filename)
         self.result_debug_path = os.path.join(results_dir, result_debug_filename)
         self.results_path = os.path.join(results_dir, result_filename)
-        self.all_results_path = self.trace.all_results_path
         self.ranking_results_path = os.path.join(results_dir, ranking_results_filename)
 
     @log_calls()
@@ -1650,10 +1651,7 @@ class TraceAnalysis:
         # *********** gpx_results: filename_result.csv ***********
         self.gpx_results.to_csv(self.results_path, index=False)
         # ****** self.all_results _history swap file_: all_results.csv *******
-        self.all_results = self.all_results[
-            self.all_results.creator.notna()
-        ].reset_index()
-        self.all_results.to_csv(self.all_results_path, index=False)
+        self.trace.save_result(self.all_results)
         # **** self.ranking_results history output file ranking_results.csv
         self.ranking_results.to_csv(self.ranking_results_path)
 
