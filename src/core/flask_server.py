@@ -29,8 +29,8 @@ from bokeh.resources import INLINE
 
 UPLOAD_FOLDER = '/home/jla/gps/gpx_file_upload'
 ALLOWED_EXTENSIONS = {'.gpx', '.sml'}
-SUPPORT_CHOICE = ['windsurf', 'windfoil', 'kitesurf', 'kitefoil', 'kayak']
-SPOT_CHOICE = ['g13', 'nantouar', 'trestel', 'keriec', 'bnig', 'other']
+SUPPORT_CHOICE = ['all', 'windsurf', 'windfoil', 'kitesurf', 'kitefoil', 'kayak']
+SPOT_CHOICE = ['all', 'g13', 'nantouar', 'trestel', 'keriec', 'bnig', 'other']
 # check or create that file upload and database dir exist:
 dir_path = [os.path.join(TraceAnalysis.root_dir, d) for d in ('database', 'gpx_file_upload')]
 for d in dir_path:
@@ -63,8 +63,8 @@ class User(db.Model): #(Base)
      id = db.Column(db.Integer, primary_key=True)
      username = db.Column(db.String(50), unique=True, nullable=False)
      email = db.Column(db.String(128), unique=True, nullable=False)
-     location = db.Column(db.String(128), unique=True, nullable=False)
-     infos = db.Column(db.String(128), unique=True, nullable=False)
+     location = db.Column(db.String(128))
+     infos = db.Column(db.String(128))
      password = db.Column(db.Text, nullable=False)
      def __repr__(self):
         return f"<User(username={self.username}, password={self.password})>"
@@ -343,9 +343,9 @@ def delete_file(id):
 @app.route('/reload_files', methods=('GET', 'POST'))
 @login_required
 def reload_files():
-    gpxfiles = db.session.query(TraceFiles).order_by(TraceFiles.id).all()
+    files = db.session.query(TraceFiles).order_by(TraceFiles.id).all()
     error_dict = {}
-    for file in gpxfiles:
+    for file in files:
         gpsanaclient = TraceAnalysis(file.file_path, author=file.user.username, spot=file.spot, support=file.support)
         status, error = gpsanaclient.run()
         if not status:
@@ -426,39 +426,36 @@ def ranking(support=SUPPORT_CHOICE[0]):
     )
 
 @app.route('/crunch_data', methods=('GET', 'POST'))
-def crunch_data():
-
-    if request.method == 'POST':
-        by_spot = get_form_required('spot')
-        by_support = get_form_required('support')
-        by_author = get_form_required('author')
-        db.session.query(User).filter(User.username).all()
-        return redirect(url_for('crunch', by_spot=by_spot, by_support=by_support, by_author=by_author))
-
-    return render_template(
-        '/crunch_data.html',
-        spot_choice = SPOT_CHOICE+['all'],
-        support_choice=SUPPORT_CHOICE+['all'],
-        author_choice=[u.username for u in db.session.query(User).all()]+['all'])
-
-@app.route('/<string:by_support>/<string:by_spot>/<string:by_author>/crunch')
-def crunch(by_support, by_spot, by_author):
+@app.route('/crunch_data/<string:by_support>/<string:by_spot>/<string:by_author>',  methods=('GET', 'POST'))
+def crunch_data(by_support='all', by_spot='all', by_author='all'):
     reduced_results = trace.reduced_results(
             by_support=by_support,
             by_spot=by_spot,
             by_author=by_author,
             check_config=True
         )
-
+    print(reduced_results.head())
+    if reduced_results is None or reduced_results.empty:
+        flash(f"there is not enough data in {by_support} support, {by_spot} spot and {by_author} author to rank")
     p = all_results_speed_density(reduced_results)
     # grab the static resources
     js_resources = INLINE.render_js()
     css_resources = INLINE.render_css()
     script, div = components(p)
-    # render template
 
-    html = render_template(
-        'crunch.html',
+    if request.method == 'POST':
+        by_spot = get_form_required('spot')
+        by_support = get_form_required('support')
+        by_author = get_form_required('author')
+        return redirect(url_for('crunch_data', by_spot=by_spot, by_support=by_support, by_author=by_author))
+
+
+    return render_template(
+        '/crunch_data.html',
+        spot_choice = SPOT_CHOICE,
+        support_choice=SUPPORT_CHOICE,
+        author_choice=['all', g.user.username],
+        #author_choice=['all']+[u.username for u in db.session.query(User).all()],
         by_support = by_support,
         by_spot=by_spot,
         by_author=by_author,
@@ -467,7 +464,6 @@ def crunch(by_support, by_spot, by_author):
         js_resources=js_resources,
         css_resources=css_resources,
     ).encode(encoding='UTF-8')
-    return html
 
 if __name__ == "__main__":
     # ***** start app server *******
