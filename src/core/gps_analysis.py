@@ -212,7 +212,7 @@ class Trace:
         code2 = []
         level0 = []
         level1 = list(self.ranking_functions)
-        level2 = ["result", "sampling_ratio", "ranking"]
+        level2 = ["result", "sampling", "ranking"]
         i = 0
         for k, v in self.ranking_groups.items():
             code0 += len(v) * [i, i, i]
@@ -271,8 +271,17 @@ class Trace:
             aggfunc=np.mean,
             dropna=False,
         )
+        supports = reduced_results[reduced_results.n == 1].pivot_table(
+            values=["support"],
+            index=["hash"],
+            columns=["description"],
+            aggfunc=lambda x: '-'.join(str(v) for v in x),
+            dropna=False,
+        )
+
         # date_table = self.all_results.groupby('author').date.min()
         ranking_results = pd.DataFrame(index=all_results_table.index, columns=self.mic)
+        ranking_results.loc[:, "support"] = supports.iloc[:,0]
         # rank and fill ranking_results DataFrame:
         ranking = all_results_table.result.rank(
             method="min", ascending=False, na_option="bottom"
@@ -286,16 +295,18 @@ class Trace:
                     :, (group, description, "result")
                 ] = all_results_table["result"][description]
                 ranking_results.loc[
-                    :, (group, description, "sampling_ratio")
+                    :, (group, description, "sampling")
                 ] = all_results_table["sampling_ratio"][description]
+                #ranking_results.loc[:, "support"] = supports[description]
         ranking_results.loc[:, "points"] = 0
         for k, v in self.ranking_groups.items():
             ranking_results.loc[:, "points"] += ranking_results.xs(
                 (k, "ranking"), level=(0, 2), axis=1
             ).mean(axis=1)
-        ranking_results.loc[:, "points"] = ranking_results.loc[:, "points"] / len(
-            self.ranking_groups
-        )
+        ranking_results.loc[:, "points"] = round(
+            ranking_results.loc[:, "points"]
+            / len(self.ranking_groups)
+        , 1)
         ranking_results = ranking_results.sort_values(by=["points"])
         if save:
             ranking_results_path = os.path.join(self.all_results_path, 'ranking_results.csv')
