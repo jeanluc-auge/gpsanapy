@@ -20,7 +20,7 @@ from sqlalchemy import Column, Integer, String, Sequence
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from gps_analysis import TraceAnalysis, Trace, crunch_data
-from utils import gpx_results_to_json, load_results
+from utils import gpx_results_to_json, load_results, split_path
 # from db import init_app, init_db
 from visu import bokeh_plot, bokeh_speed, bokeh_speed_density, all_results_speed_density, compare_all_results_density
 from bokeh.models.callbacks import CustomJS
@@ -28,7 +28,7 @@ from bokeh.embed import components
 from bokeh.resources import INLINE
 
 UPLOAD_FOLDER = '/home/jla/gps/gpx_file_upload'
-ALLOWED_EXTENSIONS = {'gpx', 'sml'}
+ALLOWED_EXTENSIONS = {'.gpx', '.sml'}
 SUPPORT_CHOICE = ['windsurf', 'windfoil', 'kitesurf', 'kitefoil', 'kayak']
 SPOT_CHOICE = ['g13', 'nantouar', 'trestel', 'keriec', 'bnig', 'other']
 # check or create that file upload and database dir exist:
@@ -62,21 +62,26 @@ class User(db.Model): #(Base)
      #__tablename__ = 'users'
      id = db.Column(db.Integer, primary_key=True)
      username = db.Column(db.String(50), unique=True, nullable=False)
+     email = db.Column(db.String(128), unique=True, nullable=False)
+     location = db.Column(db.String(128), unique=True, nullable=False)
+     infos = db.Column(db.String(128), unique=True, nullable=False)
      password = db.Column(db.Text, nullable=False)
      def __repr__(self):
         return f"<User(username={self.username}, password={self.password})>"
 
-class GpxFiles(db.Model):
+class TraceFiles(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    filename = db.Column(db.String(255), unique=True, nullable=False)
+    approved = db.Column(db.Boolean)
+    filename = db.Column(db.String(255), unique=True, nullable=False) # stem: no extension, no path
+    file_path = db.Column(db.String(255), unique=True, nullable=False) # absolute path
     spot = db.Column(db.String(255), nullable=False)
     support = db.Column(db.String(50), nullable=False)
     user = db.relationship('User', backref=db.backref('gpxfiles', lazy='joined'))
 
 #Base.metadata.create_all(engine)
 #User.query.delete()
-#GpxFiles.query.delete()
+#TraceFiles.query.delete()
 with app.app_context():
     db.create_all()
     # cdncred = CdnCredentials(id=1, auth_token='test', cdn_username='cdngw_cdngw@orange.com', cdn_password='system12')
@@ -137,18 +142,108 @@ def login_required(view):
     @functools.wraps(view)
     def wrapped_view(**kwargs):
         if g.user is None:
+            flash("you need to login to perform this action\n or register if you don't have an account ")
             return redirect(url_for('login'))
 
         return view(**kwargs)
 
     return wrapped_view
 
-def allowed_file(filename):
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+@app.before_request
+def load_logged_in_user():
+    user_id = session.get('user_id')
+
+    if user_id is None:
+        g.user = None
+    else:
+        g.user = db.session.query(User).filter(User.id==user_id).first()
+
+@app.route('/register', methods=('GET', 'POST'))
+def register():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        email = request.form['email']
+        location = request.form['location']
+        infos = request.form['infos']
+        #db = get_db()
+        error = None
+
+        if not username:
+            error = 'Username is required.'
+        elif not password:
+            error = 'Password is required.'
+        elif not email:
+            error = 'Email is required.'
+        elif db.session.query(User).filter(User.username==username).first() is not None:
+            error = 'User {} is already registered.'.format(username)
+
+        if error is None:
+            new_user = User(
+                username=username,
+                password=generate_password_hash(password),
+                email=email,
+                location=location,
+                infos=infos
+            )
+            db.session.add(new_user)
+            db.session.commit()
+            return redirect(url_for('login'))
+
+        flash(error)
+
+    return render_template('/register.html')
+
+@app.route('/login', methods=('GET', 'POST'))
+def login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        #db = get_db()
+        error = None
+        user = db.session.query(User).filter(User.username==username).first()
+
+        if user is None:
+            error = 'Incorrect username.'
+
+        elif not check_password_hash(user.password, password):
+            error = 'Incorrect password.'
+
+        if error is None:
+            session.clear()
+            session['user_id'] = user.id
+            return redirect(url_for('index'))
+
+        flash(error)
+
+    return render_template('/login.html')
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('index'))
+
+def get_file_attr(filename):
+    """
+    return file status, file stem, file path and check it is valid
+    :param filename: uploaded filename
+    :return: (status (bool), filename wo extension, full file path)
+    """
+    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    filename, file_extension = split_path(filename)
+    logger.info(f"uploading file {filename} with extension {file_extension} and path {file_path}")
+    if db.session.query(TraceFiles).filter(TraceFiles.filename == filename).first() is not None:
+        flash(f"file {filename} already exists")
+        return False, None, None
+    if file_extension not in ALLOWED_EXTENSIONS:
+        flash(f"file extension {file_extension} is not supported")
+        return False, None, None
+    return True, filename, file_path
+    # return '.' in filename and \
+    #        filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def get_file(id, check_author=True):
-    file = db.session.query(GpxFiles).filter(GpxFiles.id==id).first()
+    file = db.session.query(TraceFiles).filter(TraceFiles.id == id).first()
     if file is None:
         abort(404, f"file id {id} doesn't exist.")
     if check_author and file.user_id != g.user.id and g.user.username!='admin':
@@ -177,14 +272,9 @@ def index():
 
     return render_template('index.html')
 
-@app.route('/analyse_files')
-def analyse_files():
-    gpxfiles = db.session.query(GpxFiles).order_by(GpxFiles.id).all()
-    return render_template('analyse_files.html', gpxfiles=gpxfiles)
-
 @app.route('/files')
 def files():
-    gpxfiles = db.session.query(GpxFiles).order_by(GpxFiles.id).all()
+    gpxfiles = db.session.query(TraceFiles).order_by(TraceFiles.id).all()
     return render_template('files.html', gpxfiles=gpxfiles)
 
 @app.route('/upload_file', methods=('GET', 'POST'))
@@ -201,31 +291,43 @@ def upload_file():
         file = request.files['file']
         # if user does not select file, browser also
         # submit an empty part without filename
+        if not file:
+            flash('file not valid')
+            return redirect(request.url)
         if file.filename == '':
             flash('No selected file')
             return redirect(request.url)
-        elif db.session.query(GpxFiles).filter(GpxFiles.filename==file.filename).first() is not None:
-            flash(f"gpx file {file.filename} already exists")
+        filename = secure_filename(file.filename)
+        status, filename, file_path = get_file_attr(filename)
+        if not status:
             return redirect(request.url)
-        if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            file.save(file_path)
-            new_file = GpxFiles(filename=filename, spot=spot, support=support, user_id=g.user.id)
+
+        file.save(file_path)
+        new_file = TraceFiles(
+            filename=filename,
+            file_path=file_path,
+            spot=spot,
+            support=support,
+            user_id=g.user.id,
+            approved=False,
+        )
+        db.session.add(new_file)
+        db.session.commit()
+        # pre-analyse file (convert gpx to df and save to parquet for future analysis):
+        gpsanaclient = TraceAnalysis(
+            file_path,
+            support=new_file.support,
+            spot=new_file.spot,
+            author=new_file.user.username,
+            parquet_loading=False
+        )
+        status, error = gpsanaclient.run()
+        if not status:
+            flash('\n'.join(error))
+        else:
             db.session.add(new_file)
             db.session.commit()
-            # pre-analyse file (convert gpx to df and save to parquet for future analysis):
-            gpsanaclient = TraceAnalysis(
-                file_path,
-                support=new_file.support,
-                spot=new_file.spot,
-                author=new_file.user.username,
-                parquet_loading=False
-            )
-            status, error = gpsanaclient.run()
-            if not status:
-                flash('\n'.join(error))
-            return redirect(url_for('files'))
+        return redirect(url_for('files'))
 
     return render_template('upload_file.html', support_choice=SUPPORT_CHOICE, spot_choice=SPOT_CHOICE)
 
@@ -235,17 +337,16 @@ def delete_file(id):
     file = get_file(id) # check it exists
     db.session.delete(file)
     db.session.commit()
+    trace.delete_result(file.filename, file.file_path)
     return redirect(url_for('files'))
 
 @app.route('/reload_files', methods=('GET', 'POST'))
 @login_required
 def reload_files():
-    gpxfiles = db.session.query(GpxFiles).order_by(GpxFiles.id).all()
+    gpxfiles = db.session.query(TraceFiles).order_by(TraceFiles.id).all()
     error_dict = {}
     for file in gpxfiles:
-        file_path = os.path.join(UPLOAD_FOLDER, file.filename)
-
-        gpsanaclient = TraceAnalysis(file_path, author=file.user.username, spot=file.spot, support=file.support)
+        gpsanaclient = TraceAnalysis(file.file_path, author=file.user.username, spot=file.spot, support=file.support)
         status, error = gpsanaclient.run()
         if not status:
             error_dict[gpsanaclient.filename] = error
@@ -303,93 +404,25 @@ def analyse(id):
         bokeh_template=bokeh_template,
     ).encode(encoding='UTF-8')
 
-@app.route('/register', methods=('GET', 'POST'))
-def register():
-    if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-        #db = get_db()
-        error = None
-
-        if not username:
-            error = 'Username is required.'
-        elif not password:
-            error = 'Password is required.'
-        elif db.session.query(User).filter(User.username==username).first() is not None:
-            error = 'User {} is already registered.'.format(username)
-
-        if error is None:
-            new_user = User(username=username, password=generate_password_hash(password))
-            db.session.add(new_user)
-            db.session.commit()
-            return redirect(url_for('login'))
-
-        flash(error)
-
-    return render_template('/register.html')
-
-@app.route('/login', methods=('GET', 'POST'))
-def login():
-    if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-        #db = get_db()
-        error = None
-        user = db.session.query(User).filter(User.username==username).first()
-
-        if user is None:
-            error = 'Incorrect username.'
-
-        elif not check_password_hash(user.password, password):
-            error = 'Incorrect password.'
-
-        if error is None:
-            session.clear()
-            session['user_id'] = user.id
-            return redirect(url_for('index'))
-
-        flash(error)
-
-    return render_template('/login.html')
-
-@app.before_request
-def load_logged_in_user():
-    user_id = session.get('user_id')
-
-    if user_id is None:
-        g.user = None
-    else:
-        g.user = db.session.query(User).filter(User.id==user_id).first()
-
-@app.route('/logout')
-def logout():
-    session.clear()
-    return redirect(url_for('index'))
-
 @app.route('/ranking', methods=('GET', 'POST'))
-def ranking():
-
-    if request.method == 'POST':
-        support = get_form_required('support')
-        return redirect(url_for('rank', support=support))
-
-    return render_template(
-        '/ranking.html',
-        support_choice=SUPPORT_CHOICE
-    )
-
-@app.route('/<string:support>/rank')
-def rank(support):
+@app.route('/ranking/<string:support>', methods=('GET', 'POST'))
+def ranking(support=SUPPORT_CHOICE[0]):
     df = trace.rank_all_results(by_support=support)
     if df is None:
         flash(f"there is not enough data in {support} to rank")
-        return redirect(url_for('ranking'))
+        return redirect(url_for('ranking', support=SUPPORT_CHOICE[0]))
+
+    if request.method == 'POST':
+        support = get_form_required('support')
+        print(support)
+        return redirect(url_for('ranking', support=support))
 
     return render_template(
-        '/rank.html',
-        tables=[df.to_html(classes='data')],
-        titles=df.columns.values,
-        support=support
+        '/ranking.html',
+        support_choice=SUPPORT_CHOICE,
+        tables = [df.to_html(classes='data')],
+        titles = df.columns.values,
+        support = support
     )
 
 @app.route('/crunch_data', methods=('GET', 'POST'))

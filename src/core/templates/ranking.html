@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 
 {% block header %}
-  <h1>{% block title %}RANKING{% endblock %}</h1>
+  <h1>{% block title %}RANKING RESULTS FOR {{support}}{% endblock %}</h1>
 {% endblock %}
 
 {% block content %}
@@ -14,4 +14,15 @@
     </select>
     <input type=submit value=RANK>
   </form>
+  <p></p>
+  <article class="post">
+    <header>
+      <div>
+   {% for table in tables %}
+          {{titles[loop.index]}}
+          {{ table|safe }}
+   {% endfor %}
+      </div>
+    </header>
+  </article>
 {% endblock %}
