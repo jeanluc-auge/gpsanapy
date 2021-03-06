@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 
 {% block header %}
-  <h1>{% block title %}UPLOADED FILES{% endblock %}</h1>
+  <h1>{% block title %}UPLOADED FILES for {{by_support}} support, author: {{by_author}}, spot: {{by_spot}}{% endblock %}</h1>
   <a class="action" href="{{ url_for('upload_file') }}">Upload new file</a>
   {% if g.user.username == 'admin' %}
     <a class="action" href="{{ url_for('reload_files') }}">Reload all files</a>
@@ -9,21 +9,45 @@
 {% endblock %}
 
 {% block content %}
-  {% for file in gpxfiles %}
-    <article class="post">
-      <header>
-        <div>
-          <h1>{{ file.filename }}</h1>
-          <div class="about">by author: {{ file.user.username }}</div>
-        </div>
-        {% if g.user.id == file.user_id or g.user.username == 'admin' %}
-          <a class="action" href="{{ url_for('delete_file', id=file.id) }}">Delete</a>
-        {% endif %}
-          <a class="action" href="{{ url_for('analyse', id=file.id) }}">Analyse</a>
-      </header>
-      <p class="body">spot: {{ file.spot }}</p>
-      <p class="body">support: {{ file.support }}</p>
-    </article>
+  <form method=post enctype=multipart/form-data>
+    <label for="support">by support</label>
+    <select name="support">
+      {% for choice in support_choice %}
+      <option value="{{ choice }}">{{ choice }}</option>
+      {% endfor %}
+    </select>
+    <p></p>
+    <label for="author">by author</label>
+    <select name="author">
+      {% for choice in author_choice %}
+      <option value="{{ choice }}">{{ choice }}</option>
+      {% endfor %}
+    </select>
+    <p></p>
+    <label for="spot">by spot</label>
+    <select name="spot">
+      {% for choice in spot_choice %}
+      <option value="{{ choice }}">{{ choice }}</option>
+      {% endfor %}
+    </select>
+    <p></p>
+    <input type=submit value='see files'>
+  </form>
+  {% for file in files %}
+  <article class="post">
+    <header>
+      <div>
+        <h1>{{ file.filename }}</h1>
+        <div class="about">by author: {{ file.user.username }} in location {{ file.user.location }}</div>
+      </div>
+      {% if g.user.id == file.user_id or g.user.username == 'admin' %}
+        <a class="action" href="{{ url_for('delete_file', id=file.id) }}">Delete</a>
+      {% endif %}
+        <a class="action" href="{{ url_for('analyse', id=file.id) }}">Analyse</a>
+    </header>
+    <p class="body">spot: {{ file.spot }}</p>
+    <p class="body">support: {{ file.support }}</p>
+  </article>
     {% if not loop.last %}
       <hr>
     {% endif %}

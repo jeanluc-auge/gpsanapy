@@ -176,7 +176,10 @@ def register():
         elif not email:
             error = 'Email is required.'
         elif db.session.query(User).filter(User.username==username).first() is not None:
-            error = 'User {} is already registered.'.format(username)
+            error = f'User {username} is already registered.'
+        elif db.session.query(User).filter(User.email==email).first() is not None:
+            error = f'User {email} is already registered.'
+
 
         if error is None:
             new_user = User(
@@ -272,10 +275,35 @@ def index():
 
     return render_template('index.html')
 
-@app.route('/files')
-def files():
-    gpxfiles = db.session.query(TraceFiles).order_by(TraceFiles.id).all()
-    return render_template('files.html', gpxfiles=gpxfiles)
+@app.route('/files', methods=('GET', 'POST'))
+@app.route('/files/<string:by_support>/<string:by_spot>/<string:by_author>', methods=('GET', 'POST'))
+def files(by_support='all', by_spot='all', by_author='all'):
+
+    if request.method == 'POST':
+        by_spot = get_form_required('spot')
+        by_support = get_form_required('support')
+        by_author = get_form_required('author')
+        return redirect(url_for('files', by_spot=by_spot, by_support=by_support, by_author=by_author))
+    files = db.session.query(TraceFiles)
+    if by_spot != 'all':
+        files = files.filter_by(spot=by_spot)
+    elif by_support != 'all':
+        files = files.filter_by(support=by_support)
+    elif by_author != 'all':
+        user = db.session.query(User).filter(User.username == by_author).first()
+        files = files.filter_by(user=user)
+    files = files.order_by(TraceFiles.id.desc()).all()
+    return render_template(
+        'files.html',
+        files=files,
+        spot_choice=SPOT_CHOICE,
+        support_choice=SUPPORT_CHOICE,
+        author_choice=['all', g.user.username],
+        # author_choice=['all']+[u.username for u in db.session.query(User).all()],
+        by_support=by_support,
+        by_spot=by_spot,
+        by_author=by_author,
+    )
 
 @app.route('/upload_file', methods=('GET', 'POST'))
 @login_required
@@ -311,20 +339,28 @@ def upload_file():
             user_id=g.user.id,
             approved=False,
         )
-        db.session.add(new_file)
-        db.session.commit()
         # pre-analyse file (convert gpx to df and save to parquet for future analysis):
         gpsanaclient = TraceAnalysis(
             file_path,
             support=new_file.support,
             spot=new_file.spot,
-            author=new_file.user.username,
+            author=g.user.username,
             parquet_loading=False
         )
         status, error = gpsanaclient.run()
         if not status:
+            os.remove(file_path)
             flash('\n'.join(error))
         else:
+            file.save(file_path)
+            new_file = TraceFiles(
+                filename=filename,
+                file_path=file_path,
+                spot=spot,
+                support=support,
+                user_id=g.user.id,
+                approved=False,
+            )
             db.session.add(new_file)
             db.session.commit()
         return redirect(url_for('files'))
