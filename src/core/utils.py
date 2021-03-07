@@ -310,7 +310,7 @@ def load_results(config, check_config=False):
     return all_results
 
 def split_path(file_path):
-    """return filename and extension from path"""
+    """return filename and .extension from path"""
     filename, file_extension = os.path.splitext(file_path)
     filename = Path(filename).stem
     return filename, file_extension

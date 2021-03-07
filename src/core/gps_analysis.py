@@ -49,8 +49,9 @@ from utils import (
 TO_KNOT = 1.94384  # * m/s
 G = 9.81  #
 DEFAULT_REPORT = {"n": 1, "doppler_ratio": None, "sampling_ratio": None, "std": None}
-FILE_EXTENSIONS = ['*.sml', '*.gpx']
-RECURSIVE_FILE_EXTENSIONS = ['**/*.sml', '**/*.gpx']
+ALLOWED_EXTENSIONS = {'.gpx', '.sml'}
+FILE_EXTENSIONS = [f'*{ext}' for ext in ALLOWED_EXTENSIONS]
+RECURSIVE_FILE_EXTENSIONS = [f'**/*{ext}' for ext in ALLOWED_EXTENSIONS]
 DOPPLER_EXCLUSION_LIST = (
     "movescount",
     "waterspeed",
@@ -196,6 +197,7 @@ class Trace:
 
     # TODO EXCEPTION DECORATOR
     def delete_result(self, filename, file_path):
+
         parquet_path = os.path.join(
             self.directory_paths.parquet_dir, f"parquet_{filename}"
         )
@@ -364,6 +366,10 @@ class TraceAnalysis:
         :return:
         """
         try:
+            if self.file_extension not in ALLOWED_EXTENSIONS:
+                raise TraceAnalysisException(
+                    f'unsupported file extension {self.file_extension} for file {self.file_path}'
+                )
             self.load_df(self.file_path)
             self.set_csv_paths()
             # debug, select a portion of the track:
@@ -1749,7 +1755,7 @@ parser.add_argument("-p", "--plot", action="count", default=0)
 parser.add_argument("-c", "--crunch_data", action="count", default=0)
 parser.add_argument("-data", "--params_data", nargs="?", type=json.loads, default={})
 # !! mind the quotes with data json loads !! use:
-#       -data '{"author": "jla", ...}'
+#       -data '{"author": "jla", "parquet_loading": false, ...}'
 
 # parser.add_argument(
 #     "-v",
@@ -1774,9 +1780,10 @@ if __name__ == "__main__":
         status, error = gpsana_client.run()
         if not status:
             error_dict[filename] = error
-        gpsana_client.log_computation_time()
-        if args.plot > 0:
-            gpsana_client.plot_speed()
+        else:
+            gpsana_client.log_computation_time()
+            if args.plot > 0:
+                gpsana_client.plot_speed()
 
     if args.crunch_data > 0:
         crunch_data()
