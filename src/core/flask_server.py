@@ -149,8 +149,158 @@ def login_required(view):
 
     return wrapped_view
 
+
+# *************** data model *******************
+
+def check_df(fn):
+    """
+    on the fly wrapper (decorator)
+    to catch errors and check validity of returned df
+    """
+    @functools.wraps(fn)
+    def wrapped_fn(**kwargs):
+        try:
+            df = fn(**kwargs)
+        except Exception as e:
+            message = (
+                f"an unexpected error {e} occured\n"
+                f"when running {fn.__name__}\n"
+                f"with args {kwargs}\n"
+            )
+            logger.warning(message)
+            flash(message)
+            return None
+
+        if df is None or df.empty:
+            message = (
+                f"there is not enough data in {kwargs}"
+            )
+            logger.warning(message)
+            flash(message)
+            return None
+
+        return df
+    return wrapped_fn
+
+def run_file(gpsana_client, file):
+    """
+    run TraceAnalysis gpsana_client and check status
+    :param gpsana_client: TraceAnalysis instance
+    :param file: dB file
+    :return:
+    """
+    status, error = gpsana_client.run()
+    error = '\n'.join(error)
+    if not status:
+        if not file.approved:
+            message = f"unapproved file {file.filename} with error {error} will be removed"
+            del_file(file)
+        else:
+            message = f"analysis {file.filename} yields error {error}"
+        flash(message)
+        logger.warning(message)
+        flash('\n'.join(error))
+        return redirect(url_for('files'))
+
+def get_file_attr(filename):
+    """
+    return file status, file stem, file path and check it is valid
+    :param filename: uploaded filename
+    :return: (filename wo extension, full file path)
+    """
+    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    filename, file_extension = split_path(filename)
+    logger.info(f"uploading file {filename} with extension {file_extension} and path {file_path}")
+    if db.session.query(TraceFiles).filter(TraceFiles.filename == filename).first() is not None:
+        flash(f"file {filename} already exists")
+        return redirect(request.url)
+    if file_extension not in ALLOWED_EXTENSIONS:
+        flash(f"file extension {file_extension} is not supported")
+        return redirect(request.url)
+    return filename, file_path
+    # return '.' in filename and \
+    #        filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def del_file(file):
+    """
+    delete file in database, disk and ranking results
+    :param file: dB file to remove
+    :return:
+    """
+    try:
+        db.session.delete(file)
+        db.session.commit()
+        trace.delete_result(file.filename, file.file_path)
+    except Exception as e:
+        logger.warning(f"an error occured when removing file {file.filename}: {e}")
+
+def get_file(id, check_author=True):
+    """
+    database query of file id
+    optionally check if the session user is allowed to query the file
+    :param id: int file id in database
+    :param check_author: bool check if session user matches the file author
+    :return: database file
+    """
+    file = db.session.query(TraceFiles).filter(TraceFiles.id == id).first()
+    if file is None:
+        abort(404, f"file id {id} doesn't exist.")
+    if check_author and file.user_id != g.user.id and g.user.username!='admin':
+        abort(403)
+
+    return file
+
+def post_file(file, filename_with_ext, **kwargs):
+    """
+    new file is saved to disk and put in database
+    :param file: request.files object
+    :param filename_with_ext: str full filename
+    :param kwargs:
+        str spot
+        str support
+    :return: database file object
+    """
+    filename, file_path = get_file_attr(filename_with_ext)
+    file.save(file_path)
+    new_file = TraceFiles(
+        filename=filename,
+        file_path=file_path,
+        spot=kwargs.get('spot', ''),
+        support=kwargs.get('support', ''),
+        user_id=g.user.id,
+        approved=False,
+    )
+    db.session.add(new_file)
+    db.session.commit()
+    return new_file
+
+def get_form_required(item_name):
+    item = request.form[item_name]
+    if not item:
+        flash(f'No {item_name} part')
+        return redirect(request.url)
+    return item
+
+def gen_bokeh_resources(p):
+    """
+    generate bokeh html ressources to render graphs
+    :param p: bokeh plot object
+    :return: dict of bokeh html ressources to render in html template
+    """
+    try:
+        bokeh_resources = {}
+        bokeh_resources['js_resources'] = INLINE.render_js()
+        bokeh_resources['css_resources'] = INLINE.render_css()
+        bokeh_resources['script'], bokeh_resources['div'] = components(p)
+    except Exception:
+        flash("cannot display graph")
+        return redirect(request.url)
+    return bokeh_resources
+
+# ********* gps flask server *************
 @app.before_request
 def load_logged_in_user():
+    """load session user id in flask g"""
     user_id = session.get('user_id')
 
     if user_id is None:
@@ -161,25 +311,17 @@ def load_logged_in_user():
 @app.route('/register', methods=('GET', 'POST'))
 def register():
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-        email = request.form['email']
+        username = get_form_required('username')
+        password = get_form_required('password')
+        email = get_form_required('email')
         location = request.form['location']
         infos = request.form['infos']
-        #db = get_db()
-        error = None
 
-        if not username:
-            error = 'Username is required.'
-        elif not password:
-            error = 'Password is required.'
-        elif not email:
-            error = 'Email is required.'
-        elif db.session.query(User).filter(User.username==username).first() is not None:
+        error = None
+        if db.session.query(User).filter(User.username==username).first() is not None:
             error = f'User {username} is already registered.'
         elif db.session.query(User).filter(User.email==email).first() is not None:
             error = f'User {email} is already registered.'
-
 
         if error is None:
             new_user = User(
@@ -200,15 +342,13 @@ def register():
 @app.route('/login', methods=('GET', 'POST'))
 def login():
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-        #db = get_db()
+        username = get_form_required('username')
+        password = get_form_required('password')
+
         error = None
         user = db.session.query(User).filter(User.username==username).first()
-
         if user is None:
             error = 'Incorrect username.'
-
         elif not check_password_hash(user.password, password):
             error = 'Incorrect password.'
 
@@ -226,53 +366,8 @@ def logout():
     session.clear()
     return redirect(url_for('index'))
 
-def get_file_attr(filename):
-    """
-    return file status, file stem, file path and check it is valid
-    :param filename: uploaded filename
-    :return: (status (bool), filename wo extension, full file path)
-    """
-    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    filename, file_extension = split_path(filename)
-    logger.info(f"uploading file {filename} with extension {file_extension} and path {file_path}")
-    if db.session.query(TraceFiles).filter(TraceFiles.filename == filename).first() is not None:
-        flash(f"file {filename} already exists")
-        return False, None, None
-    if file_extension not in ALLOWED_EXTENSIONS:
-        flash(f"file extension {file_extension} is not supported")
-        return False, None, None
-    return True, filename, file_path
-    # return '.' in filename and \
-    #        filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-def get_file(id, check_author=True):
-    file = db.session.query(TraceFiles).filter(TraceFiles.id == id).first()
-    if file is None:
-        abort(404, f"file id {id} doesn't exist.")
-    if check_author and file.user_id != g.user.id and g.user.username!='admin':
-        abort(403)
-
-    return file
-
-def get_form_required(item_name):
-    item = request.form[item_name]
-    if not item:
-        flash(f'No {item_name} part')
-        return redirect(request.url)
-    return item
-
-def gen_bokeh_resources(p):
-    bokeh_resources = {}
-    bokeh_resources['js_resources'] = INLINE.render_js()
-    bokeh_resources['css_resources'] = INLINE.render_css()
-    bokeh_resources['script'], bokeh_resources['div'] = components(p)
-    return bokeh_resources
-
-# ********* gps flask server *************
-
 @app.route('/')
 def index():
-
     return render_template('index.html')
 
 @app.route('/files', methods=('GET', 'POST'))
@@ -326,54 +421,17 @@ def upload_file():
             flash('No selected file')
             return redirect(request.url)
         filename = secure_filename(file.filename)
-        status, filename, file_path = get_file_attr(filename)
-        if not status:
-            return redirect(request.url)
 
-        file.save(file_path)
-        new_file = TraceFiles(
-            filename=filename,
-            file_path=file_path,
-            spot=spot,
-            support=support,
-            user_id=g.user.id,
-            approved=False,
-        )
-        # pre-analyse file (convert gpx to df and save to parquet for future analysis):
-        gpsanaclient = TraceAnalysis(
-            file_path,
-            support=new_file.support,
-            spot=new_file.spot,
-            author=g.user.username,
-            parquet_loading=False
-        )
-        status, error = gpsanaclient.run()
-        if not status:
-            os.remove(file_path)
-            flash('\n'.join(error))
-        else:
-            file.save(file_path)
-            new_file = TraceFiles(
-                filename=filename,
-                file_path=file_path,
-                spot=spot,
-                support=support,
-                user_id=g.user.id,
-                approved=False,
-            )
-            db.session.add(new_file)
-            db.session.commit()
-        return redirect(url_for('files'))
+        new_file = post_file(file, filename, spot=spot, support=support)
 
+        return redirect(url_for('analyse', id=new_file.id))
     return render_template('upload_file.html', support_choice=SUPPORT_CHOICE, spot_choice=SPOT_CHOICE)
 
 @app.route('/<int:id>/delete_file', methods=('GET', 'POST'))
 @login_required
 def delete_file(id):
     file = get_file(id) # check it exists
-    db.session.delete(file)
-    db.session.commit()
-    trace.delete_result(file.filename, file.file_path)
+    del_file(file)
     return redirect(url_for('files'))
 
 @app.route('/reload_files', methods=('GET', 'POST'))
@@ -394,23 +452,8 @@ def reload_files():
 def analyse(id):
     # analyse file
     file = get_file(id, check_author=False)
-    file_path = os.path.join(UPLOAD_FOLDER, file.filename)
-    gpsana_client = TraceAnalysis(file_path, author=file.user.username, spot=file.spot, support=file.support)
-    status, error = gpsana_client.run()
-    if not status:
-        return render_template(
-            'analyse.html',
-            response={},
-            warnings=error,
-            infos={},
-            file=file,
-            bokeh_template={},
-        ).encode(encoding='UTF-8')
-
-    reduced_results = trace.reduced_results(
-            #by_support=file.support,
-            by_author=file.user.username,
-        )
+    gpsana_client = TraceAnalysis(file.file_path, author=file.user.username, spot=file.spot, support=file.support)
+    run_file(gpsana_client, file)
     response = gpx_results_to_json(gpsana_client.gpx_results)
     warnings = gpsana_client.log_warning_list
     infos = gpsana_client.log_info_list
@@ -425,9 +468,13 @@ def analyse(id):
     p = bokeh_speed_density(gpsana_client, s)
     # grab the static resources
     bokeh_template[f'session speed distribution'] = gen_bokeh_resources(p)
-
-    p = compare_all_results_density(reduced_results, gpsana_client, ['vmax_10s', 'vmax_jibe'])
-    bokeh_template[f'compare session results (vertical lines) with {file.user.username} all time results distributions'] = gen_bokeh_resources(p)
+    reduced_results = check_df(trace.reduced_results)(
+            #by_support=file.support,
+            by_author=file.user.username,
+        )
+    if reduced_results is not None:
+        p = compare_all_results_density(reduced_results, gpsana_client, ['vmax_10s', 'vmax_jibe'])
+        bokeh_template[f'compare session results (vertical lines) with {file.user.username} all time results distributions'] = gen_bokeh_resources(p)
 
 # render template
 
@@ -443,10 +490,12 @@ def analyse(id):
 @app.route('/ranking', methods=('GET', 'POST'))
 @app.route('/ranking/<string:support>', methods=('GET', 'POST'))
 def ranking(support=SUPPORT_CHOICE[0]):
-    df = trace.rank_all_results(by_support=support)
-    if df is None:
-        flash(f"there is not enough data in {support} to rank")
-        return redirect(url_for('ranking', support=SUPPORT_CHOICE[0]))
+    tables = []
+    titles = None
+    df = check_df(trace.rank_all_results)(by_support=support)
+    if df is not None:
+        tables = [df.to_html(classes='data')]
+        titles = df.columns.values
 
     if request.method == 'POST':
         support = get_form_required('support')
@@ -456,28 +505,25 @@ def ranking(support=SUPPORT_CHOICE[0]):
     return render_template(
         '/ranking.html',
         support_choice=SUPPORT_CHOICE,
-        tables = [df.to_html(classes='data')],
-        titles = df.columns.values,
+        tables = tables,
+        titles = titles,
         support = support
     )
 
 @app.route('/crunch_data', methods=('GET', 'POST'))
 @app.route('/crunch_data/<string:by_support>/<string:by_spot>/<string:by_author>',  methods=('GET', 'POST'))
 def crunch_data(by_support='all', by_spot='all', by_author='all'):
-    reduced_results = trace.reduced_results(
+    reduced_results = check_df(trace.reduced_results)(
             by_support=by_support,
             by_spot=by_spot,
             by_author=by_author,
             check_config=True
         )
-    print(reduced_results.head())
-    if reduced_results is None or reduced_results.empty:
-        flash(f"there is not enough data in {by_support} support, {by_spot} spot and {by_author} author to rank")
-    p = all_results_speed_density(reduced_results)
-    # grab the static resources
-    js_resources = INLINE.render_js()
-    css_resources = INLINE.render_css()
-    script, div = components(p)
+    bokeh_template = {}
+    if reduced_results is not None:
+        p = all_results_speed_density(reduced_results)
+        # grab the static resources
+        bokeh_template['plot speed data'] = gen_bokeh_resources(p)
 
     if request.method == 'POST':
         by_spot = get_form_required('spot')
@@ -495,10 +541,7 @@ def crunch_data(by_support='all', by_spot='all', by_author='all'):
         by_support = by_support,
         by_spot=by_spot,
         by_author=by_author,
-        plot_script=script,
-        plot_div=div,
-        js_resources=js_resources,
-        css_resources=css_resources,
+        bokeh_template=bokeh_template,
     ).encode(encoding='UTF-8')
 
 if __name__ == "__main__":

@@ -30,18 +30,25 @@
     <input type=submit value=CRUNCH>
   </form>
   <article class="post">
-    <head>
-      <meta charset="UTF-8">
-      <meta http-equiv="content-type" content="text/html; charset=utf-8">
-      <title>DATA CRUNCH</title>
-      {{ js_resources|indent(4)|safe }}
-      {{ css_resources|indent(4)|safe }}
-      {{ plot_script|indent(4)|safe }}
-    </head>
-    <body>
-      <h1 style="text-align: center; margin-bottom: 40px;">crunch data</h1>
-      <div style="display: flex; justify-content: center;">
-      {{ plot_div|indent(4)|safe }}
-    </body>
+      <table>
+      {% for label, resources in bokeh_template.items() %}
+      <tr><td>
+      <head>
+        <meta charset="UTF-8">
+        <meta http-equiv="content-type" content="text/html; charset=utf-8">
+        <title>Embed Demo</title>
+        {{ resources['js_resources']|indent(4)|safe }}
+        {{ resources['css_resources']|indent(4)|safe }}
+        {{ resources['script']|indent(4)|safe }}
+      </head>
+      <body>
+
+            <h1 style="text-align: center; margin-bottom: 40px;">{{label}}</h1>
+            <div style="display: flex; justify-content: center;">
+            {{ resources['div']|indent(4)|safe }}
+      </body>
+      </td></tr>
+      {% endfor %}
+      </table>
   </article>
 {% endblock %}
