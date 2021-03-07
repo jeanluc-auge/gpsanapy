@@ -498,7 +498,7 @@ def analyse(id):
     bokeh_template[f'session speed distribution'] = gen_bokeh_resources(p)
     reduced_results = check_df(trace.reduced_results)(
             #by_support=file.support,
-            by_author=file.user.username,
+            author=file.user.username,
         )
     if reduced_results is not None:
         p = compare_all_results_density(reduced_results, gpsana_client, ['vmax_10s', 'vmax_jibe'])
@@ -520,7 +520,7 @@ def analyse(id):
 def ranking(support=SUPPORT_CHOICE[0]):
     tables = []
     titles = None
-    df = check_df(trace.rank_all_results)(by_support=support)
+    df = check_df(trace.rank_all_results)(support=support)
     if df is not None:
         tables = [df.to_html(classes='data')]
         titles = df.columns.values
@@ -541,9 +541,9 @@ def ranking(support=SUPPORT_CHOICE[0]):
 @app.route('/crunch_data/<string:by_support>/<string:by_spot>/<string:by_author>',  methods=('GET', 'POST'))
 def crunch_data(by_support='all', by_spot='all', by_author='all'):
     reduced_results = check_df(trace.reduced_results)(
-            by_support=by_support,
-            by_spot=by_spot,
-            by_author=by_author,
+            support=by_support,
+            spot=by_spot,
+            author=by_author,
             check_config=True
         )
     bokeh_template = {}

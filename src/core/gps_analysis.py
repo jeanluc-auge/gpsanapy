@@ -168,25 +168,26 @@ class Trace:
 
     def reduced_results(
         self,
-        by_support="all",
-        by_spot="all",
-        by_author="all",
         check_config=False,
         all_results=None,
+        **params
     ):
-        params = {}
-        if by_support != "all" and by_support:
-            params["support"] = by_support
-        if by_spot != "all" and by_spot:
-            params["spot"] = by_spot
-        if by_author != "all" and by_author:
-            params["author"] = by_author
+        """
+        apply mask to all_results history
+        params:
+            support str
+            spot str
+            author str
+            region str
+        """
         if all_results is None:
             all_results = load_results(self, check_config)
         reduced_results = all_results.copy()
+
         for param, value in params.items():
-            if param in all_results.columns:
-                reduced_results = reduced_results[reduced_results[param] == value]
+            if param in all_results.columns and value != 'all':
+                mask = reduced_results[param] == value
+                reduced_results = reduced_results[mask]
         return reduced_results
 
     def save_result(self, all_results):
@@ -238,12 +239,10 @@ class Trace:
     # TODO EXCEPTION DECORATOR RETURNS None
     def rank_all_results(
         self,
-        by_support="all",
-        by_spot="all",
-        by_author="all",
         check_config=False,
         all_results=None,
         save=False,
+        **params
     ):
         """
         merge gpx_results of the current filename with all_results history
@@ -251,17 +250,17 @@ class Trace:
         The ranking may be reduced to certain category with **params
         :param gpx_results: current filename analysis results
         :param params: select ranking by category
-            for example: params = dict(spot='g13', support='kitefoil')
+            support str
+            spot str
+            author str
+            region str
         :return: pandas table ranking_results
         """
-
         # merge DataFrames current gpx_results with all_results history:
         reduced_results = self.reduced_results(
-            by_support=by_support,
-            by_spot=by_spot,
-            by_author=by_author,
             check_config=check_config,
             all_results=all_results,
+            **params
         )
         if reduced_results.empty:
             return None
@@ -1586,6 +1585,8 @@ class TraceAnalysis:
 
         # update results with gpx file creator and author and convert to df:
         date = str(self.df.index[0].date())
+        location_lon = self.df.lon.mean()
+        location_lat = self.df.lat.mean()
         if self.spot:
             hash = f"{self.author}-{date}-{self.spot}"
         else:
@@ -1599,6 +1600,8 @@ class TraceAnalysis:
                 support=self.support,
                 spot=self.spot,
                 date=date,
+                location_lon=location_lon,
+                location_lat=location_lat,
                 **result,
             )
             for result in results
@@ -1618,7 +1621,7 @@ class TraceAnalysis:
         """
         # merge DataFrames current gpx_results with all_results history
         all_results = load_results(self.trace, check_config=True)
-        if all_results is None:
+        if all_results is None or set(all_results.columns) != set(gpx_results.columns):
             all_results = gpx_results
         elif self.filename in all_results.index:
             all_results.loc[self.filename, :] = gpx_results
