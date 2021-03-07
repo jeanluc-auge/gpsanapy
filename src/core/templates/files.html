@@ -17,6 +17,7 @@
       {% endfor %}
     </select>
     <p></p>
+    {% if g.user %}
     <label for="author">by author</label>
     <select name="author">
       {% for choice in author_choice %}
@@ -24,6 +25,7 @@
       {% endfor %}
     </select>
     <p></p>
+    {% endif %}
     <label for="spot">by spot</label>
     <select name="spot">
       {% for choice in spot_choice %}
@@ -31,6 +33,15 @@
       {% endfor %}
     </select>
     <p></p>
+    {% if g.user.username == 'admin' %}
+    <label for="spot">file status</label>
+    <select name="file_status">
+      {% for choice in status_choice %}
+      <option value="{{ choice }}">{{ choice }}</option>
+      {% endfor %}
+    </select>
+    <p></p>
+    {% endif %}
     <input type=submit value='see files'>
   </form>
   {% for file in files %}
@@ -40,6 +51,9 @@
         <h1>{{ file.filename }}</h1>
         <div class="about">by author: {{ file.user.username }} in location {{ file.user.location }}</div>
       </div>
+      {% if g.user.username == 'admin' and not file.approved %}
+        <a class="action" href="{{ url_for('approve_file', id=file.id) }}">Approve</a>
+      {% endif %}
       {% if g.user.id == file.user_id or g.user.username == 'admin' %}
         <a class="action" href="{{ url_for('delete_file', id=file.id) }}">Delete</a>
       {% endif %}

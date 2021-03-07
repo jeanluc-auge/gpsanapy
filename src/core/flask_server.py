@@ -234,7 +234,7 @@ def del_file(file):
     except Exception as e:
         logger.warning(f"an error occured when removing file {file.filename}: {e}")
 
-def get_file(id, check_author=True):
+def get_file(id, check_author=True, check_admin=False):
     """
     database query of file id
     optionally check if the session user is allowed to query the file
@@ -246,6 +246,8 @@ def get_file(id, check_author=True):
     if file is None:
         abort(404, f"file id {id} doesn't exist.")
     if check_author and file.user_id != g.user.id and g.user.username!='admin':
+        abort(403)
+    if check_admin and g.user.username!='admin':
         abort(403)
 
     return file
@@ -371,14 +373,21 @@ def index():
     return render_template('index.html')
 
 @app.route('/files', methods=('GET', 'POST'))
-@app.route('/files/<string:by_support>/<string:by_spot>/<string:by_author>', methods=('GET', 'POST'))
-def files(by_support='all', by_spot='all', by_author='all'):
+@app.route('/files/<string:by_support>/<string:by_spot>/<string:by_author>/<string:file_status>', methods=('GET', 'POST'))
+def files(by_support='all', by_spot='all', by_author='all', file_status='all'):
 
     if request.method == 'POST':
-        by_spot = get_form_required('spot')
-        by_support = get_form_required('support')
-        by_author = get_form_required('author')
-        return redirect(url_for('files', by_spot=by_spot, by_support=by_support, by_author=by_author))
+        by_spot = request.form['spot']
+        by_support = request.form['support']
+        by_author = request.form.get('author', 'all')
+        file_status = request.form.get('file_status','all')
+        return redirect(url_for(
+            'files',
+            by_spot=by_spot,
+            by_support=by_support,
+            by_author=by_author,
+            file_status=file_status,
+        ))
     files = db.session.query(TraceFiles)
     if by_spot != 'all':
         files = files.filter_by(spot=by_spot)
@@ -387,13 +396,21 @@ def files(by_support='all', by_spot='all', by_author='all'):
     elif by_author != 'all':
         user = db.session.query(User).filter(User.username == by_author).first()
         files = files.filter_by(user=user)
+    elif file_status != 'all':
+        files = files.filter_by(approved=False)
     files = files.order_by(TraceFiles.id.desc()).all()
+    if g.user:
+        author_choice = ['all', g.user.username]
+    else:
+        author_choice = ['all']
+
     return render_template(
         'files.html',
         files=files,
         spot_choice=SPOT_CHOICE,
         support_choice=SUPPORT_CHOICE,
-        author_choice=['all', g.user.username],
+        author_choice=author_choice,
+        status_choice=['all', 'not approved'],
         # author_choice=['all']+[u.username for u in db.session.query(User).all()],
         by_support=by_support,
         by_spot=by_spot,
@@ -430,8 +447,19 @@ def upload_file():
 @app.route('/<int:id>/delete_file', methods=('GET', 'POST'))
 @login_required
 def delete_file(id):
-    file = get_file(id) # check it exists
+    file = get_file(id, check_author=True) # check it exists
     del_file(file)
+    return redirect(url_for('files'))
+
+@app.route('/<int:id>/approve_file', methods=('GET', 'POST'))
+@login_required
+def approve_file(id):
+    file = get_file(id, check_admin=True) # check it exists
+    #file.update({'approved': True})
+    file.approved=True
+    db.session.add(file)
+    db.session.commit()
+
     return redirect(url_for('files'))
 
 @app.route('/reload_files', methods=('GET', 'POST'))
@@ -499,7 +527,6 @@ def ranking(support=SUPPORT_CHOICE[0]):
 
     if request.method == 'POST':
         support = get_form_required('support')
-        print(support)
         return redirect(url_for('ranking', support=support))
 
     return render_template(
