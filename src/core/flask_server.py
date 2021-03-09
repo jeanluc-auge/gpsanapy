@@ -27,15 +27,19 @@ from bokeh.models.callbacks import CustomJS
 from bokeh.embed import components
 from bokeh.resources import INLINE
 
-UPLOAD_FOLDER = '/home/jla/gps/gpx_file_upload'
+ROOT_DIR = os.path.join(os.path.dirname(__file__), "../../")
 ALLOWED_EXTENSIONS = {'.gpx', '.sml'}
 SUPPORT_CHOICE = ['all', 'windsurf', 'windfoil', 'kitesurf', 'kitefoil', 'kayak']
 SPOT_CHOICE = ['all', 'g13', 'nantouar', 'trestel', 'keriec', 'bnig', 'other']
 # check or create that file upload and database dir exist:
-dir_path = [os.path.join(TraceAnalysis.root_dir, d) for d in ('database', 'gpx_file_upload')]
+dir_path = [os.path.join(ROOT_DIR, d) for d in ('database', 'gpx_file_upload')]
 for d in dir_path:
     if not Path(d).is_dir():
         os.makedirs(d)
+UPLOAD_FOLDER = os.path.join(ROOT_DIR, 'gpx_file_upload')
+DATABASE_PATH = os.path.join(ROOT_DIR, 'database/test.db')
+database = Path(DATABASE_PATH).resolve()
+
 # ******* define Flask api *******
 app = Flask(__name__, instance_relative_config=True, static_url_path='/static', static_folder='static')
 
@@ -43,7 +47,8 @@ app = Flask(__name__, instance_relative_config=True, static_url_path='/static', 
 # engine = create_engine('sqlite:///:memory:', echo=True)
 # Base = declarative_base()
 app.config.from_mapping(SECRET_KEY='dev')
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////home/jla/gps/database/test.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:////{database}"
+#'sqlite:////home/jla/gps/database/test.db'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
