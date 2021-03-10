@@ -82,8 +82,11 @@ logger.addHandler(ch)
 
 class Trace:
     config_dir = CONFIG_DIR
-
     def __init__(self, config_file=None):
+        """
+        auxillary class to manage yaml config, results history and ranking
+        :param config_file: path to the yaml config file
+        """
         if not config_file:
             self.config_file = os.path.join(self.config_dir, "config.yaml")
         else:
@@ -157,6 +160,12 @@ class Trace:
 
     @property
     def ranking_functions(self):
+        """
+        based on the yaml config functions dict
+        returns a dict of gps analysis functions description used for ranking
+        functions descriptions that have a ranking_group key
+        :return: dict
+        """
         return {
             iteration.description: iteration.args
             for iterations in self.functions.values()
@@ -313,6 +322,7 @@ class Trace:
         return ranking_results
 
 class TraceAnalysis:
+    # main gps functions analysis
     # class attributs:
     root_dir = ROOT_DIR  # project root dir (requirements.txt ...)
     config_dir = CONFIG_DIR  # yaml config files location
@@ -331,9 +341,9 @@ class TraceAnalysis:
 
     def __init__(self, file_path, config_file=None, **params):
         """
-        :param file_path:
-        :param config_file:
-        :param params:
+        :param file_path: path of the trace to analyse
+        :param config_file: path to the yaml config file
+        :param params: optional kwargs about the trace:
             author str
             spot str
             support str
