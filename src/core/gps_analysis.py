@@ -19,6 +19,7 @@ import traceback
 from math import pi
 from pathlib import Path
 from argparse import ArgumentParser
+from collections import defaultdict
 from logging import (
     getLogger,
     basicConfig,
@@ -144,17 +145,14 @@ class Trace:
             self.ranking_groups
                 {ranking_group_name: [fn1_description, ...] }
         """
-        ranking_groups = {}
+        ranking_groups = defaultdict(list)
         for gps_func, iterations in self.functions.items():
             for iteration in iterations:
-                if iteration.get("ranking_group", "") in ranking_groups:
+                if "ranking_group" in iteration:
                     ranking_groups[iteration["ranking_group"]].append(
                         iteration["description"]
                     )
-                elif iteration.get("ranking_group", ""):
-                    ranking_groups[iteration["ranking_group"]] = [
-                        iteration["description"]
-                    ]
+
         return ranking_groups
 
     @property
