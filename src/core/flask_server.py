@@ -13,6 +13,8 @@ import functools
 from copy import deepcopy
 from pathlib import Path
 import pandas as pd
+#from flask_mail import Mail
+
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import scoped_session, sessionmaker
@@ -52,6 +54,14 @@ app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:////{database}"
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# # TODO gmail account & configuration
+# app.config['MAIL_SERVER'] = 'smtp.example.com'
+# app.config['MAIL_PORT'] = 465
+# app.config['MAIL_USE_SSL'] = False
+# app.config['MAIL_USE_TLS'] = True
+# app.config['MAIL_USERNAME'] = 'username'
+# app.config['MAIL_PASSWORD'] = 'password'
+# mail = Mail(app)
 db = SQLAlchemy(app)
 trace =  Trace()
 #Locquirec 3.6451W 48.6541N

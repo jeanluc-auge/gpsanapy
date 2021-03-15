@@ -135,6 +135,16 @@ def reduce_value_bloc(ts, window=3, roll_func="min"):
     return ts0
 
 
+def get_ratio(ts, mask=None):
+    if mask is None:
+        mask = ts.index
+    condition = (ts == 1)
+    if len(ts[mask][condition]) == 0:
+        return 0
+    ratio = int(100 * len(ts[mask][condition].dropna()) / len(ts[mask]))
+    return ratio
+
+
 def load_config(config_filename=None):
     """Load config files
 

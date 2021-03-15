@@ -18,11 +18,11 @@ rules:
   max_speed: 45 # knots
   # filter backup: do not process file with remaining speeds > max_speed after filtering
   max_file_size: 16 # Mb : do not process file with size > max_file_size
-  force_doppler_speed: false
+  force_doppler_speed: true
   # for example doppler speed is automatically disabled for Movescount watch files
   # because the doppler field is not a true doppler value but just a 2/3 samples filter
   # use true if you want to (always) use the doppler speed field anyway
-  parquet_loading: true
+  parquet_loading: false
   # gpx files are interpreted and loaded into pandas DataFrame
   #     with filtering and resampling (raw gps data is also stored in the DataFrame)
   # but the gpx & html interpretation, sampling and filtering require a large computing time & power

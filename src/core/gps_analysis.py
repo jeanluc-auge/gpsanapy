@@ -45,6 +45,7 @@ from utils import (
     reduce_value_bloc,
     coroutine,
     split_path,
+    get_ratio,
 )
 
 TO_KNOT = 1.94384  # * m/s
@@ -326,8 +327,8 @@ class TraceAnalysis:
     # class attributs:
     root_dir = ROOT_DIR  # project root dir (requirements.txt ...)
     config_dir = CONFIG_DIR  # yaml config files location
-    analysis_version = 2.2  # track algo improvements
-    min_version = 2.2  # min requirement to accept loading from an archive parquet file
+    analysis_version = 2.3  # track algo improvements
+    min_version = 2.3  # min requirement to accept loading from an archive parquet file
     # attributs to save to parquet file:
     #   attributs that cannot be modified
     hard_trace_infos_attr = [
@@ -384,7 +385,7 @@ class TraceAnalysis:
             # generate key time series:
             self.generate_series()
             self.log_trace_infos()
-            self.df_result_debug = pd.DataFrame(index=self.tsd.index)
+            self.df_result_debug = pd.DataFrame(index=self.ts.index)
             gpx_results = self.call_gps_func_from_config()
             all_results = self.load_merge_all_results(gpx_results)
             self.ranking_results = self.trace.rank_all_results(all_results=all_results)
@@ -463,11 +464,11 @@ class TraceAnalysis:
 
         self.creator = "suunto sml"
 
-        data_speed = {"speed": [], "time": []}
-        data_coor = {"lon": [], "lat": [], "time": []}
+        data_speed = defaultdict(list)
+        data_coor = defaultdict(list)
         for el in html_soup.findAll("sample"):
             if el.speed and el.utc:
-                data_speed["speed"].append(float(el.speed.string))
+                data_speed["speed_doppler"].append(float(el.speed.string))
                 data_speed["time"].append(str(el.utc.string))
             elif el.longitude and el.utc:
                 data_coor["lon"].append(float(el.longitude.string) * 180 / pi)
@@ -477,8 +478,6 @@ class TraceAnalysis:
         df_speed["time"] = pd.to_datetime(df_speed.time)
         df_speed.set_index("time", inplace=True)
         df_speed = df_speed.resample(self.time_sampling).mean()
-        df_speed["has_doppler"] = 0
-        df_speed.loc[df_speed.speed.notna(), "has_doppler"] = 1
 
         # need to resample and inteprolate to obtain speed from distance between 2 points:
         df_coor = pd.DataFrame(data=data_coor)
@@ -494,10 +493,12 @@ class TraceAnalysis:
             x["lat"], x["lon"], None, x["lat-1"], x["lon-1"], None
         )
         df_coor["course"] = df_coor.apply(pd_course, axis=1)
-        df_coor["speed_no_doppler"] = df_coor.apply(pd_distance, axis=1) / self.sampling
+        df_coor["speed_pos"] = df_coor.apply(pd_distance, axis=1) / self.sampling
 
         # concat the 2 dataframes:
         self.df = pd.concat([df_speed, df_coor], join="outer", axis=1)
+        # cannot extract a mix of doppler and positional data, so fake it:
+        self.df["speed_doppler_pos"] = self.df["speed_pos"]
         self.df.reset_index(inplace=True)
         self.df.to_csv("test.csv")
         # try:
@@ -537,7 +538,7 @@ class TraceAnalysis:
         """
         # check files in result_dir:
         filenames = [
-            Path(f).stem
+            f #Path(f).stem
             for f in glob.iglob(
                 os.path.join(
                     Path(self.trace.directory_paths.parquet_dir).resolve(), "*"
@@ -549,7 +550,7 @@ class TraceAnalysis:
         ]
         # search for parquet files matching the filename to analyse:
         parquet_filename = [
-            f for f in filenames if self.filename == f.split("parquet_")[1]
+            f for f in filenames if self.filename == f.split("parquet_")[-1]
         ]
         if not (parquet_filename and self.parquet_loading):
             self.log_info.send(
@@ -656,9 +657,9 @@ class TraceAnalysis:
                 "lon": point.longitude,
                 "lat": point.latitude,
                 "time": point.time,  # datetime.datetime.strptime((str(point.time)).split("+")[0], '%Y-%m-%d %H:%M:%S'),
-                "speed": point.speed,
-                "doppler_no_doppler": point.speed if point.speed is not None else raw_data.get_speed(i),
-                "speed_no_doppler": raw_data.get_speed(i),
+                "speed_doppler": point.speed,
+                "speed_doppler_pos": point.speed if point.speed is not None else raw_data.get_speed(i),
+                "speed_pos": raw_data.get_speed(i),
                 "course": point.course_between(raw_data.points[i - 1] if i > 0 else 0),
                 "has_doppler": True if point.speed is not None else False
                 # "delta_dist": (
@@ -668,18 +669,6 @@ class TraceAnalysis:
             for i, point in enumerate(raw_data.points)
         ]
         df = pd.DataFrame(split_data)
-
-        # **** data frame doppler checking *****
-        # check that there are enough doppler points to interpolate:
-        doppler_ratio = 100 - int(100*df.speed.isnull().sum()/len(df.speed))
-        if doppler_ratio < 70:
-            # not enough doppler speed data:
-            # do not interpolate but revert to positional speed when doppler speed is missing:
-            logger.info(
-                f"insuficient doppler data to be used as raw, ratio is {doppler_ratio}% of doppler\n"
-                f"therefore a mix of doppler and positional data will be used to caclulate speed"
-            )
-            df['speed'] = df["doppler_no_doppler"]
 
         return df
 
@@ -703,12 +692,10 @@ class TraceAnalysis:
         self.df = self.df.set_index("time")
 
         # convert ms-1 to knots:
-        self.df.speed = round(self.df.speed * TO_KNOT, 2)
-        self.df.speed_no_doppler = round(self.df.speed_no_doppler * TO_KNOT, 2)
+        self.df.speed_doppler = round(self.df.speed_doppler * TO_KNOT, 2)
+        self.df.speed_doppler_pos = round(self.df.speed_doppler_pos * TO_KNOT, 2)
+        self.df.speed_pos = round(self.df.speed_pos * TO_KNOT, 2)
 
-        # convert bool to int: needed for rolling window functions
-        self.df.loc[self.df.has_doppler == True, "has_doppler"] = 1
-        self.df.loc[self.df.has_doppler == False, "has_doppler"] = 0
         self.df["elapsed_time"] = pd.to_timedelta(
             self.df.index - self.df.index[0]
         ).astype("timedelta64[s]")
@@ -717,6 +704,7 @@ class TraceAnalysis:
             self.trace_sampling = np.rint(sampling*10)/10
         else:  # round down
             self.trace_sampling = np.floor(sampling)
+        self.df.to_csv('test.csv')
 
     @log_calls()
     def resample_df(self):
@@ -734,25 +722,44 @@ class TraceAnalysis:
         # don't fill nan on gps coordinates:
         tlon = self.df["lon"].resample(self.time_sampling).mean().interpolate()
         tlat = self.df["lat"].resample(self.time_sampling).mean().interpolate()
+
+        raw_tsd = self.df["speed_doppler"].resample(self.time_sampling).mean()
+        tsd = raw_tsd.interpolate()
+
+        raw_tsdp = self.df["speed_doppler_pos"].resample(self.time_sampling).mean()
+        tsdp = raw_tsdp.interpolate()
+
+        raw_tsp = self.df["speed_pos"].resample(self.time_sampling).mean()
+        tsp = raw_tsp.interpolate()
+
+        tsampd = pd.Series(index=tsd.index, data=np.nan)
+        tsampd[raw_tsd.notna()] = 1
+        tsampdp = pd.Series(index=tsd.index, data=np.nan)
+        tsampdp[raw_tsdp.notna()] = 1
+        tsampp = pd.Series(index=tsd.index, data=np.nan)
+        tsampp[raw_tsp.notna()] = 1
+
+
+
         # add a new column with total elapsed time in seconds:
         # has_doppler? yes=1 default=0 (np.nan=0), sum = AND (min):
-        thd = self.df["has_doppler"].resample(self.time_sampling).min()
-        thd = thd.fillna(0).astype(np.int64)
-        # speed doppler
-        tsd = self.df["speed"].resample(self.time_sampling).mean().interpolate()
-        # raw doppler speed = don't fill nan (i.e. no interpolate:
-        raw_tsd = self.df["speed"].resample(self.time_sampling).mean()
+        # thd = self.df["has_doppler"].resample(self.time_sampling).min()
+        # thd = thd.fillna(0).astype(np.int64)
+        # # speed doppler
+        # tsd = self.df["speed"].resample(self.time_sampling).mean().interpolate()
+        # # raw doppler speed = don't fill nan (i.e. no interpolate:
+        # raw_tsd = self.df["speed"].resample(self.time_sampling).mean()
+        #
+        # # speed no doppler
+        # ts = (
+        #     self.df["speed_no_doppler"]
+        #     .resample(self.time_sampling)
+        #     .mean()
+        #     .interpolate()
+        # )
+        # # raw no doppler speed = don't fill nan (i.e. no interpolate:
+        # raw_ts = self.df["speed_no_doppler"].resample(self.time_sampling).mean()
 
-        # speed no doppler
-        ts = (
-            self.df["speed_no_doppler"]
-            .resample(self.time_sampling)
-            .mean()
-            .interpolate()
-        )
-        # raw no doppler speed = don't fill nan (i.e. no interpolate:
-        raw_ts = self.df["speed_no_doppler"].resample(self.time_sampling).mean()
-        print(ts.shape)
         # course (orientation °) cumulated values => take min of the bin
         tc = self.df["course"].resample(self.time_sampling).min().interpolate()
 
@@ -760,24 +767,46 @@ class TraceAnalysis:
             data={
                 "lon": tlon,
                 "lat": tlat,
-                "has_doppler": thd,
-                "filtering": np.nan,
-                "time_sampling": np.nan,
+                "filtering": 0,
+                "sampling_doppler": tsampd, # generated afterward
+                "sampling_doppler_pos": tsampdp,
+                "sampling_pos": tsampp,
+                "speed_doppler": tsd,
+                "raw_speed_doppler": raw_tsd,
+                "speed_doppler_pos": tsdp,
+                "raw_speed_doppler_pos": raw_tsdp,
+                "speed_pos": tsp,
+                "raw_speed_pos": raw_tsp,
                 "cum_dist": np.nan,
                 "delta_dist": np.nan,
                 "raw_course": tc,
                 "course": tc,
                 "course_diff": np.nan,
-                "raw_speed": raw_tsd,
-                "raw_speed_no_doppler": raw_ts,
-                "speed_no_doppler": ts,
-                "speed": tsd,
             }
         )
-        # generate time_sampling column based on raw_speed:
-        df.loc[df.raw_speed.notna(), "time_sampling"] = 1
 
-        df["filtering"] = 0
+        # **** data frame doppler checking *****
+        # check that there are enough doppler points to interpolate:
+        sampling_doppler_ratio = get_ratio(tsampd)
+        sampling_doppler_pos_ratio = get_ratio(tsampdp)
+        logger.info(
+            f"sampling doppler ratio {sampling_doppler_ratio}\n"
+            f"sampling doppler+positional ratio {sampling_doppler_pos_ratio}\n"
+        )
+        if sampling_doppler_pos_ratio > sampling_doppler_ratio * 1.2:
+            # not enough doppler speed data:
+            # do not interpolate but revert to positional speed when doppler speed is missing:
+            logger.info(
+                f"insuficient doppler data to be used as raw\n"
+                f"therefore a mix of doppler and positional data will be used to caclulate speed"
+            )
+            df['speed'] = df["speed_doppler_pos"]
+            df["raw_speed"] = df["raw_speed_doppler_pos"]
+            df["sampling"] = df["sampling_doppler_pos"]
+        else:
+            df['speed'] = df["speed_doppler"]
+            df["raw_speed"] = df["raw_speed_doppler"]
+            df["sampling"] = df["sampling_doppler"]
 
         self.df = df
 
@@ -793,15 +822,16 @@ class TraceAnalysis:
         self.df["acceleration_doppler_speed"] = self.df.speed.diff() / (
             TO_KNOT * G * self.sampling
         )
-        self.df["acceleration_non_doppler_speed"] = self.df.speed_no_doppler.diff() / (
+        self.df["acceleration_non_doppler_speed"] = self.df.speed_pos.diff() / (
             TO_KNOT * G * self.sampling
         )
         # columns to be filtered out:
         nan_list = [
             "speed",
-            "speed_no_doppler",
-            "time_sampling",
-            "has_doppler",
+            "speed_pos",
+            "sampling",
+            "sampling_doppler",
+            "sampling_pos"
             "course",
         ]
         erratic_data = True
@@ -811,7 +841,7 @@ class TraceAnalysis:
 
         # limit the # of iterations for speed + avoid infinite loop
         while erratic_data and iter < MAX_ITER:
-            err = self.filter_on_field(df2, "speed", "speed_no_doppler")
+            err = self.filter_on_field(df2, "speed", "speed_pos")
             self.filtered_events += err
             iter += 1
             erratic_data = err > 0
@@ -924,8 +954,15 @@ class TraceAnalysis:
     def generate_series(self):
         """
         generate key time series with fillna or interpolate after filtering
+        nan_list = [
+            "speed",
+            "speed_pos",
+            "sampling",
+            "sampling_doppler",
+            "sampling_pos"
+            "course",
+        ]
         """
-
         # sunto and apple watches have a False "emulated" doppler that should not be used:
         watch = [x for x in DOPPLER_EXCLUSION_LIST if x in self.creator.lower()]
         if watch and not self.force_doppler_speed:
@@ -936,47 +973,87 @@ class TraceAnalysis:
                     f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",
                 ]
             )
-            self.df["speed"] = self.df.speed_no_doppler
-            self.df["has_doppler"] = 0
+            self.df["speed"] = self.df["speed_pos"]
+            self.df["raw_speed"] = self.df["raw_speed_pos"]
+            self.df["sampling_doppler"] = 0
+            self.df["sampling"] = self.df["sampling_pos"]
 
-        # speed doppler
-        self.tsd = self.df["speed"].interpolate()
-        self.df["speed"] = self.tsd
-        self.raw_tsd = self.df["raw_speed"]
-        self.raw_ts = self.df["raw_speed_no_doppler"]
-        # speed no doppler
-        self.ts = self.df["speed_no_doppler"].interpolate()
-        self.df["speed_no_doppler"] = self.ts
+        # speed
+        self.ts = self.df["speed"].interpolate()
+        self.df["speed"] = self.ts
+        self.raw_ts = self.df["raw_speed"]
+        self.tsp = self.df['speed_pos'].interpolate()
+        self.df["speed_pos"] = self.tsp
+        self.raw_tsp = self.df['raw_speed_pos']
+        # sampling
+        self.tsamp = self.df["sampling"]
+        self.tsamp = self.tsamp.fillna(0).astype(np.int64)
+        self.df["sampling"] = self.tsamp
+        # doppler sampling
+        self.tsampd = self.df["sampling_doppler"]
+        self.tsampd = self.tsampd.fillna(0).astype(np.int64)
+        self.df["sampling_doppler"] = self.tsampd
         # filtering? yes=1 :
         self.tf = self.df["filtering"]
-        # time_sampling? yes=1 default=0 (np.nan=0)
-        self.tsamp = self.df["time_sampling"]
-        self.tsamp = self.tsamp.fillna(0).astype(np.int64)
-        self.df["time_sampling"] = self.tsamp
-        # has_doppler? yes=1 default=0 (np.nan=0), sum = AND (min):
-        self.thd = self.df["has_doppler"]
-        self.thd = self.thd.fillna(0).astype(np.int64)
-        self.df["has_doppler"] = self.thd
         # interpolate np.nan after filtering
         # (we can because we resampled before filtering, therefore time_sampling is uniform)
         # distance: diff & cumulated calculated from speed and time_sampling:
-        self.td = self.tsd * self.sampling / TO_KNOT
+        self.td = self.ts * self.sampling / TO_KNOT
         self.tcd = self.td.cumsum()
         self.df["delta_dist"] = self.td
         self.df["cum_dist"] = self.tcd
         # course (orientation °)
-        self.df.loc[self.tsd < 5, "course"] = np.nan
+        self.df.loc[self.ts < 5, "course"] = np.nan
         self.tc = self.df.course
         # find a middle between np.nan and interpolate filtered events:
         # fillna = 0 still allows rolling range
         self.tc_diff = self.modulo_diff_ts(self.tc).fillna(0)
-        self.df["course"] = self.tc
         self.df["course_diff"] = self.tc_diff
-        if self.tsd.max() > self.max_speed:
+        if self.ts.max() > self.max_speed:
             raise TraceAnalysisException(
-                f"Trace maximum speed after cleaning is = {self.tsd.max()} knots!\n"
+                f"Trace maximum speed after cleaning is = {self.ts.max()} knots!\n"
                 f"abort analysis for speed > {self.max_speed}"
             )
+
+
+        # # speed doppler
+        # self.tsd = self.df["speed"].interpolate()
+        # self.df["speed"] = self.tsd
+        # self.raw_tsd = self.df["raw_speed"]
+        # self.raw_ts = self.df["raw_speed_no_doppler"]
+        # # speed no doppler
+        # self.ts = self.df["speed_no_doppler"].interpolate()
+        # self.df["speed_no_doppler"] = self.ts
+        # # filtering? yes=1 :
+        # self.tf = self.df["filtering"]
+        # # time_sampling? yes=1 default=0 (np.nan=0)
+        # self.tsamp = self.df["time_sampling"]
+        # self.tsamp = self.tsamp.fillna(0).astype(np.int64)
+        # self.df["time_sampling"] = self.tsamp
+        # # has_doppler? yes=1 default=0 (np.nan=0), sum = AND (min):
+        # self.thd = self.df["has_doppler"]
+        # self.thd = self.thd.fillna(0).astype(np.int64)
+        # self.df["has_doppler"] = self.thd
+        # # interpolate np.nan after filtering
+        # # (we can because we resampled before filtering, therefore time_sampling is uniform)
+        # # distance: diff & cumulated calculated from speed and time_sampling:
+        # self.td = self.tsd * self.sampling / TO_KNOT
+        # self.tcd = self.td.cumsum()
+        # self.df["delta_dist"] = self.td
+        # self.df["cum_dist"] = self.tcd
+        # # course (orientation °)
+        # self.df.loc[self.tsd < 5, "course"] = np.nan
+        # self.tc = self.df.course
+        # # find a middle between np.nan and interpolate filtered events:
+        # # fillna = 0 still allows rolling range
+        # self.tc_diff = self.modulo_diff_ts(self.tc).fillna(0)
+        # self.df["course"] = self.tc
+        # self.df["course_diff"] = self.tc_diff
+        # if self.tsd.max() > self.max_speed:
+        #     raise TraceAnalysisException(
+        #         f"Trace maximum speed after cleaning is = {self.tsd.max()} knots!\n"
+        #         f"abort analysis for speed > {self.max_speed}"
+        #     )
 
     def log_trace_infos(self):
         """
@@ -984,16 +1061,19 @@ class TraceAnalysis:
         of the current gpx file under study
         :return: logger
         """
-        doppler_ratio = int(100 * len(self.thd[self.thd > 0].dropna()) / len(self.thd))
-        sampling_ratio = int(100 * len(self.tsamp[self.tsamp == 1]) / len(self.tsamp))
-        if len(self.tsamp[self.tsd > 5]) == 0:
-            sampling_ratio_5 = 0
-        else:
-            sampling_ratio_5 = int(
-                100
-                * len(self.tsamp[self.tsamp == 1][self.tsd > 5])
-                / len(self.tsamp[self.tsd > 5])
-            )
+        doppler_ratio = get_ratio(self.tsampd)
+        sampling_ratio = get_ratio(self.tsamp)
+        sampling_ratio_5 = get_ratio(self.tsamp, mask=self.ts>5)
+        # doppler_ratio = int(100 * len(self.thd[self.thd > 0].dropna()) / len(self.thd))
+        # sampling_ratio = int(100 * len(self.tsamp[self.tsamp == 1]) / len(self.tsamp))
+        # if len(self.tsamp[self.tsd > 5]) == 0:
+        #     sampling_ratio_5 = 0
+        # else:
+        #     sampling_ratio_5 = int(
+        #         100
+        #         * len(self.tsamp[self.tsamp == 1][self.tsd > 5])
+        #         / len(self.tsamp[self.tsd > 5])
+        #     )
         if doppler_ratio < 70:
             self.log_warning.send(
                 [
@@ -1095,7 +1175,7 @@ class TraceAnalysis:
             sampling_ratio
             std
         """
-        result = round(self.tsd[self.tsd > v_min].mean(), 1)
+        result = round(self.ts[self.ts > v_min].mean(), 1)
         results = [{"result": result, "description": description, **DEFAULT_REPORT}]
         return results
 
@@ -1116,9 +1196,9 @@ class TraceAnalysis:
             std
         """
         if distance:
-            result = int(100 * self.td[self.tsd > v_min].sum() / self.td.sum())
+            result = int(100 * self.td[self.ts > v_min].sum() / self.td.sum())
         else:
-            result = int(100 * len(self.tsd[self.tsd > v_min]) / len(self.tsd))
+            result = int(100 * len(self.ts[self.ts > v_min]) / len(self.ts))
         results = [{"result": result, "description": description, **DEFAULT_REPORT}]
         return results
 
@@ -1135,7 +1215,7 @@ class TraceAnalysis:
             sampling_ratio
             std
         """
-        result = round(int(self.td[self.tsd > v_min].agg(sum)) / 1000, 1)
+        result = round(int(self.td[self.ts > v_min].agg(sum)) / 1000, 1)
         results = [{"result": result, "description": description, **DEFAULT_REPORT}]
         return results
 
@@ -1161,13 +1241,13 @@ class TraceAnalysis:
         partial_course_window = int(np.ceil(full_course_window / 3))  # 5s
         rolling_extension = int(np.ceil(full_course_window / 6))
         tc = self.tc_diff.copy()
-        ts = self.tsd.copy()
+        ts = self.ts.copy()
 
         # =====================================================================
         # CONDITION 0 = min speed > MIN_JIBE_SPEED in the speed_window around the jibe (center)
         # i.e. speed > 9knots in a 20s window
         # remove low speed periods (too many noise in course orientation) on speed_window:
-        tc[self.tsd < MIN_JIBE_SPEED] = np.nan
+        tc[self.ts < MIN_JIBE_SPEED] = np.nan
         # consider a speed_exclusion zone around min speed:
         ts[ts < MIN_JIBE_SPEED] = np.nan
         # ts[self.tsd.rolling(speed_shift, center=True).min() < MIN_JIBE_SPEED] = np.nan
@@ -1264,7 +1344,7 @@ class TraceAnalysis:
                 # remove this speed range to find others:
                 jibe_speed[range_begin:range_end] = 0
                 confidence_report = self.append_result_debug(
-                    item_range=self.tsd[range_begin:range_end].index,
+                    item_range=self.ts[range_begin:range_end].index,
                     item_description=description,
                     item_iter=i,
                 )
@@ -1310,7 +1390,7 @@ class TraceAnalysis:
         logger.info(f"starting search with {samples_count} samples")
         k = 1
         results = []
-        tsd = self.tsd.copy()
+        ts = self.ts.copy()
         td = self.td.copy()
         while k < n + 1:
             iter = 0
@@ -1326,7 +1406,7 @@ class TraceAnalysis:
                 iter += 1
 
             distance = max_rolling_distance_2
-            rolling_speed = tsd.rolling(samples_count).mean()
+            rolling_speed = ts.rolling(samples_count).mean()
             rolling_distance = td.rolling(samples_count).sum()
             result = round(rolling_speed.max(), 2)
             range_end = rolling_speed.idxmax()
@@ -1334,7 +1414,7 @@ class TraceAnalysis:
                 range_begin = range_end - datetime.timedelta(
                     seconds=int(samples_count * self.sampling) - 1
                 )
-                tsd.loc[range_begin:range_end] = 0
+                ts.loc[range_begin:range_end] = 0
                 td.loc[range_begin:range_end] = 0
                 logger.info(
                     f"found {samples_count} samples for n={k}:\n"
@@ -1342,7 +1422,7 @@ class TraceAnalysis:
                     f"max rolling({samples_count}) distance = {distance}\n"
                 )
                 confidence_report = self.append_result_debug(
-                    item_range=self.tsd[range_begin:range_end].index,
+                    item_range=self.ts[range_begin:range_end].index,
                     item_description=description,
                     item_iter=k,
                 )
@@ -1418,14 +1498,14 @@ class TraceAnalysis:
         )
         logger.info(
             f"checking result:\n"
-            f"max rolling({min_samples}) speed = {self.tsd.rolling(min_samples).mean().max()}\n"
+            f"max rolling({min_samples}) speed = {self.ts.rolling(min_samples).mean().max()}\n"
             f"max rolling({min_samples}) distance = {self.td.rolling(min_samples).sum().max()}\n"
         )
 
         indices = np.argwhere(nd <= threshold).flatten()
         indices_range = [set(range(int(i - nd[i]), int(i))) for i in indices]
         # create a list of tupple (speed Vmax_dist, speed_indice_range)
-        speed_list = [(self.tsd[range_i].mean(), range_i) for range_i in indices_range]
+        speed_list = [(self.ts[range_i].mean(), range_i) for range_i in indices_range]
         speed_list.sort(key=lambda tup: tup[0], reverse=True)
         k = 1
         total_range = set([])
@@ -1434,7 +1514,7 @@ class TraceAnalysis:
             if not (speed_range & total_range):
                 result = round(speed, 1)
                 confidence_report = self.append_result_debug(
-                    item_range=self.tsd[speed_range].index,
+                    item_range=self.ts[speed_range].index,
                     item_description=description,
                     item_iter=k,
                 )
@@ -1482,19 +1562,19 @@ class TraceAnalysis:
         # select n best Vmax:
         nxs_list = []
         results = []
-        tsd = self.tsd.copy()
+        ts = self.ts.copy()
         exclusion_time = datetime.timedelta(seconds=10)
         for i in range(1, n + 1):
             # calculate s seconds Vmax on all data:
-            ts = tsd.rolling(xs).mean()
+            ts = ts.rolling(xs).mean()
             range_end = ts.idxmax()
             range_begin = range_end - datetime.timedelta(seconds=s - 1)
             result = round(ts.max(), 2)
             # remove this speed range to find others:
-            tsd[range_begin - exclusion_time : range_end + exclusion_time] = 0
+            ts[range_begin - exclusion_time : range_end + exclusion_time] = 0
             # generate debug report:
             confidence_report = self.append_result_debug(
-                item_range=self.tsd[range_begin:range_end].index,
+                item_range=self.ts[range_begin:range_end].index,
                 item_description=description,
                 item_iter=i,
             )
@@ -1529,12 +1609,12 @@ class TraceAnalysis:
             pd.DataFrame self.df.result_debug
             confidence_report {doppler_ratio, sampling_ratio, std dev}
         """
-        self.df_result_debug.loc[item_range, "has_doppler?"] = self.thd[item_range]
+        self.df_result_debug.loc[item_range, "has_doppler?"] = self.tsampd[item_range]
         self.df_result_debug.loc[item_range, "filtering?"] = self.tf[item_range]
         self.df_result_debug.loc[item_range, "time_sampling?"] = self.tsamp[item_range]
-        self.df_result_debug.loc[item_range, "speed"] = self.tsd[item_range]
-        self.df_result_debug.loc[item_range, "raw_speed"] = self.raw_tsd[item_range]
-        self.df_result_debug.loc[item_range, "speed_no_doppler"] = self.ts[item_range]
+        self.df_result_debug.loc[item_range, "speed"] = self.ts[item_range]
+        self.df_result_debug.loc[item_range, "raw_speed"] = self.raw_ts[item_range]
+        self.df_result_debug.loc[item_range, "speed_pos"] = self.tsp[item_range]
         self.df_result_debug.loc[item_range, "course"] = self.tc[item_range]
         self.df_result_debug.loc[item_range, "course_diff_cleaned"] = self.tc_diff[
             item_range
@@ -1542,17 +1622,19 @@ class TraceAnalysis:
         self.df_result_debug.loc[item_range, "dist"] = self.td[item_range]
         self.df_result_debug.loc[item_range, item_description] = item_iter
         # generate report:
-        doppler_ratio = int(
-            100
-            * len(self.thd[item_range][self.thd > 0].dropna())
-            / len(self.thd[item_range])
-        )
-        sampling_ratio = int(
-            100
-            * len(self.tsamp[item_range][self.tsamp == 1])
-            / len(self.tsamp[item_range])
-        )
-        std = round(self.tsd[item_range].std(), 2)
+        doppler_ratio = get_ratio(self.tsampd, mask=item_range)
+        sampling_ratio = get_ratio(self.tsamp, mask=item_range)
+        # doppler_ratio = int(
+        #     100
+        #     * len(self.thd[item_range][self.thd > 0].dropna())
+        #     / len(self.thd[item_range])
+        # )
+        # sampling_ratio = int(
+        #     100
+        #     * len(self.tsamp[item_range][self.tsamp == 1])
+        #     / len(self.tsamp[item_range])
+        # )
+        std = round(self.ts[item_range].std(), 2)
         confidence_report = dict(
             doppler_ratio=doppler_ratio, sampling_ratio=sampling_ratio, std=std
         )
@@ -1700,10 +1782,10 @@ class TraceAnalysis:
     @log_calls()
     def plot_speed(self):
         fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1)
-        dfs = pd.DataFrame(index=self.tsd.index)
-        dfs["raw_speed"] = self.raw_tsd
-        dfs["speed"] = self.tsd
-        dfs["speed_no_doppler"] = self.ts
+        dfs = pd.DataFrame(index=self.ts.index)
+        dfs["raw_speed"] = self.raw_ts
+        dfs["speed"] = self.ts
+        dfs["positional_speed"] = self.tsp
         # dfs["delta_doppler"] = self.ts - self.tsd
         try:
             dfs.plot(ax=ax1)
@@ -1717,7 +1799,7 @@ class TraceAnalysis:
                 "distance": self.td,
                 "jibe_range": tjr,
             }
-            dfc = pd.DataFrame(index=self.tsd.index, data=data)
+            dfc = pd.DataFrame(index=self.ts.index, data=data)
             dfc.plot(ax=ax2)
         except Exception:
             logger.error(f"cannot plot distance and course")
