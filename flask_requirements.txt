@@ -1,4 +1,5 @@
 Werkzeug==0.16.0
 flask==1.1.1
+sqlalchemy==1.3.23
 flask-sqlalchemy
 gunicorn
