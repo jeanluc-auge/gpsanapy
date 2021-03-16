@@ -1,0 +1,57 @@
+
+# sudo docker-compose -f docker-compose.yaml build --no-cache
+# sudo docker-compose -f docker-compose.yaml up --force-recreate
+version: '3.2'
+services:
+#    nginx:
+#        build:
+#            context: ./
+#            dockerfile: Dockerfile_nginx
+#        container_name: nginx
+#        depends_on:
+#            - flask
+#        networks:
+#            - my-network
+#        ports:
+#            - 80:80
+    flask:
+        build:
+            context: ../
+            dockerfile: ./docker/Dockerfile_flask
+        container_name: flask
+#        depends_on:
+#            - postgres
+        volumes:
+            - ../gpx_file_upload:/gpsanapy/gpx_file_upload
+            - ../csv_results:/gpsanapy/csv_results
+            - ../config/:/gpsanapy/config
+        networks:
+            my-network:
+                aliases:
+                    - flask-app
+        ports:
+            - 9999:9999
+
+#    postgress:
+#        image: postgress:12-alpine
+#        volumes:
+#            - postgres_data:/var/lib/postgresql/data/
+#    postgres:
+#        build:
+#            context: ./
+#            dockerfile: Dockerfile_postgres
+#        container_name: postgres
+#        environment:
+#            - POSTGRES_PASSWORD=challenge
+#            - POSTGRES_DB=challenge
+#        networks:
+#            - my-network
+#        ports:
+#            - 5432:5432
+
+networks:
+    my-network:
+      ipam:
+        driver: default
+        config:
+          - subnet: 172.13.0.0/24
