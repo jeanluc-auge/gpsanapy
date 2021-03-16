@@ -15,6 +15,15 @@ services:
 #            - my-network
 #        ports:
 #            - 80:80
+    keycloak:
+        image: quay.io/keycloak/keycloak:12.0.4
+        container_name: keycloak
+        ports:
+          - 8080:8080
+        environment:
+          - KEYCLOAK_USER=admin
+          - KEYCLOAK_PASSWORD=admin
+
     flask:
         build:
             context: ../
@@ -36,10 +45,13 @@ services:
 
     postgres:
         image: postgres:13-alpine
+        container_name: postgres
+        ports:
+          - 5432:54332
         volumes:
-            - ../postgres_data:/var/lib/postgresql/data/pgdata
+          - postgres_data:/var/lib/postgresql/data/
         environment:
-          - PGDATA=/var/lib/postgresql/data/pgdata
+          #- PGDATA=/var/lib/postgresql/data/pgdata
           - POSTGRES_USER=flask
           - POSTGRES_PASSWORD=flask
           - POSTGRES_DB=flask
@@ -71,3 +83,4 @@ networks:
 #        driver: bridge
 #        config:
 #          - subnet: 172.13.0.0/24
+
