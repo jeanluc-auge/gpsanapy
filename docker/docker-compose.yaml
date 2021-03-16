@@ -1,6 +1,7 @@
 
 # sudo docker-compose -f docker-compose.yaml build --no-cache
 # sudo docker-compose -f docker-compose.yaml up --force-recreate
+# /var/lib/docker/volumes/docker_postgres_data
 version: '3.2'
 services:
 #    nginx:
@@ -19,23 +20,32 @@ services:
             context: ../
             dockerfile: ./docker/Dockerfile_flask
         container_name: flask
-#        depends_on:
-#            - postgres
+        depends_on:
+            - postgres
         volumes:
-            - ../gpx_file_upload:/gpsanapy/gpx_file_upload
-            - ../csv_results:/gpsanapy/csv_results
-            - ../config/:/gpsanapy/config
-        networks:
-            my-network:
-                aliases:
-                    - flask-app
+            - ../:/gpsanapy
+#            - ../gpx_file_upload:/gpsanapy/gpx_file_upload
+#            - ../csv_results:/gpsanapy/csv_results
+#            - ../config/:/gpsanapy/config
+#        networks:
+#            my-network:
+#                aliases:
+#                    - flask-app
         ports:
             - 9999:9999
 
-#    postgress:
-#        image: postgress:12-alpine
-#        volumes:
-#            - postgres_data:/var/lib/postgresql/data/
+    postgres:
+        image: postgres:13-alpine
+        volumes:
+            - ../postgres_data:/var/lib/postgresql/data/pgdata
+        environment:
+          - PGDATA=/var/lib/postgresql/data/pgdata
+          - POSTGRES_USER=flask
+          - POSTGRES_PASSWORD=flask
+          - POSTGRES_DB=flask
+
+volumes:
+  postgres_data:
 #    postgres:
 #        build:
 #            context: ./
@@ -50,8 +60,14 @@ services:
 #            - 5432:5432
 
 networks:
-    my-network:
-      ipam:
-        driver: default
-        config:
-          - subnet: 172.13.0.0/24
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.13.0.0/24
+#networks:
+#    my-network:
+#      ipam:
+#        driver: bridge
+#        config:
+#          - subnet: 172.13.0.0/24
