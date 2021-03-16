@@ -7,8 +7,8 @@
 
 FROM python:3.7
 RUN pip3 install --upgrade pip
-RUN git clone https://github.com/jeanluc-auge/gpsanapy.git
 RUN pip3 install -r /gpsanapy/docker_requirements.txt
+RUN git clone https://github.com/jeanluc-auge/gpsanapy.git
 RUN mkdir /gpsanapy/csv_results
 RUN mkdir /gpsanapy/gpx_files
 WORKDIR /gpsanapy/

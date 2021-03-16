@@ -71,9 +71,10 @@ logger = getLogger()
 logger.setLevel(INFO)
 try:
     log_path = os.path.join(LOG_DIR, "execution.log")
+    fh = FileHandler(log_path)
 except Exception:
     log_path = os.path.join(ROOT_DIR, "execution.log")
-fh = FileHandler(log_path)
+    fh = FileHandler(log_path)
 fh.setLevel(INFO)
 logger.addHandler(fh)
 ch = StreamHandler()
