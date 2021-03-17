@@ -188,7 +188,7 @@ def check_df(fn):
                 f"when running {fn.__name__}\n"
                 f"with args {kwargs}\n"
             )
-            logger.warning(message)
+            logger.exception(message)
             flash(message)
             return None
 

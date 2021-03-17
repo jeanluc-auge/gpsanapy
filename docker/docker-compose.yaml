@@ -19,10 +19,19 @@ services:
         image: quay.io/keycloak/keycloak:12.0.4
         container_name: keycloak
         ports:
-          - 8080:8080
+            - 8080:8080
         environment:
-          - KEYCLOAK_USER=admin
-          - KEYCLOAK_PASSWORD=admin
+            - DB_VENDOR=POSTGRES
+            - DB_ADDR=postgres
+            - DB_PORT=5432
+            - DB_DATABASE=flask
+            - DB_USER=flask
+            - DB_PASSWORD=flask
+            - DB_SCHEMA=public
+            - KEYCLOAK_USER=admin
+            - KEYCLOAK_PASSWORD=admin
+        depends_on:
+            - postgres
 
     flask:
         build:
@@ -47,29 +56,18 @@ services:
         image: postgres:13-alpine
         container_name: postgres
         ports:
-          - 5432:54332
+            - 5432:54332
         volumes:
-          - postgres_data:/var/lib/postgresql/data/
+            - postgres_data:/var/lib/postgresql/data/
         environment:
-          #- PGDATA=/var/lib/postgresql/data/pgdata
-          - POSTGRES_USER=flask
-          - POSTGRES_PASSWORD=flask
-          - POSTGRES_DB=flask
+            #- PGDATA=/var/lib/postgresql/data/pgdata
+            - POSTGRES_USER=flask
+            - POSTGRES_PASSWORD=flask
+            - POSTGRES_DB=flask
 
 volumes:
   postgres_data:
-#    postgres:
-#        build:
-#            context: ./
-#            dockerfile: Dockerfile_postgres
-#        container_name: postgres
-#        environment:
-#            - POSTGRES_PASSWORD=challenge
-#            - POSTGRES_DB=challenge
-#        networks:
-#            - my-network
-#        ports:
-#            - 5432:5432
+
 
 networks:
   default:
