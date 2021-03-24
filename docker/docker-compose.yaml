@@ -33,30 +33,30 @@ services:
         depends_on:
             - postgres
 
-    flask:
-        build:
-            context: ../
-            dockerfile: ./docker/Dockerfile_flask
-        container_name: flask
-        depends_on:
-            - postgres
-        volumes:
-            - ../:/gpsanapy
-#            - ../gpx_file_upload:/gpsanapy/gpx_file_upload
-#            - ../csv_results:/gpsanapy/csv_results
-#            - ../config/:/gpsanapy/config
-#        networks:
-#            my-network:
-#                aliases:
-#                    - flask-app
-        ports:
-            - 9999:9999
+#    flask:
+#        build:
+#            context: ../
+#            dockerfile: ./docker/Dockerfile_flask
+#        container_name: flask
+#        depends_on:
+#            - postgres
+#        volumes:
+#            - ../:/gpsanapy
+##            - ../gpx_file_upload:/gpsanapy/gpx_file_upload
+##            - ../csv_results:/gpsanapy/csv_results
+##            - ../config/:/gpsanapy/config
+##        networks:
+##            my-network:
+##                aliases:
+##                    - flask-app
+#        ports:
+#            - 9999:9999
 
     postgres:
         image: postgres:13-alpine
         container_name: postgres
         ports:
-            - 5432:54332
+            - 5432:5432
         volumes:
             - postgres_data:/var/lib/postgresql/data/
         environment:

@@ -1,33 +1,38 @@
-from flask import Flask, request, g, render_template, redirect, flash, url_for, session, abort
-from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.orm import joinedload
-#from flask import reqparse, fields, Resource, Api,
-from werkzeug.datastructures import FileStorage
-from werkzeug.security import check_password_hash, generate_password_hash
-from werkzeug.utils import secure_filename
-import json
-import sqlite3
 import os
 import logging
 import functools
-from copy import deepcopy
-from pathlib import Path
-import pandas as pd
-#from flask_mail import Mail
+import json
 
+from flask import Flask, request, g, render_template, redirect, flash, url_for, session, abort
+from six.moves.urllib.parse import urlencode
+from flask_sqlalchemy import SQLAlchemy
+from flask_oidc import OpenIDConnect
+from sqlalchemy.orm import joinedload
+#from flask import reqparse, fields, Resource, Api,
+from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.utils import secure_filename
+import requests
+import sqlite3
+
+from pathlib import Path
+#from keycloak.realm import KeycloakRealm
+import pandas as pd
+from visu import bokeh_plot, bokeh_speed, bokeh_speed_density, all_results_speed_density, compare_all_results_density
+from bokeh.models.callbacks import CustomJS
+from bokeh.embed import components
+from bokeh.resources import INLINE
+from functools import wraps
+import munch
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy import Column, Integer, String, Sequence
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+
 from gps_analysis import TraceAnalysis, Trace, crunch_data
 from utils import gpx_results_to_json, load_results, split_path
 # from db import init_app, init_db
-from visu import bokeh_plot, bokeh_speed, bokeh_speed_density, all_results_speed_density, compare_all_results_density
-from bokeh.models.callbacks import CustomJS
-from bokeh.embed import components
-from bokeh.resources import INLINE
 
 ROOT_DIR = os.path.join(os.path.dirname(__file__), "../../")
 ALLOWED_EXTENSIONS = {'.gpx', '.sml'}
@@ -49,27 +54,49 @@ app = Flask(__name__, instance_relative_config=True, static_url_path='/static', 
 # engine = create_engine('sqlite:///:memory:', echo=True)
 # Base = declarative_base()
 app.config.from_mapping(SECRET_KEY='dev')
+# uri
+flask_uri = "http://0.0.0.0:9999"
+auth_uri = "http://127.0.0.1:8080"
+# postgres DB attributes:
 user = 'flask'
 pw = 'flask'
-host = 'postgres'
-database = 'flask'
+#db_host = 'postgres' # docker only
+db_host='127.0.0.1' # when running flask wo docker-compose, 'postgres' hostname is not recognized
+db_name = 'flask'
 port = 5432
-DATABASE_URL=f"postgresql://{user}:{pw}@{host}:{port}/{database}"
+DATABASE_URL=f"postgresql://{user}:{pw}@{db_host}:{port}/{db_name}"
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 #app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:////{database}"
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-# # TODO gmail account & configuration
-# app.config['MAIL_SERVER'] = 'smtp.example.com'
-# app.config['MAIL_PORT'] = 465
-# app.config['MAIL_USE_SSL'] = False
-# app.config['MAIL_USE_TLS'] = True
-# app.config['MAIL_USERNAME'] = 'username'
-# app.config['MAIL_PASSWORD'] = 'password'
-# mail = Mail(app)
+# OIDC & KEYCLOAK
+app.config['OIDC_OPENID_REALM'] = 'challenge'
+app.config['OIDC_CLIENT_SECRETS'] = os.path.join(ROOT_DIR, 'config/client_secrets.json')
+app.config.update(
+    {
+    'OIDC_COOKIE_SECURE': False,
+    'OIDC_REQUIRE_VERIFIED_EMAIL': False,
+    'OIDC_USER_INFO_ENABLED': True,
+    'OIDC_OPENID_REALM': 'flask-demo',
+    'OIDC_SCOPES': ['openid', 'email', 'profile'],
+    'OIDC_INTROSPECTION_AUTH_METHOD': 'client_secret_post',
+    'OIDC_TOKEN_TYPE_HINT': 'access_token'
+    }
+)
+oidc = OpenIDConnect(app)
+
 db = SQLAlchemy(app)
 trace =  Trace()
+# realm = KeycloakRealm(server_url='http://127.0.0.1:8080', realm_name='challenge')
+# oidc_client = realm.open_id_connect(
+#     client_id='flask_client',
+#     client_secret=''
+# )
+# print(dir(oidc_client))
+r = requests.get('http://127.0.0.1:8080/auth/realms/challenge/.well-known/openid-configuration')
+print(r.text)
+#print(oidc_client.client_credentials())
 #Locquirec 3.6451W 48.6541N
 #Pleubian 3.1396W 48.8424N
 #Lancieux 2.1491W 48.6094N
@@ -85,7 +112,7 @@ class User(db.Model): #(Base)
      username = db.Column(db.String(50), unique=True, nullable=False)
      email = db.Column(db.String(128), unique=True, nullable=False)
      location = db.Column(db.String(128))
-     infos = db.Column(db.String(128))
+     infos = db.Column(db.String(512))
      password = db.Column(db.Text, nullable=False)
      def __repr__(self):
         return f"<User(username={self.username}, password={self.password})>"
@@ -158,18 +185,6 @@ with app.app_context():
 
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
-
-def login_required(view):
-    @functools.wraps(view)
-    def wrapped_view(**kwargs):
-        if g.user is None:
-            flash("you need to login to perform this action\n or register if you don't have an account ")
-            return redirect(url_for('login'))
-
-        return view(**kwargs)
-
-    return wrapped_view
-
 
 # *************** data model *******************
 
@@ -321,80 +336,84 @@ def gen_bokeh_resources(p):
     return bokeh_resources
 
 # ********* gps flask server *************
-@app.before_request
-def load_logged_in_user():
-    """load session user id in flask g"""
-    user_id = session.get('user_id')
+# @app.before_request
+# def load_logged_in_user():
+#     """load session user id in flask g"""
+#     user_id = session.get('user_id')
+#
+#     if user_id is None:
+#         g.user = None
+#     else:
+#         g.user = db.session.query(User).filter(User.id==user_id).first()
 
-    if user_id is None:
-        g.user = None
-    else:
-        g.user = db.session.query(User).filter(User.id==user_id).first()
+def log_me(view_func):
+    @wraps(view_func)
+    def wrapper(*args, **kwargs):
+        user_id = session.get('user_id')
+        if user_id is None:
+            g.user = None
+        else:
+            g.user = db.session.query(User).filter(User.id==user_id).first()
+        return view_func(*args, **kwargs)
+    return wrapper
 
-@app.route('/register', methods=('GET', 'POST'))
-def register():
-    if request.method == 'POST':
-        username = get_form_required('username')
-        password = get_form_required('password')
-        email = get_form_required('email')
-        location = request.form['location']
-        infos = request.form['infos']
+# def login_required(view):
+#     @functools.wraps(view)
+#     def wrapped_view(**kwargs):
+#         if g.user is None:
+#             flash("you need to login to perform this action\n or register if you don't have an account ")
+#             return redirect(url_for('login'))
+#
+#         return view(**kwargs)
+#
+#     return wrapped_view
 
-        error = None
-        if db.session.query(User).filter(User.username==username).first() is not None:
-            error = f'User {username} is already registered.'
-        elif db.session.query(User).filter(User.email==email).first() is not None:
-            error = f'User {email} is already registered.'
-
-        if error is None:
-            new_user = User(
-                username=username,
-                password=generate_password_hash(password),
-                email=email,
-                location=location,
-                infos=infos
+def require_login(view_func):
+    @wraps(view_func)
+    def wrapper(*args, **kwargs):
+        info = munch.munchify(oidc.user_getinfo(['address', 'preferred_username', 'given_name', 'family_name', 'email']))
+        print('///////////////////////', info)
+        user = db.session.query(User).filter(User.username == info.preferred_username).first()
+        if user is None:
+            user = User(
+                username=info.preferred_username,
+                password="",
+                email=info.email,
+                location=info.address,
+                infos=json.dumps(info)
             )
-            db.session.add(new_user)
+            db.session.add(user)
             db.session.commit()
-            return redirect(url_for('login'))
+        session.clear()
+        session['user_id'] = user.id
+        return view_func(*args, **kwargs)
 
-        flash(error)
-
-    return render_template('/register.html')
+    return oidc.require_login(wrapper)
 
 @app.route('/login', methods=('GET', 'POST'))
+@require_login
 def login():
-    if request.method == 'POST':
-        username = get_form_required('username')
-        password = get_form_required('password')
-
-        error = None
-        user = db.session.query(User).filter(User.username==username).first()
-        if user is None:
-            error = 'Incorrect username.'
-        elif not check_password_hash(user.password, password):
-            error = 'Incorrect password.'
-
-        if error is None:
-            session.clear()
-            session['user_id'] = user.id
-            return redirect(url_for('index'))
-
-        flash(error)
-
-    return render_template('/login.html')
-
-@app.route('/logout')
-def logout():
-    session.clear()
     return redirect(url_for('index'))
 
+@app.route('/logout')
+@log_me
+def logout():
+    session.clear()
+    oidc.logout()
+    redirect_uri = urlencode({"redirect_uri": flask_uri})
+    logout_url=f"{auth_uri}/auth/realms/challenge/protocol/openid-connect/logout?{redirect_uri}"
+    return redirect(logout_url)
+
 @app.route('/')
+@log_me
 def index():
+    #info = oidc.user_getinfo(['preferred_username', 'email', 'sub'])
+    #print(info)
     return render_template('index.html')
 
 @app.route('/files', methods=('GET', 'POST'))
 @app.route('/files/<string:by_support>/<string:by_spot>/<string:by_author>/<string:file_status>', methods=('GET', 'POST'))
+@log_me
 def files(by_support='all', by_spot='all', by_author='all', file_status='all'):
 
     if request.method == 'POST':
@@ -439,7 +458,8 @@ def files(by_support='all', by_spot='all', by_author='all', file_status='all'):
     )
 
 @app.route('/upload_file', methods=('GET', 'POST'))
-@login_required
+@require_login
+@log_me
 def upload_file():
     if request.method == 'POST':
         spot = get_form_required('spot')
@@ -466,14 +486,16 @@ def upload_file():
     return render_template('upload_file.html', support_choice=SUPPORT_CHOICE, spot_choice=SPOT_CHOICE)
 
 @app.route('/<int:id>/delete_file', methods=('GET', 'POST'))
-@login_required
+@require_login
+@log_me
 def delete_file(id):
     file = get_file(id, check_author=True) # check it exists
     del_file(file)
     return redirect(url_for('files'))
 
 @app.route('/<int:id>/approve_file', methods=('GET', 'POST'))
-@login_required
+@require_login
+@log_me
 def approve_file(id):
     file = get_file(id, check_admin=True) # check it exists
     #file.update({'approved': True})
@@ -484,7 +506,8 @@ def approve_file(id):
     return redirect(url_for('files'))
 
 @app.route('/reload_files', methods=('GET', 'POST'))
-@login_required
+@require_login
+@log_me
 def reload_files():
     files = db.session.query(TraceFiles).order_by(TraceFiles.id).all()
     error_dict = {}
@@ -498,6 +521,7 @@ def reload_files():
     return redirect(url_for('files'))
 
 @app.route('/<int:id>/analyse')
+@log_me
 def analyse(id):
     # analyse file
     file = get_file(id, check_author=False)
@@ -538,6 +562,7 @@ def analyse(id):
 
 @app.route('/ranking', methods=('GET', 'POST'))
 @app.route('/ranking/<string:support>', methods=('GET', 'POST'))
+@log_me
 def ranking(support=SUPPORT_CHOICE[0]):
     tables = []
     titles = None
@@ -560,6 +585,7 @@ def ranking(support=SUPPORT_CHOICE[0]):
 
 @app.route('/crunch_data', methods=('GET', 'POST'))
 @app.route('/crunch_data/<string:by_support>/<string:by_spot>/<string:by_author>',  methods=('GET', 'POST'))
+@log_me
 def crunch_data(by_support='all', by_spot='all', by_author='all'):
     reduced_results = check_df(trace.reduced_results)(
             support=by_support,

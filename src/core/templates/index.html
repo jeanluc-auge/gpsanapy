@@ -2,7 +2,7 @@
 
 <html>
 <head>
-  <title>GPS Challenge WB22</title>
+  <title>Challenge GPS</title>
 
   <meta name="description" content="Le GPS Challenge Windsurfbreizh22" />
   <meta name="keywords" content="challenge, GPS, windsurfbreizh22" />
@@ -29,18 +29,17 @@
         <div id="menu_container">
           <ul class="sf-menu" id="nav">
             <li><a href="{{ url_for('index') }}">Le challenge</a></li>
-			<li><a href="#">Espaces utilisateur</a>
+			<li><a href="#">Traces GPS</a>
 			<ul>
-				<li><a href="{{ url_for('register') }}">Créer un compte</a></li>
-				<li><a href="{{ url_for('login') }}">Connectez-vous</a></li>
+				<li><a href="{{ url_for('login') }}">Connexion</a></li>
 				<li><a href="{{ url_for('upload_file') }}">Charger une trace</a>
 				<li><a href="{{ url_for('files') }}">Analyser une trace</a>
 
 			</ul></li>
-			<li><a href="#">Le classement</a>
+			<li><a href="#">Classement et analyses</a>
 			<ul>
-				<li><a href="{{ url_for('ranking') }}">Rank</a></li>
-				<li><a href="{{ url_for('crunch_data') }}">Crunch data</a></li>
+				<li><a href="{{ url_for('ranking') }}">Classement</a></li>
+				<li><a href="{{ url_for('crunch_data') }}">Analyse et comparaisons</a></li>
 				
 			</ul></li>
 
@@ -69,18 +68,14 @@
         {% block content %}
         {% if g.user %}
         <span>{{ g.user['username'] }}</span>
-        <a class="action" href="{{ url_for('logout') }}">Log Out</a>
+        <a class="action" href="{{ url_for('logout') }}">Deconnexion</a>
         {% else %}
-        <a class="action" href="{{ url_for('register') }}">Register</a>
-        <a class="action" href="{{ url_for('login') }}">Log In</a>
+        <a class="action" href="{{ url_for('login') }}">Connexion</a>
         {% endif %}
         {% endblock %}
       </header>
     </div>
     </div>
-    <footer>
-      <p>Copyright © Windsurfbreizh22</p>
-    </footer>
   </div>
   <p>&nbsp;</p>
   <!-- javascript at the bottom for fast page loading -->

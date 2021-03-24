@@ -1,19 +1,18 @@
 <!doctype html>
-<title>{% block title %}{% endblock %} - GPS ANALYSIS</title>
+<title>{% block title %}{% endblock %} - CHALLENGE GPS</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='style_flask.css') }}">
 <nav>
   <h1>GPS ANALYSIS</h1>
   <ul>
-      <li><a href="{{ url_for('index') }}">Home</a>
-      <li><a href="{{ url_for('files') }}">Manage</a>
-      <li><a href="{{ url_for('crunch_data') }}">Crunch</a>
-      <li><a href="{{ url_for('ranking') }}">Rank</a>
+      <li><a href="{{ url_for('index') }}">Accueil</a>
+      <li><a href="{{ url_for('files') }}">Fichiers GPS</a>
+      <li><a href="{{ url_for('crunch_data') }}">Analyse et comparaisons</a>
+      <li><a href="{{ url_for('ranking') }}">Classement</a>
     {% if g.user %}
       <li><span>{{ g.user['username'] }}</span>
-      <li><a href="{{ url_for('logout') }}">Log Out</a>
+      <li><a href="{{ url_for('logout') }}">Deconnexion</a>
     {% else %}
-      <li><a href="{{ url_for('register') }}">Register</a>
-      <li><a href="{{ url_for('login') }}">Log In</a>
+      <li><a href="{{ url_for('login') }}">Connexion</a>
     {% endif %}
   </ul>
 </nav>
