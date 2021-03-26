@@ -49,8 +49,7 @@ app = Flask(__name__, instance_relative_config=True, static_url_path='/static', 
 # engine = create_engine('sqlite:///:memory:', echo=True)
 # Base = declarative_base()
 app.config.from_mapping(SECRET_KEY='dev')
-#app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:////{database}"
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///F:\\JV\Documents\\Projets\\Python\\Flask\\gpsanapy\\database\\test.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{database}"
 #'sqlite:////home/jla/gps/database/test.db'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024
@@ -590,4 +589,4 @@ def crunch_data(by_support='all', by_spot='all', by_author='all'):
 if __name__ == "__main__":
     # ***** start app server *******
     #app.run(debug=True, host="0.0.0.0", port=9999)
-    app.run(debug=True, host="127.0.0.1", port=5000)
+    app.run(debug=True, host="127.0.0.1", port=9999)
