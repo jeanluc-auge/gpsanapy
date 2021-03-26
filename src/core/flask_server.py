@@ -588,5 +588,4 @@ def crunch_data(by_support='all', by_spot='all', by_author='all'):
 
 if __name__ == "__main__":
     # ***** start app server *******
-    #app.run(debug=True, host="0.0.0.0", port=9999)
-    app.run(debug=True, host="127.0.0.1", port=9999)
+    app.run(debug=True, host="0.0.0.0", port=9999)
