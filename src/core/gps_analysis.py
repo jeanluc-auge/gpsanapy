@@ -691,8 +691,9 @@ class TraceAnalysis:
             pass
         self.df.time = self.df.time.dt.tz_convert("UTC")
         self.df = self.df.set_index("time")
-
         # convert ms-1 to knots:
+        #self.df.speed_doppler = self.df.speed_doppler.fillna(self.df.speed_doppler_pos)
+        self.df.speed_doppler = self.df.speed_doppler.fillna(np.nan)
         self.df.speed_doppler = round(self.df.speed_doppler * TO_KNOT, 2)
         self.df.speed_doppler_pos = round(self.df.speed_doppler_pos * TO_KNOT, 2)
         self.df.speed_pos = round(self.df.speed_pos * TO_KNOT, 2)
@@ -705,7 +706,7 @@ class TraceAnalysis:
             self.trace_sampling = np.rint(sampling*10)/10
         else:  # round down
             self.trace_sampling = np.floor(sampling)
-        self.df.to_csv('test.csv')
+        #self.df.to_csv('test.csv')
 
     @log_calls()
     def resample_df(self):

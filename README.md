@@ -28,6 +28,11 @@ python3 src/core/gps_analysis.py -rd directory_name
 
 The results of all the gpx files are ranked and aggregated in the same ranking_results.csv file (see output)
 
+## configuration
+
+Analysis parameters can be modified in
+/config/config.yaml file 
+
 ## output
 
 The results to report are defined in the config.yaml file and are fully parametrizable:<br>
