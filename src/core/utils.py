@@ -101,6 +101,31 @@ def coroutine(func):
     return wrapper
 
 
+class Response:
+    """
+    response object for advanced function returns
+    """
+    def __init__(self, status: bool = False, log: str = '', payload=None):
+        self.status = status
+        self.log = log
+        self.payload = payload
+
+    def __str__(self):
+        return (
+            f"Response status: {self.status}\n"
+            f"logs: {self.log}\n"
+            f"payload: {self.payload}\n"
+        )
+    def __repr__(self):
+        return self.__str__()
+    def __bool__(self):
+        return self.status
+    def __eq__(self, other):
+        return self.status == other
+    def __call__(self):
+        return self.payload
+
+
 class TraceAnalysisException(Exception):
     def __init__(self, body):
         self.body = body

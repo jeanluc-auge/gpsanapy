@@ -39,6 +39,7 @@ import matplotlib.pyplot as plt
 
 from utils import (
     log_calls,
+    Response,
     TraceAnalysisException,
     load_config,
     load_results,
@@ -369,7 +370,7 @@ class TraceAnalysis:
         # **params overrides config.yaml:
         self.parquet_loading = self.params.get("parquet_loading", self.parquet_loading)
 
-    def run(self):
+    def run(self)->Response:
         """
         load file and run the analysis
         :return:
@@ -391,18 +392,28 @@ class TraceAnalysis:
             all_results = self.load_merge_all_results(gpx_results)
             self.ranking_results = self.trace.rank_all_results(all_results=all_results)
             self.save_to_csv()
-            return True, f"successfully loaded file {self.filename}"
+            return Response(
+                status=True,
+                log=f"successfully loaded file {self.filename}",
+                payload=gpx_results.to_dict(orient='records'),
+            )
+            #return True, f"successfully loaded file {self.filename}"
         except TraceAnalysisException as te:
             logger.error(te)
-            return False, [f"TraceAnalysis exception on file {self.filename}\n", f": {te}\n"]
+            return Response(
+                log=[f"TraceAnalysis exception on file {self.filename}\n", f": {te}\n"],
+            )
+            #return False, [f"TraceAnalysis exception on file {self.filename}\n", f": {te}\n"]
         except Exception as e:
             logger.error(e)
-            return False, [
-                f"\nan unexpected **{type(e).__name__}** error occured:\n",
-                f"{str(e)}\n",
-                f" on file {self.filename}\n",
-                f"with traceback:\n {traceback.format_exc()}",
-            ]
+            return Response(
+                log=[
+                    f"\nan unexpected **{type(e).__name__}** error occured:\n",
+                    f"{str(e)}\n",
+                    f" on file {self.filename}\n",
+                    f"with traceback:\n {traceback.format_exc()}",
+                ],
+            )
 
     @coroutine
     def appender(self, level):
@@ -1872,9 +1883,9 @@ if __name__ == "__main__":
     for filename in filenames:
         params = args.params_data
         gpsana_client = TraceAnalysis(filename, config_filename, **params)
-        status, error = gpsana_client.run()
-        if not status:
-            error_dict[filename] = error
+        r = gpsana_client.run()
+        if not r:
+            error_dict[filename] = r.log
         else:
             gpsana_client.log_computation_time()
             if args.plot > 0:
