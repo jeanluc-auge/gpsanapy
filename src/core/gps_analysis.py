@@ -43,6 +43,7 @@ from utils import (
     TraceAnalysisException,
     load_config,
     load_results,
+    convert_gpx_results_to_dict,
     reduce_value_bloc,
     coroutine,
     split_path,
@@ -342,7 +343,7 @@ class TraceAnalysis:
     #   user attributs that can be updated
     free_trace_infos_attr = ["author", "spot", "support"]
 
-    def __init__(self, file_path, config_file=None, **params):
+    def __init__(self, file_path, config_file=None, parquet=False, **params):
         """
         :param file_path: path of the trace to analyse
         :param config_file: path to the yaml config file
@@ -357,6 +358,7 @@ class TraceAnalysis:
         self.file_path = file_path
         self.filename, self.file_extension = split_path(file_path)
         self.trace = Trace(config_file)  # retrieve TraceConfig instance client
+        self.parquet = parquet
         for rule, value in self.trace.rules.items():
             setattr(self, rule, value)
         self.sampling = float(self.time_sampling.strip("S"))
@@ -395,7 +397,7 @@ class TraceAnalysis:
             return Response(
                 status=True,
                 log=f"successfully loaded file {self.filename}",
-                payload=gpx_results.to_dict(orient='records'),
+                payload=convert_gpx_results_to_dict(gpx_results)
             )
             #return True, f"successfully loaded file {self.filename}"
         except TraceAnalysisException as te:
@@ -467,7 +469,8 @@ class TraceAnalysis:
         self.resample_df()
         # filter out speed spikes on self.df:
         self.clean_df()
-        self.save_df_to_parquet()
+        if self.parquet:
+            self.save_df_to_parquet()
 
     @log_calls()
     def load_df_from_sml(self, html_soup):
@@ -548,6 +551,8 @@ class TraceAnalysis:
         :return: bool
             True if the dataframe self.df could be loaded from parquet file
         """
+        if not self.parquet:
+            return False
         # check files in result_dir:
         filenames = [
             f #Path(f).stem
