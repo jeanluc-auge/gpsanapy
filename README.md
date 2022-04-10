@@ -44,6 +44,12 @@ in the url text, use '%3A' for ':' and '%2F' for '/'
 upload file directly on the server<br>
 ``curl -X POST http://localhost:9999/gpsana/upload_gpx_file?support=windsurf -H "accept: application/json" -F "file=@<file_path>"``
 
+## REST API DOCKER
+
+- in /docker directory, build image:<br>
+``sudo docker build -t gpsana_restplus -f Dockerfile_flask_restx .``<br>
+- run image:<br>
+``sudo docker run -it --rm -p 80:8080 gpsana_restplus``
 
 ## configuration
 

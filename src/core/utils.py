@@ -228,6 +228,7 @@ def convert_gpx_results_to_dict(df_gpx_results):
         for col in meta_cols
     }
     to_return = {**meta, 'perf_analysis': results}
+
     return to_return
 
 
