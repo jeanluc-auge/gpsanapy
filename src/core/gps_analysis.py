@@ -117,7 +117,10 @@ class Trace:
         config = load_config(self.config_file)
         self.rules = config.rules
         self.functions = config.functions
-        self.directory_paths = config.directory_paths
+        directory_paths = config.directory_paths
+        for k,v in directory_paths.items():
+            directory_paths[k] = os.path.join(ROOT_DIR, v)
+        self.directory_paths = directory_paths
         # check directory exist or create them:
         for dir_path in self.directory_paths.values():
             if not Path(dir_path).is_dir():
@@ -192,7 +195,7 @@ class Trace:
             region str
         """
         if all_results is None:
-            all_results = load_results(self, check_config)
+            all_results = load_results(self, check_config) # TODO missing param
         reduced_results = all_results.copy()
 
         for param, value in params.items():
