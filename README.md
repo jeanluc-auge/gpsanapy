@@ -10,9 +10,9 @@ Features:<br>
 - % distance > vmin on distance (true planning ratio)
 - % distance > vmin on time (planning ratio on time)
 
-## use
+## command line use
 
-pip3 install -rrequirements.txt<br>
+pip3 install -r requirements.txt<br>
 python3 src/core/gps_analysis.py -f author_filename.gpx<br>
 author_filename.gpx is the gps session file that you want to analyse.
 
@@ -27,6 +27,23 @@ python3 src/core/gps_analysis.py -rd directory_name
 - **-c** crunch data with matplotlib graphs. Use history results from csv_results/all_results.csv and can be run without a gpx file 
 
 The results of all the gpx files are ranked and aggregated in the same ranking_results.csv file (see output)
+
+## REST API
+
+pip3 install -r requirements.txt<br>
+pip3 install -r flask_requirements.txt<br>
+python3 src/core/flask_restplus_server.py<br>
+api swagger @ http://127.0.0.1:9999/<br>
+2 endpoints are currently available:
+- ```/fetch_gpx_file/<path:file_url>```<br>
+fetch and analyse file @ file_url<br>
+you can test it with the swagger, or<br>
+```curl -X POST http://127.0.0.1:9999/gpsana/fetch_gpx_file/<file_url>?support=windsurf -H 'accept: application/json'```<br>
+in the url text, use '%3A' for ':' and '%2F' for '/'
+- ```/upload_gpx_file```<br>
+upload file directly on the server<br>
+``curl -X POST http://localhost:9999/gpsana/upload_gpx_file?support=windsurf -H "accept: application/json" -F "file=@<file_path>"``
+
 
 ## configuration
 
