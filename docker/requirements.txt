@@ -1,0 +1,15 @@
+# !! pip3 version > 19.3 is required to pip install fastparquet !!
+# => pip3 install --upgrade pip
+gpxpy
+pathlib
+pandas
+numpy
+numba # accelerate filtering algorithm (clean_df)
+pyyaml
+bs4
+matplotlib # for plots
+scipy # for plots
+bokeh # for plots
+fastparquet
+python-snappy # for fastparquet
+munch

@@ -1,3 +1,4 @@
+import flask
 from flask import Flask, request  # , redirect, render_temple
 #from flask_restplus import Resource, Api, reqparse, fields
 from flask_restx import Resource, Api, reqparse, fields
@@ -12,6 +13,7 @@ from gps_analysis import TraceAnalysis, crunch_data
 from utils import gpx_results_to_json, load_results
 
 # ******* define Flask api *******
+server = flask.Flask(__name__)
 app = Flask(__name__)
 api = Api(app)
 logger = logging.getLogger()
