@@ -1,3 +1,7 @@
+# Project Files
+csv_results/
+gpx_file_upload/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
