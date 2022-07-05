@@ -27,6 +27,10 @@ parse.add_argument('file', type=FileStorage, location='files')
 UPLOAD_DIR = os.path.join(TraceAnalysis.root_dir, 'gpx_file_upload')
 DEFAULT_FILENAME = f'anonymous.gpx'
 
+# Create the upload dir if it doesn't exist
+if not os.path.exists(UPLOAD_DIR):
+    os.makedirs(UPLOAD_DIR)
+
 def parse_file(filename=DEFAULT_FILENAME):
     args = parse.parse_args()
     uploaded_file = args['file']  # This is FileStorage instance
@@ -111,9 +115,12 @@ class Upload(Resource):
         filename = file_url.split('/')[-1]
         file_path = os.path.join(UPLOAD_DIR, filename)
         try:
-            r = requests.get(file_url, )
+            r = requests.get(file_url)
+            print(file_url)
+
             with open(file_path, 'wb') as f:
                 f.write(r.content)
+
         except Exception as e:
             return str(e), 400
         response, status = analyse_file(file_path, support, spot)
