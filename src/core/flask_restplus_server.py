@@ -9,7 +9,7 @@ import json
 import os
 import logging
 
-from gps_analysis import TraceAnalysis, crunch_data
+from gps_analysis import TraceAnalysis, crunch_data, API_VERSION
 from utils import gpx_results_to_json, load_results
 
 # ******* define Flask api *******
@@ -52,6 +52,14 @@ def analyse_file(file_path, support, spot):
     response['info'] = gpsana_client.log_info_list
     return (response, 200)
 
+#curl -v -X GET http://localhost:9999/gpsana/version 
+@gpsana.route('/version')
+class Results(Resource):
+    @api.doc(
+        description="Returns the version of the API",
+    )
+    def get(self):
+        return {'version': API_VERSION}
 
 #curl -v -X POST http://localhost:9999/gpsana/upload_gpx_file -H "accept: application/json" -F "file=@2019-04-02-1738.gpx"
 @gpsana.route('/upload_gpx_file')
