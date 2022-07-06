@@ -1,7 +1,7 @@
 # python flask restplus container with gunicorn bind
 # used by docker-compose: no need to build this container
 
-FROM python:3.7
+FROM python:3.10
 RUN pip3 install --upgrade pip
 RUN git clone https://github.com/jeanluc-auge/gpsanapy.git
 RUN pip3 install -r /gpsanapy/requirements.txt
