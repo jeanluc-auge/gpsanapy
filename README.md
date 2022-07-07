@@ -56,7 +56,7 @@ Install dependencies and run the server ([Flask](https://flask.palletsprojects.c
 ```bash
 pip3 install -r requirements.txt
 
-pip3 install -r flask_requirements.txt
+pip3 install -r requirements_flask.txt
 
 python3 src/core/flask_restplus_server.py
 ```
@@ -81,14 +81,17 @@ to upload file directly on the server<br>
 
 - Build image:
     ```bash
-    cd ./docker
-
-    docker build -t gpsana_restplus -f Dockerfile_flask_restx 
+    docker build -t gpsana_web .
     ```
 
 - run the image:
     ```bash
-    docker run -it --rm -p 80:8080 gpsana_restplus
+    docker run -it --rm -p 8080:8080 gpsana_web
+    ```
+
+Access the server:
+    ```bash
+    http://localhost:8080/
     ```
 
 ## Configuration
