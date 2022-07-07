@@ -1,4 +1,4 @@
-name: Trigger auto deployment for gpsanapy
+name: Trigger auto deployment to Azure for gpsanapy
 
 # When this action will be executed
 on:
@@ -35,7 +35,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           push: true
-          tags: ghcr.io/windr-app/gpsanapy-debug:windr-integration/gpsanapy:${{ github.sha }}
+          tags: ghcr.io/windr-app/gpsanapy-debug:${{ github.sha }}
           file: ./dockerfile/Dockerfile
           context: ./dockerfile/
 
@@ -56,5 +56,5 @@ jobs:
         with:
           inlineScript: |
             az config set extension.use_dynamic_install=yes_without_prompt
-            az containerapp registry set -n gpsanapy -g windrgpsv1 --server ghcr.io/windr-app/gpsanapy-debug:windr-integration --username  ${{ secrets.GPSANAPY_REGISTRY_USERNAME }} --password ${{ secrets.GPSANAPY_REGISTRY_PASSWORD }}
-            az containerapp update -n gpsanapy -g windrgpsv1 --image ghcr.io/windr-app/gpsanapy-debug:windr-integration/gpsanapy:${{ github.sha }}
+            az containerapp registry set -n gpsanapy -g windrgpsv1 --server ghcr.io --username  ${{ secrets.GPSANAPY_REGISTRY_USERNAME }} --password ${{ secrets.GPSANAPY_REGISTRY_PASSWORD }}
+            az containerapp update -n gpsanapy -g windrgpsv1 --image ghcr.io/windr-app/gpsanapy-debug:${{ github.sha }}
