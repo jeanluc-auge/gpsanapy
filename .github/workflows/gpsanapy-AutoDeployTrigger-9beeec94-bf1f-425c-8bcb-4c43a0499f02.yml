@@ -36,8 +36,7 @@ jobs:
         with:
           push: true
           tags: ghcr.io/windr-app/gpsanapy-debug:${{ github.sha }}
-          file: ./dockerfile/Dockerfile
-          context: ./dockerfile/
+          context: .
 
 
   deploy:
