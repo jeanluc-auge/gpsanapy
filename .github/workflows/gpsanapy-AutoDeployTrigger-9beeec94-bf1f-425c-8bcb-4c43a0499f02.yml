@@ -6,9 +6,6 @@ on:
   push:
     branches: 
       [ windr-integration ]
-    paths:
-    - 'dockerfile/**'
-    - '.github/workflows/gpsanapy-AutoDeployTrigger-9beeec94-bf1f-425c-8bcb-4c43a0499f02.yml'
 
   # Allow mannually trigger 
   workflow_dispatch:      
