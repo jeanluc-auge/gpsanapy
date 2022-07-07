@@ -50,7 +50,7 @@ from utils import (
     get_ratio,
 )
 
-API_VERSION = "0.0.1dev"
+API_VERSION = "0.0.1"
 TO_KNOT = 1.94384  # * m/s
 G = 9.81  #
 DEFAULT_REPORT = {"n": 1, "doppler_ratio": None, "sampling_ratio": None, "std": None}
