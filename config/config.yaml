@@ -15,7 +15,7 @@ rules:
   # - increase filtering rolling window
   # - lower threshold for the activation of complex filtering (with return to normal conditions check)
   # this may result in the filtering of 'normal' speed periods
-  max_speed: 45 # knots
+  max_speed: 53 # knots
   # filter backup: do not process file with remaining speeds > max_speed after filtering
   max_file_size: 16 # Mb : do not process file with size > max_file_size
   force_doppler_speed: true
@@ -51,10 +51,28 @@ functions:
       #ranking_group: vmax
     -
       args:
+        s: 2
+        n: 5
+      description: vmax_2s
+      #ranking_group: vmax      
+    -
+      args:
         s: 10
         n: 5
       description: vmax_10s
       ranking_group: vmax
+    -
+      args:
+        s: 20
+        n: 5
+      description: vmax_20s
+      ranking_group: vmax
+    -
+      args:
+        s: 1800
+        n: 1
+      description: v_30mn
+      ranking_group: endurance
     -
       args:
         s: 3600
@@ -62,6 +80,18 @@ functions:
       description: v_1h
       ranking_group: endurance
   speed_dist:
+    -
+      args:
+        dist: 100
+        n: 5
+      description: vmax_100m
+      #ranking_group: vmax
+    -
+      args:
+        dist: 250
+        n: 5
+      description: vmax_250m
+      #ranking_group: vmax
     -
       args:
         dist: 500
@@ -73,6 +103,12 @@ functions:
         dist: 1000
         n: 5
       description: vmax_1000m
+      #ranking_group: vmax
+    -
+      args:
+        dist: 1852
+        n: 5
+      description: vmax_1852m
       #ranking_group: vmax
   planning_ratio:
     -
@@ -87,6 +123,12 @@ functions:
         v_min: 12
       description: Vmoy>12
       #ranking_group: rendement
+    -
+      args:
+        v_min: 0
+      description: Vmoy>0
+      #ranking_group: rendement
+
   speed_jibe:
     -
       args:
@@ -99,3 +141,8 @@ functions:
         v_min: 12
       description: planning_distance>12
       #ranking_group: endurance
+    -
+      args:
+        v_min: 0
+      description: planning_distance>0
+

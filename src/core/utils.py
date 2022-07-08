@@ -222,13 +222,12 @@ def convert_gpx_results_to_dict(df_gpx_results):
     results = df.to_dict(orient='records')
 
     df = df_gpx_results.reset_index()
-    meta_cols = ['hash', 'creator', 'author', 'support', 'spot', 'date', 'location_lon', 'location_lat']
+    meta_cols = ['hash', 'creator', 'author', 'support', 'spot', 'date', 'datetime', 'duration', 'location_lon', 'location_lat']
     meta = {
         col: df.loc[0,col]
         for col in meta_cols
     }
     to_return = {**meta, 'perf_analysis': results}
-
     return to_return
 
 
