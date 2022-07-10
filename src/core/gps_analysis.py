@@ -15,6 +15,7 @@ import json
 import os
 import glob
 import datetime
+import time
 import traceback
 from math import pi
 from pathlib import Path
@@ -50,6 +51,7 @@ from utils import (
     get_ratio,
 )
 
+API_VERSION = "0.0.2"
 TO_KNOT = 1.94384  # * m/s
 G = 9.81  #
 DEFAULT_REPORT = {"n": 1, "doppler_ratio": None, "sampling_ratio": None, "std": None}
@@ -1182,7 +1184,6 @@ class TraceAnalysis:
         ts2[abs(ts2) > threshold] = np.nan
         ts2.interpolate(inplace=True)
         return ts2
-
     @log_calls(log_args=True, log_result=True)
     def v_moy(self, description, v_min=15):
         """
@@ -1236,7 +1237,7 @@ class TraceAnalysis:
             sampling_ratio
             std
         """
-        result = round(int(self.td[self.ts > v_min].agg(sum)) / 1000, 1)
+        result = round(int(self.td[self.ts > v_min].agg(sum)), 1)
         results = [{"result": result, "description": description, **DEFAULT_REPORT}]
         return results
 
@@ -1676,6 +1677,7 @@ class TraceAnalysis:
             author
             creator
             date
+            date_time
             description
             result
             doppler_ratio
@@ -1696,6 +1698,9 @@ class TraceAnalysis:
 
         # update results with gpx file creator and author and convert to df:
         date = str(self.df.index[0].date())
+        datetime = time.mktime(self.df.index[0].timetuple()); # TODO : timezone ?
+        duration = time.mktime(self.df.index[-1].timetuple()) - time.mktime(self.df.index[0].timetuple());
+
         location_lon = self.df.lon.mean()
         location_lat = self.df.lat.mean()
         if self.spot:
@@ -1711,6 +1716,8 @@ class TraceAnalysis:
                 support=self.support,
                 spot=self.spot,
                 date=date,
+                datetime=datetime,
+                duration=duration,
                 location_lon=location_lon,
                 location_lat=location_lat,
                 **result,

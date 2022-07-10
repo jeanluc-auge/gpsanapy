@@ -1,0 +1,23 @@
+#   Dockerfile for gpsanapy with the 'recursive-directory' option
+#   executes all gpx files in /csv_results shared directory
+#   and returns the csv results in the same shared directory
+#   BUILD & RUN with :
+# 	docker build --no-cache -t gpsanapy_cli .
+#
+# 	docker run -it --rm -v /archives:/gpsanapy/gpx_files -v /logs:/gpsanapy/csv_results -v /config:/gpsanapy/config gpsanapy_cli
+
+FROM python:3.8
+
+RUN mkdir /gpsanapy
+RUN mkdir -p /gpsanapy/src/core/
+RUN mkdir /gpsanapy/config
+
+COPY ./requirements.txt ./requirements.txt
+
+COPY src/core/* /gpsanapy/src/core/
+COPY config/* /gpsanapy/config/
+
+RUN pip install --upgrade pip
+RUN pip install -r ./requirements.txt
+
+CMD python3 /gpsanapy/src/core/gps_analysis.py -d /gpsanapy/gpx_files # use -rd for recursive directory search
